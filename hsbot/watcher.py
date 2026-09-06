@@ -693,6 +693,18 @@ class Watcher:
             return
         if gs.friendly_key is not None:
             self.friendly = gs.friendly_key
+        # 英雄影子属性以快照为准回同步: 部分标签变更(如寻求指引+10生命)
+        # hslog 不生成 TagChange 包, 行级/包级都收不到, 只能靠快照对齐基数
+        from hearthstone.enums import CardType as _CT
+        for e in gs.entities.values():
+            if e.cardtype == _CT.HERO and e.controller_key in (gs.friendly_key, gs.opponent_key()):
+                sh = self._sh(e.id)
+                sh["cid"] = e.card_id
+                sh["ctrl"] = e.controller_key
+                sh["ctype"] = _CT.HERO.value
+                sh["health"] = e.tags.get(GameTag.HEALTH, 0)
+                sh["damage"] = e.tags.get(GameTag.DAMAGE, 0)
+                sh["armor"] = e.tags.get(GameTag.ARMOR, 0)
         if self.knowledge is not None and self.knowledge.mismatch_count(self.played_cids) >= 2:
             self.generic = True
         led = self.knowledge.rebuild(gs) if self.knowledge else None
