@@ -15,3 +15,11 @@ logs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# hsbot 运行时生成物
+data/sessions/
+data/cache/
+data/decks/
+
+# 训练语料(个人对局数据, 可用 --import-all 重新生成)
+data/training/

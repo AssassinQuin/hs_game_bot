@@ -1,0 +1,29 @@
+# hsbot 配置 —— 命令行同名参数可临时覆盖这里的值
+deck_name: 奇迹德
+
+# 直接指定卡组代码(设置后优先于 Decks.log 匹配; 注释掉则按 deck_name 匹配 Decks.log)
+# deck_code: AAEBAfHGBwL9jQaluwYO/gHTA4/2AuC+A/DUA7ClBK7ABNXSBIHUBIDKBpD0BpX0BqqvB4LaBwAA
+
+# 本机战网名 —— 友方判定首选依据(hslog 启发式会翻转, 见 docs/M1_MONITOR.md §1)
+battletag: 湫然#51704
+
+# Hearthstone Logs 根目录(会话目录 Hearthstone_* 的父目录)
+# 留空则按平台自动探测: Windows 常见安装位 / macOS Library / Linux Proton/Wine 前缀
+logs_dir: E:\battle\Hearthstone\Logs
+
+data_dir: data
+throttle_ms: 300
+poll_interval: 0.5        # 日志轮询间隔(秒)
+session_check_interval: 10  # 新会话目录检查间隔(秒)
+
+# ── 输出 ──
+console_echo: true        # 悬浮窗之外是否同步打印到控制台
+overlay_enabled: true     # 半透明置顶日志窗(炉石需用"无边框/窗口化"显示模式)
+overlay_alpha: 0.72
+overlay_geometry: 460x780+8+120   # 宽x高+左边距+上边距(贴屏幕左侧)
+overlay_font_size: 10
+overlay_borderless: false # true=无边框(不可拖动/关闭, 需改配置还原)
+
+# ── 训练语料 ──
+training_dir: data/training
+auto_training: true       # 每局结束自动导出训练样本(也可 --import-all 批量回填)
