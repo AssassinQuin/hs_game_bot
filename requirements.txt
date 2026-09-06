@@ -1,0 +1,2 @@
+hslog>=1.20
+hearthstone>=9.20
