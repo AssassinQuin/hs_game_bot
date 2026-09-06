@@ -142,9 +142,12 @@ def snapshot_block(gs: GameState, led: Ledger | None, *, knowledge: DeckKnowledg
         lines.append("── 牌库序(已知部分) ──")
         top = (f"下一抽: {carddb.name(led.known_top)} [探底置顶]"
                if led.known_top else "下一抽: 未知")
-        kb = " ".join(f"[{carddb.name(c)}·底{pos if pos else '?'}]" for c, pos in led.known_bottom) or "无"
+        kb = " ".join(f"[{carddb.name(c)}·底{pos}]" for c, pos in led.known_bottom) or "无"
         lines.append(f"    {top}")
         lines.append(f"    底部已知: {kb}    中段: {led.unknown_middle}张未知")
+        if led.known_unpositioned:
+            kn = " ".join(f"[{carddb.name(c)}]" for c in led.known_unpositioned)
+            lines.append(f"    已见·位置未知(换牌换回等): {kn}")
 
         if not generic:
             lines.append(f"── {deck_name or '卡组'}组件台账 ──")

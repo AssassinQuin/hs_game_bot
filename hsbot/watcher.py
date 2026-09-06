@@ -75,6 +75,8 @@ class Watcher:
         self._live = False           # 实时来源(回放不自动导训练样本)
         self._corpus = None
         self._ent2pid: dict[int, int] = {}   # 玩家实体id -> PLAYER_KEY(CreateGame 时建立)
+        self._first_player: int | None = None
+        self._title_done = False
         self._player_turn: dict[int, int] = {}  # PLAYER_KEY -> 玩家自己的回合数
         self._mana: dict[int, dict] = {}     # PLAYER_KEY -> {res,temp,used,overload}
         self.mulligan: dict[int, dict] = {}  # PLAYER_KEY -> {offered, kept}
@@ -86,6 +88,8 @@ class Watcher:
         self._hint_cid: dict[int, str] = {}    # 日志行括号兜底: 实体id -> cardId
         self._hint_ctrl: dict[int, int] = {}   # 日志行括号兜底: 实体id -> PLAYER_KEY
         self._ent2pid: dict[int, int] = {}   # 玩家实体id -> PLAYER_KEY(CreateGame 时建立)
+        self._first_player: int | None = None
+        self._title_done = False
 
         self.shadow: dict[int, dict] = {}   # 实体id -> {cid, ctrl, cost, creator, zone, hero}
         self.turn = 0
@@ -241,6 +245,12 @@ class Watcher:
             self._process_tree(self.parser.games[-1])
         if self.friendly is None:
             self.friendly = resolve_friendly(self.parser, self.cfg.battletag)
+        if (not self._title_done and self.friendly is not None
+                and self.current == self.friendly and self.state == "IN_GAME"):
+            # 先手局: 留牌阶段friendly才解析出来, 而第1回合已在进行 —— 补发标题
+            self._title_done = True
+            self._emit(f"──── 第{self.game_no}局 · 我的第1回合开始 (T1) │ "
+                       f"{self._mana_text(self.friendly)} ────")
 
     def _detect_game(self) -> None:
         n = len(self.parser.games)
@@ -272,6 +282,8 @@ class Watcher:
         self._hint_ctrl = {}
         self._player_turn = {}
         self._mana = {}
+        self._first_player = None
+        self._title_done = False
         self.state = "IN_GAME"
         if self.store is not None:
             self.store.new_game()
@@ -355,6 +367,12 @@ class Watcher:
         elif isinstance(p, packets.Choices) and p.type == ChoiceType.MULLIGAN:
             key = getattr(p.entity, "player_id", None)
             if key is not None:
+                # 留牌发生在 exporter 友方探测之前 —— 用战网名立刻定主客
+                if self.friendly is None and self.cfg.battletag:
+                    nm = getattr(p.entity, "name", None)
+                    if nm and (nm == self.cfg.battletag
+                               or nm.split("#")[0] == self.cfg.battletag):
+                        self.friendly = key
                 self.mulligan[key] = {"offered": list(p.choices or []), "kept": []}
                 self._choice_pid[p.id] = key
                 names = []
@@ -456,6 +474,8 @@ class Watcher:
                 self._on_game_end()
             elif tag == GameTag.TURN:
                 self._player_turn[key] = int(value or 0)
+            elif tag == GameTag.FIRST_PLAYER:
+                self._first_player = key
             elif tag in _MANA_TAGS:
                 name = _MANA_TAGS[tag]
                 d = self._mana.setdefault(key, {})
@@ -611,12 +631,20 @@ class Watcher:
 
     def _on_turn_start(self, key: int) -> None:
         prev, self.current = self.current, key
-        if prev is None or prev == key or self.state != "IN_GAME":
+        if prev is None:
+            # 首个行动方(先手的留牌回合): 只报标题
+            if key == self.friendly:
+                self._emit(f"──── 第{self.game_no}局 · 我的第1回合开始 (T1) │ "
+                           f"{self._mana_text(key)} ────")
+            return
+        if prev == key or self.state != "IN_GAME":
             return
         self._chain_event({"kind": "text", "actor": prev, "msg": "结束回合"})
         if self.friendly is not None and key == self.friendly:
             n = self._player_turn.get(key, 0) + 1  # 玩家级 TURN 标签在切换之后才到
-            self._emit(f"──── 第{self.game_no}局 · 我的第{n}回合开始 (T{self.turn}) │ "
+            total = 2 * n - (1 if self._first_player == key else 0)
+            self._title_done = True
+            self._emit(f"──── 第{self.game_no}局 · 我的第{n}回合开始 (T{total}) │ "
                        f"{self._mana_text(key)} ────")
         else:
             self._snapshot("turn_end")

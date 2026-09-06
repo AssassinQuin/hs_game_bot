@@ -28,7 +28,8 @@ class Ledger:
     remaining: Counter = field(default_factory=Counter)  # 牌库剩余期望组成
     deck_actual: int = 0                                 # DECK 区真实张数
     known_top: str | None = None                         # 顶牌已知(=下次抽确定)
-    known_bottom: list = field(default_factory=list)     # [(card_id, 牌位)] 牌位降序
+    known_bottom: list = field(default_factory=list)     # [(card_id, 牌位)] 牌位降序, 仅牌位>0
+    known_unpositioned: list = field(default_factory=list)  # 已见但位置未知(换牌换回等)
     unknown_middle: int = 0
 
 
@@ -80,9 +81,12 @@ class DeckKnowledge:
                               key=lambda e: e.zone_position)
             if revealed and revealed[0].zone_position == 1:
                 led.known_top = revealed[0].card_id
+            pos_known = [e for e in revealed if e.zone_position > 0]
             led.known_bottom = [(e.card_id, e.zone_position) for e in
-                                sorted(revealed, key=lambda e: -e.zone_position)[:3]]
-            led.unknown_middle = len(deck_ents) - len(revealed)
+                                sorted(pos_known, key=lambda e: -e.zone_position)[:3]]
+            # 换牌换回的牌位置随机(0/未知) —— 不能标成"牌库底"
+            led.known_unpositioned = [e.card_id for e in revealed if e.zone_position == 0]
+            led.unknown_middle = len(deck_ents) - len(pos_known)
         self.ledger = led
         return led
 
