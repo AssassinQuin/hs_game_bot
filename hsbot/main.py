@@ -40,6 +40,7 @@ def main(argv=None) -> None:
         "deck_name": args.deck, "deck_code": args.deck_code, "logs_dir": args.logs_dir,
         "data_dir": args.data_dir, "battletag": args.battletag,
         "replay": args.replay, "throttle_ms": args.throttle_ms,
+        "overlay_enabled": args.overlay_enabled,
         "config": args.config,
     })
 

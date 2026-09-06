@@ -86,7 +86,8 @@ class Watcher:
         self._discover_emitted: set[int] = set()
         self._pending_play = None      # (depth, Block) 延迟到子树结束再发
         self._hint_cid: dict[int, str] = {}    # 日志行括号兜底: 实体id -> cardId
-        self._hint_ctrl: dict[int, int] = {}   # 日志行括号兜底: 实体id -> PLAYER_KEY
+        self._hint_ctrl: dict[int, int] = {}
+        self._draw_ts: dict[int, float] = {}   # 抽牌去重: 实体id -> 上次上报时刻
         self._ent2pid: dict[int, int] = {}   # 玩家实体id -> PLAYER_KEY(CreateGame 时建立)
         self._first_player: int | None = None
         self._title_done = False
@@ -118,6 +119,7 @@ class Watcher:
             for i in range(s, e, self.REPLAY_CHUNK):
                 self._feed_many(lines[i:min(i + self.REPLAY_CHUNK, e)])  # 块尾夹到段边界, 防重复喂入
                 self._after_batch()
+            self._process_tree(self.parser.games[-1], flush=True) if self.parser.games else None
         if self.state == "IN_GAME":
             self._snapshot("flush")
 
@@ -236,8 +238,7 @@ class Watcher:
             if "SHOW_ENTITY" in line and "zone=DECK" in line and "GameState." in line:
                 m = _SHOW_DRAW_RE.search(line)
                 if m and self.friendly is not None and int(m.group(2)) == self.friendly:
-                    self._chain_event({"kind": "draw", "card_id": m.group(3),
-                                       "actor": int(m.group(2))})
+                    self._emit_draw(int(m.group(1)), m.group(3), int(m.group(2)))
 
     def _after_batch(self) -> None:
         self._detect_game()
@@ -280,6 +281,7 @@ class Watcher:
         self._pending_play = None
         self._hint_cid = {}
         self._hint_ctrl = {}
+        self._draw_ts = {}
         self._player_turn = {}
         self._mana = {}
         self._first_player = None
@@ -310,10 +312,13 @@ class Watcher:
             pass
         return k
 
-    def _process_tree(self, tree) -> None:
+    def _process_tree(self, tree, flush: bool = False) -> None:
         flat = list(_walk(tree))
         i = self.cursor
-        while i < len(flat):
+        # 扣留最后一个包: FULL/SHOW_ENTITY 的子标签(CONTROLLER/ZONE/...)在包注册之后
+        # 才陆续到达, 立即处理会拿到空标签。留到下一批(flush 时全量)再处理。
+        limit = len(flat) if flush else max(self.cursor, len(flat) - 1)
+        while i < limit:
             pkt, depth = flat[i]
             # 挂起的 PLAY: 遇到不比它更深的新包 => 其子树已结束, 身份已由子包/括号揭示
             if self._pending_play is not None and depth <= self._pending_play[0]:
@@ -326,7 +331,7 @@ class Watcher:
             if isinstance(pkt, packets.Block) and pkt.type == BlockType.PLAY:
                 self._pending_play = (depth, pkt)   # 子树处理完再发(块内才有身份)
             i += 1
-        self.cursor = len(flat)
+        self.cursor = limit
         if self._pending_play is not None and self._pending_play[1].ended:
             self._emit_play(self._pending_play[1])
             self._pending_play = None
@@ -454,7 +459,7 @@ class Watcher:
         zone = tags.get(GameTag.ZONE, sh.get("zone"))
         ctrl = sh.get("ctrl") or self._hint_ctrl.get(p.entity)
         if zone == Zone.HAND.value and ctrl == self.friendly and p.card_id:
-            self._chain_event({"kind": "draw", "card_id": p.card_id, "actor": ctrl})
+            self._emit_draw(p.entity, p.card_id, ctrl)
 
     def _on_tag(self, p) -> None:
         tag, value = p.tag, p.value
@@ -505,7 +510,7 @@ class Watcher:
                 # 已揭示过的实体再次抽到(探底/置底过的牌)——无 SHOW_ENTITY, 只有 ZONE 变更
                 cid = sh.get("cid") or self._hint_cid.get(entity)
                 if cid:
-                    self._chain_event({"kind": "draw", "card_id": cid, "actor": ctrl})
+                    self._emit_draw(entity, cid, ctrl)
         elif tag == GameTag.COST:
             old = sh.get("cost")
             sh["cost"] = value
@@ -612,6 +617,14 @@ class Watcher:
         return ctype == CardType.HERO or ctype == CardType.HERO.value
 
     # ================= 事件 =================
+    def _emit_draw(self, eid: int, cid: str, actor) -> None:
+        now = time.monotonic()
+        last = self._draw_ts.get(eid)
+        if last is not None and now - last < 0.5:
+            return   # 同一实体的多重揭示路径只报一次
+        self._draw_ts[eid] = now
+        self._chain_event({"kind": "draw", "card_id": cid, "actor": actor})
+
     def _chain_event(self, evt: dict) -> None:
         evt.setdefault("turn", self.turn)
         evt.setdefault("friendly", self.friendly)
