@@ -8,8 +8,12 @@
 
 ### 1.1 动机(问题诊断)
 
+**直接动因**:为后续算法层(M2 决策/M3 规划)供状态 —— 测试中已实际出现大量数据冲突
+(快照导出与链路影子字典两套平行状态互相打架,近 5 个 fix 均属此类)。
+目标方式:hslog 提供游戏事件(packet)→ 注入状态机 → 一局游戏数值统一维护。
+
 M1 现状:对局状态散落三层 —— hslog 解析器内部的实体树(权威)、每次全量重建的 `GameState` 快照视图、
-以及 Watcher 上约 12 个散装增量字典(`shadow`/`_mana`/`mulligan`/`_discover`/`_choice_pid`/`_player_turn`/
+以及 Watcher 上约 12 个散装增量字典(`shadow`/`_mana`/`_mulligan`/`_discover`/`_choice_pid`/`_player_turn`/
 `_ent2pid`/`_hint_cid`/`_hint_ctrl`/`_pending_play`/`_mulligan_emitted`/`_discover_emitted`)。
 packet 处理器(如 `_on_tag`,85 行)就地 mutate `self.xxx`,状态所有权不清、到处传参。
 
