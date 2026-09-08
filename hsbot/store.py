@@ -154,7 +154,7 @@ class GameStore:
             p = g.get_player(key)
             if p is not None and getattr(p, "name", None):
                 return p.name
-        return str(key)
+        return f"Player{key}"   # 与旧 adapter 的无名兜底一致(基线终局行 Player1=...)
 
     # ================= 查询(活引用, 只读) =================
     def _of(self, key: PlayerKey | None) -> list:
