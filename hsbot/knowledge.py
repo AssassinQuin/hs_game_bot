@@ -1,6 +1,6 @@
 """知识层 —— 组件台账 + 牌库序视图。
 
-全量从 GameState 重建, 不维护历史(M1_MONITOR §3.1):
+全量从 GameStore 重建, 不维护历史(M1_MONITOR §3.1):
   台账   = decklist − 己方各区域内"来自牌库"的牌(衍生牌有 CREATOR 标签, 不计)
   牌库序 = DECK 区 card_id 非空(被探底/发现揭示过)的实体 + ZONE_POSITION
 """
@@ -11,10 +11,10 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from hearthstone.enums import CardType, Zone
+from hearthstone.enums import CardType, GameTag, Zone
 
 from .carddb import CardDB
-from .gamestate import GameState
+from .store import GameStore, is_generated, zone_pos
 
 # 台账只统计"真牌", 排除英雄/技能/附魔等
 _LEDGER_TYPES = (CardType.SPELL, CardType.MINION, CardType.WEAPON,
@@ -55,17 +55,17 @@ class DeckKnowledge:
         return cls(decklist, carddb, deck_name)
 
     # ---------- 每次快照全量重建 ----------
-    def rebuild(self, gs: GameState) -> Ledger:
+    def rebuild(self, st: GameStore) -> Ledger:
         led = Ledger()
-        me = gs.friendly_key
+        me = st.friendly_key
         if me is not None:
             hand: Counter = Counter()
             used: Counter = Counter()
-            for e in gs.entities.values():
-                if (e.controller_key != me or not e.card_id
+            for e in st.entities():
+                if (st.ctrl_key(e) != me or not e.card_id
                         or e.card_id not in self.decklist
-                        or e.generated
-                        or e.cardtype not in _LEDGER_TYPES):
+                        or is_generated(e)
+                        or e.tags.get(GameTag.CARDTYPE) not in _LEDGER_TYPES):
                     continue
                 if e.zone == Zone.HAND:
                     hand[e.card_id] += 1
@@ -74,18 +74,18 @@ class DeckKnowledge:
             led.in_hand = hand
             led.used = used
             led.remaining = Counter(self.decklist) - hand - used
-            deck_ents = gs.deck_entities(me)
+            deck_ents = st.deck_entities(me)
             led.deck_actual = len(deck_ents)
 
             revealed = sorted((e for e in deck_ents if e.card_id),
-                              key=lambda e: e.zone_position)
-            if revealed and revealed[0].zone_position == 1:
+                              key=zone_pos)
+            if revealed and zone_pos(revealed[0]) == 1:
                 led.known_top = revealed[0].card_id
-            pos_known = [e for e in revealed if e.zone_position > 0]
-            led.known_bottom = [(e.card_id, e.zone_position) for e in
-                                sorted(pos_known, key=lambda e: -e.zone_position)[:3]]
+            pos_known = [e for e in revealed if zone_pos(e) > 0]
+            led.known_bottom = [(e.card_id, zone_pos(e)) for e in
+                                sorted(pos_known, key=lambda e: -zone_pos(e))[:3]]
             # 换牌换回的牌位置随机(0/未知) —— 不能标成"牌库底"
-            led.known_unpositioned = [e.card_id for e in revealed if e.zone_position == 0]
+            led.known_unpositioned = [e.card_id for e in revealed if zone_pos(e) == 0]
             led.unknown_middle = len(deck_ents) - len(pos_known)
         self.ledger = led
         return led
