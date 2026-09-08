@@ -57,8 +57,12 @@ def mk_block(btype: BlockType, entity, target=0) -> packets.Block:
     return b
 
 
-def mk_choices_mulligan(pid_entity: int, cid: int, eids: list[int]) -> packets.Choices:
-    p = packets.Choices(TS, pid_entity, cid, 1, ChoiceType.MULLIGAN, 0, len(eids))
+def _ref(entity_id: int):
+    return mk_pm().get_player_by_entity_id(entity_id)
+
+
+def mk_choices_mulligan(entity_id: int, cid: int, eids: list[int]) -> packets.Choices:
+    p = packets.Choices(TS, _ref(entity_id), cid, 1, ChoiceType.MULLIGAN, 0, len(eids))
     p.choices = list(eids)
     return p
 
@@ -69,8 +73,8 @@ def mk_send_mulligan(cid: int, eids: list[int]) -> packets.SendChoices:
     return p
 
 
-def mk_choices_general(pid_entity: int, cid: int, eids: list[int]) -> packets.Choices:
-    p = packets.Choices(TS, pid_entity, cid, 2, ChoiceType.GENERAL, 1, len(eids))
+def mk_choices_general(entity_id: int, cid: int, eids: list[int]) -> packets.Choices:
+    p = packets.Choices(TS, _ref(entity_id), cid, 2, ChoiceType.GENERAL, 1, len(eids))
     p.choices = list(eids)
     return p
 

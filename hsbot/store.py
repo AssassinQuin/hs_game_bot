@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 from typing import Callable, Iterator
 
 from hearthstone.entities import Player
-from hearthstone.enums import CardType, GameTag, PlayState, Zone
+from hearthstone.enums import (BlockType, CardType, ChoiceType, GameTag,
+                               PlayState, Zone)
 
 from .adapter import is_play_block, new_store_exporter, packet_payload
 from .carddb import CardDB
@@ -490,3 +491,185 @@ class GameStore:
             return   # 同一实体的多重揭示路径只报一次
         self._draw_ts[eid] = now
         self._emit_event({"kind": "draw", "card_id": cid, "actor": actor})
+
+    # ================= 块(spec §3.4 补全: TRIGGER/疲劳) =================
+    def _on_block(self, p) -> None:
+        btype = getattr(p, "type", None)
+        if btype == BlockType.ATTACK and isinstance(p.entity, int):
+            a = self.get(p.entity)
+            t = self.get(p.target) if isinstance(p.target, int) else None
+            self._emit_event({
+                "kind": "attack",
+                "actor": (self.ctrl_key(a) if a is not None else None),
+                "attacker_card_id": self.cid_of(p.entity),
+                "attacker_is_hero": a is not None and is_hero(a),
+                "target_card_id": (self.cid_of(p.target)
+                                   if isinstance(p.target, int) else None),
+                "target_is_hero": t is not None and is_hero(t),
+            })
+        elif btype == BlockType.TRIGGER and isinstance(p.entity, int):
+            e = self.get(p.entity)
+            if (e is None or isinstance(e, Player)
+                    or (self.game is not None and e is self.game)):
+                return          # 玩家/游戏实体上的触发不单独报卡牌事件
+            self._emit_event({"kind": "trigger", "actor": self.ctrl_key(e),
+                              "card_id": e.card_id or self._hint_cid.get(e.id)})
+        elif btype == BlockType.FATIGUE:
+            self._emit_event({"kind": "fatigue", "actor": self._key_of(p.entity)})
+        elif btype == BlockType.PLAY:
+            pass                            # 延迟发由 apply 的挂起机制处理
+        else:
+            # POWER/DEATHS/JOUST/MOVE_MINION/SUB_SPELL 等块: 全量收录, 记 raw
+            self._record_raw(f"Block:{getattr(btype, 'name', btype)}", p)
+
+    def _flush_play(self) -> None:
+        """PLAY 块子树结束时发出 —— 块内 SHOW_ENTITY 此时已揭示身份。"""
+        _depth, p = self._pending_play
+        self._pending_play = None
+        eid = p.entity
+        if not isinstance(eid, int):
+            return
+        e = self.get(eid)
+        cid = self.cid_of(eid)
+        actor = self.ctrl_key(e) if e is not None else None
+        if actor is None:
+            actor = self.current          # 出牌必然发生在行动方自己的回合
+        if not cid or actor is None:
+            return
+        f = self.mana_fields(actor)
+        mana_left = max(0, f["res"] + f["temp"] - f["used"])
+        sub = getattr(p, "suboption", None)
+        self._emit_event({"kind": "play", "card_id": cid, "actor": actor,
+                          "cost_base": self.carddb.cost(cid),
+                          "cost_tag": (e.tags.get(GameTag.COST) if e is not None else None),
+                          "mana_left": mana_left,
+                          "is_power": e is not None and is_hero_power(e),
+                          "suboption": sub if isinstance(sub, int) and sub >= 0 else None})
+        if actor == self.friendly_key and e is not None:
+            # 通用模式判定只看"来自卡组"的牌: 衍生牌/硬币不算卡组不匹配
+            if not is_generated(e) and not is_coin(cid):
+                self.played_cids.add(cid)
+
+    def mana_text(self, key: PlayerKey) -> str:
+        """回合开始时的水晶投影: 上限+1−过载(RESOURCES 标签在切换之后才跳)。"""
+        f = self.mana_fields(key)
+        res, ol = f["res"], f["overload"]
+        cap = max(0, min(10, res + 1 - ol))
+        out = f"水晶 {cap}/{cap}"
+        if ol:
+            out += f" (过载-{ol})"
+        return out
+
+    # ================= 选择: 留牌 / 发现 =================
+    def _on_choices(self, p) -> None:
+        ctype = getattr(p, "type", None)
+        if ctype == ChoiceType.MULLIGAN:
+            key = getattr(getattr(p, "entity", None), "player_id", None)
+            if key is None:
+                return
+            # 留牌发生在 exporter 友方探测之前 —— 用战网名立刻定主客
+            if self.friendly_key is None and self.battletag:
+                nm = getattr(p.entity, "name", None)
+                if nm and (nm == self.battletag
+                           or nm.split("#")[0] == self.battletag):
+                    self.friendly_key = key
+            self.mulligan[key] = MulliganState(offered=list(p.choices or []))
+            self._choice_pid[p.id] = key
+            names = []
+            for eid in p.choices or []:
+                cid = self.cid_of(eid)
+                nm = self.carddb.name(cid) if cid else None
+                if cid and is_coin(cid):
+                    nm = (nm or "") + "(硬币)"
+                names.append(nm or "?")
+            if all(n == "?" for n in names):
+                names = [f"第{i}张" for i in range(1, len(names) + 1)]
+            self._emit_event({"kind": "text", "actor": key,
+                              "msg": f"起手可留: {'、'.join(names)}"})
+        elif ctype == ChoiceType.GENERAL:
+            src = getattr(p, "source", None)
+            pid = getattr(getattr(p, "entity", None), "player_id", None)
+            self._discover[p.id] = {"offered": list(p.choices or []),
+                                    "source": src if isinstance(src, int) else None,
+                                    "pid": pid}
+            self._choice_pid[p.id] = pid
+
+    def _on_send_choices(self, p) -> None:
+        ctype = getattr(p, "type", None)
+        if ctype == ChoiceType.GENERAL:
+            info = self._discover.get(p.id)
+            if info is not None and p.id not in self._discover_emitted:
+                self._discover_emitted.add(p.id)
+                picked = [c for c in (p.choices or []) if isinstance(c, int)]
+                bottom = [e for e in info["offered"] if e not in picked]  # 未选项按序置底
+                src_cid = self.cid_of(info["source"]) if info.get("source") else None
+                self._emit_event({"kind": "discover", "actor": info.get("pid"),
+                                  "src_name": self.carddb.name(src_cid),
+                                  "picked": [self.cid_of(c) or c for c in picked],
+                                  "bottom": [self.cid_of(c) or c for c in bottom]})
+        elif ctype == ChoiceType.MULLIGAN:
+            self._mulligan_decide(p.id,
+                                  [c for c in (p.choices or []) if isinstance(c, int)])
+
+    def _on_chosen(self, p) -> None:
+        if getattr(p, "type", None) == ChoiceType.MULLIGAN:
+            self._mulligan_decide(p.id,
+                                  [c for c in (p.choices or []) if isinstance(c, int)])
+
+    def _mulligan_decide(self, cid: int, kept: list[int]) -> None:
+        key = self._choice_pid.get(cid)
+        if key is None:
+            return
+        m = self.mulligan.setdefault(key, MulliganState())
+        m.kept = kept
+        if key not in self._mulligan_emitted:
+            self._mulligan_emitted.add(key)
+            self._emit_event({"kind": "mulligan", "actor": key,
+                              "msg": self.mulligan_text(key)})
+
+    def mulligan_text(self, key: PlayerKey) -> str:
+        m = self.mulligan.get(key) or MulliganState()
+        offered, kept = m.offered, m.kept
+        coins = {e for e in offered if is_coin(self.cid_of(e))}
+        replaced = [e for e in offered if e not in kept and e not in coins]
+        if key == self.friendly_key:
+            kept_n = [(self.carddb.name(self.cid_of(e)) or "?") for e in kept]
+            repl_n = [(self.carddb.name(self.cid_of(e)) or "?") for e in replaced]
+            return (f"留牌: {'、'.join(kept_n) or '(无)'} │ "
+                    f"换掉: {'、'.join(repl_n) or '(无)'}")
+        if kept:
+            return f"留牌 {len(kept)} 张 │ 换掉 {len(replaced)} 张(牌名不可见)"
+        return f"起手 {len(offered)} 张(留牌细节未广播)"
+
+    # ================= 导出(spec §3.5, JSONL 字段级兼容) =================
+    def to_dict(self, reason: str = "") -> dict:
+        me, opp = self.friendly_key, self.opponent_key()
+        hand = [{"id": e.card_id, "name": None, "pos": zone_pos(e),
+                 "cost": e.tags.get(GameTag.COST), "generated": is_generated(e)}
+                for e in (self.hand(me) if me is not None else [])]
+        return {
+            "reason": reason,
+            "turn": self.turn,
+            "friendly_turn": self.friendly_turn_number(),
+            "my_turn": self.is_my_turn(),
+            "players": {k: {"name": self.name(k)} for k in self.player_keys()},
+            "me": {
+                "hp": self.hero_total_hp(me) if me is not None else 0,
+                "armor": self.hero_armor(me) if me is not None else 0,
+                "mana": self.mana_fields(me) if me is not None else {},
+                "deck": self.deck_count(me) if me is not None else 0,
+                "hand": hand,
+                "board": [{"card_id": e.card_id, "atk": atk(e), "hp": hp_total(e),
+                           "taunt": is_taunt(e)}
+                          for e in (self.board(me) if me is not None else [])],
+            },
+            "opp": {
+                "hp": self.hero_total_hp(opp) if opp is not None else 0,
+                "armor": self.hero_armor(opp) if opp is not None else 0,
+                "deck": self.deck_count(opp) if opp is not None else 0,
+                "hand_n": len(self.hand(opp)) if opp is not None else 0,
+                "board": [{"card_id": e.card_id, "atk": atk(e), "hp": hp_total(e),
+                           "taunt": is_taunt(e)}
+                          for e in (self.board(opp) if opp is not None else [])],
+            },
+        }
