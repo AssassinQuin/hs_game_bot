@@ -1,17 +1,16 @@
-"""适配层 —— 全项目唯一允许 import hslog/hearthstone 实体类的模块(DESIGN.md §3 铁律)。
+"""适配层 —— hslog/hearthstone 解析类唯一入口(DESIGN.md §3 铁律, 2026-09-07 spec 修订)。
 
-职责: 实体树 → GameState 快照, 并统一玩家命名空间(CONTROLLER 标签值 = PLAYER_ID)。
+行→packet(LogParser); StoreExporter = 库状态机 + 挂钩(GameStore 用);
+友方探测; 语料导出用的 packet 归一化。
 """
 from __future__ import annotations
 
 import logging
 
-from hearthstone.enums import BlockType, GameTag
+from hearthstone.enums import BlockType
 from hslog import LogParser
 from hslog.export import EntityTreeExporter, FriendlyPlayerExporter
 from hslog import packets
-
-from .gamestate import Entity, GameState, PlayerInfo, PlayerKey
 
 log = logging.getLogger("hsbot.adapter")
 
@@ -154,70 +153,6 @@ def resolve_friendly(parser: LogParser, battletag: str = "") -> int | None:
     except Exception as exc:  # noqa: BLE001
         log.debug("friendly 探测失败: %s", exc)
         return None
-
-
-def export_game_state(parser: LogParser, lines_consumed: int = 0,
-                      battletag: str = "") -> GameState | None:
-    """当前最新一局的完整快照。导出失败返回 None(该局快照不可用, 链路不受影响)。"""
-    if not parser.games:
-        return None
-    tree = parser.games[-1]
-
-    friendly_raw: int | None = None
-    try:
-        friendly_raw = FriendlyPlayerExporter(tree).export()
-    except Exception as exc:  # noqa: BLE001
-        log.debug("friendly 探测失败: %s", exc)
-
-    try:
-        exporter = _TolerantExporter(
-            tree, player_manager=parser.player_manager, tolerate_missing_entities=True)
-        exporter.export()
-        game = exporter.game
-    except Exception as exc:  # noqa: BLE001  兜底: 单包容错后仍失败才放弃整局快照
-        log.warning("实体树导出失败: %s", exc)
-        return None
-
-    # ---- 玩家表 (PLAYER_KEY = PLAYER_ID) ----
-    players: dict[PlayerKey, PlayerInfo] = {}
-    for p in game.players:
-        key = p.player_id or p.tags.get(GameTag.PLAYER_ID)
-        if key is None:
-            continue
-        pref = parser.player_manager.get_player_by_entity_id(p.id)
-        name = (pref.name if pref and pref.name else "") or f"Player{key}"
-        players[key] = PlayerInfo(key=key, entity_id=p.id, name=name)
-
-    # ---- 友方判定: 战网名优先(跨局稳定), exporter 兜底 ----
-    friendly: PlayerKey | None = None
-    if battletag:
-        for k, info in players.items():
-            if info.name == battletag or info.name.split("#")[0] == battletag:
-                friendly = k
-                break
-    if friendly is None and friendly_raw in players:
-        friendly = friendly_raw
-
-    entities: dict[int, Entity] = {}
-    for e in game.entities:
-        ctrl = getattr(e, "controller", None)
-        entities[e.id] = Entity(
-            id=e.id,
-            card_id=getattr(e, "card_id", None),
-            controller_key=(ctrl.player_id if ctrl is not None else None),
-            tags=dict(e.tags),
-        )
-
-    meta = {str(k): str(getattr(v, "name", v))
-            for k, v in (parser.game_meta or {}).items()}
-    return GameState(
-        entities=entities,
-        game_tags=dict(game.tags),
-        players=players,
-        friendly_key=friendly,
-        meta=meta,
-        lines_consumed=lines_consumed,
-    )
 
 
 # ================= 语料导出用: packet 归一化(corpus.py 消费) =================
