@@ -36,8 +36,8 @@ flowchart LR
     end
 
     subgraph 核心["程序五层"]
-        W[W0 Watcher 监听/状态机]
-        A[L1 State 状态层<br/>HslogAdapter → GameState]
+        W[W0 Watcher 监听/tail/游标/输出管线]
+        A[L1 State 状态层<br/>StoreExporter → GameStore（唯一状态权威）]
         K[L2 Knowledge 知识层<br/>DeckKnowledge + CardDB]
         PL[L3 Planner 规划层<br/>GoPlanner / SetupPlanner]
         R[L4 Render+Persist<br/>控制台输出 + JSONL 落盘]
@@ -232,7 +232,7 @@ flowchart TD
     T4 -- "STEP→MAIN_READY<br/>或 己方手牌/费用 tag 变更" --> T5[节流窗口 300ms 通过?]
     T4 -- 否 --> T0
     T5 --> T6[平铺游标逐包喂 GameStore.apply<br/>（库 exporter 维护 hearthstone.entities）]
-    T6 --> T7[构建 GameState 快照<br/>+ DeckKnowledge 推断剩余牌库]
+    T6 --> T7["store.to_dict() 快照 + DeckKnowledge 推断剩余牌库"]
     T7 --> T8{我是行动方?}
     T8 -- 是 --> T9[GoPlanner：启动模式]
     T8 -- 否 --> T10[SetupPlanner：预备模式<br/>（为下回合计算）]
@@ -277,7 +277,7 @@ flowchart LR
 
 | 模式 | 用在哪 | 解决什么 |
 |---|---|---|
-| **适配器** | `HslogAdapter`：hslog 实体树 → `GameState` | 隔离 hslog 版本升级；统一 PLAYER_KEY 命名空间（实体 id vs PLAYER_ID 的坑在适配器里一次性消灭） |
+| **适配器** | `StoreExporter`（容错子类+挂钩）逐包应用；`FriendlyPlayerExporter` 友方探测 | 隔离 hslog 版本升级；统一 PLAYER_KEY 命名空间（实体 id vs PLAYER_ID 的坑在适配器里一次性消灭） |
 | **备忘录** | `store.to_dict()` JSONL + packet 前缀重放（任意历史状态可重建） | 任意时刻状态可存可回放；回测器直接消费 |
 | **观察者** | `store.subscribe(回调)` | 链路事件由状态迁移衍生（渲染/M2 同轨） |
 | **策略** | `GoPlanner` / `SetupPlanner` 实现同一接口 `plan(gs, knowledge) -> Plan` | 两种模式共享同一套 DFS+MC 引擎，只是"输入状态的构造方式"不同 |
