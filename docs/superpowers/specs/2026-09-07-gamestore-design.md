@@ -155,6 +155,10 @@ store.subscribe(callback)   # callback(evt: dict),同步调用
     mana 变化 / hp·armor 变化 / shuffle / 结束回合 / 回合开始标题
   - **补全**:`trigger` —— 回合开始/结束等生效的卡牌效果(`BlockType.TRIGGER` 块,
     事件带来源实体 card_id 与效果概要)、`fatigue` 疲劳、`death` 阵亡清理
+- **全量收录原则(2026-09-08 补)**:每个 packet 类型必须有处置——衍生为链路事件,
+  或记录为 `raw` 事件(packet 类型 + 完整载荷,入 `store.unhandled` 并随 JSONL 的
+  `unhandled` 字段落盘,**不渲染**)。不允许静默丢弃;未解释类型以 raw 可见,
+  后续逐个升级为正式事件("可以暂时不处理,但不能没记录")。
 - 同步分发,apply 调用栈内触发;订阅者**不得重入 apply**(写入契约注释)
 - 单线程模型:watcher 轮询线程独占 store;悬浮窗线程隔离由既有 OutputHub 负责,不变
 
