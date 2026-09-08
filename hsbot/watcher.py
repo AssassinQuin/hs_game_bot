@@ -62,6 +62,7 @@ class Watcher:
         self._live = False                   # 实时来源(回放不自动导训练样本)
         self._corpus = None
         self._title_done = False             # 标题防重发(显示态)
+        self._pending_game_end = False         # game_end 快照延迟到批尾(对手 LOST 同批稍后才应用)
         self._pend_cid: dict[int, str] = {}  # 括号线索缓冲(store 建立前先攒着)
         self._pend_ctrl: dict[int, int] = {}
         self.decks_path: Path | None = None
@@ -229,12 +230,18 @@ class Watcher:
             self._title_done = True
             self._emit(f"──── 第{self.game_no}局 · 我的第1回合开始 (T1) │ "
                        f"{self.gs.mana_text(self.gs.friendly_key)} ────")
+        if self._pending_game_end and self.parser.games:
+            # 终局已到: 先冲掉本批扣留的尾包(对手 LOST 同批稍后才应用), 再快照,
+            # 保证终局行双方 PLAYSTATE 完整 —— 与旧全量导出路径等价
+            self._process_tree(self.parser.games[-1], flush=True)
+            self._fire_pending_game_end()
 
     def _detect_game(self) -> None:
         n = len(self.parser.games)
         while self.game_count < n:
             if self.game_count > 0:      # 把上一局尾部事件冲完再切
                 self._process_tree(self.parser.games[self.game_count - 1], flush=True)
+                self._fire_pending_game_end()   # 上一局终局快照须在 _new_game 重置标志前发出
             self.game_count += 1
             self._new_game()
 
@@ -245,6 +252,7 @@ class Watcher:
         self.chain = []
         self.summary = []
         self._title_done = False
+        self._pending_game_end = False
         self._pend_cid = {}
         self._pend_ctrl = {}
         self.state = "IN_GAME"
@@ -316,9 +324,10 @@ class Watcher:
                 self._snapshot("turn_end")
             return
         if kind == "game_end":
+            # 不立即快照: 对手的终局 PLAYSTATE 在同批稍后的包里, 延迟到批尾
+            # (全部包应用后)再快照, 保证终局行的胜负双方状态完整 —— 与旧全量导出路径等价
             self.state = "GAME_END"
-            self._snapshot("game_end")
-            self._export_training()
+            self._pending_game_end = True
             return
         if kind == "raw":
             return            # 全量收录: 已入 store.unhandled(随 JSONL 落盘), 不渲染
@@ -328,6 +337,14 @@ class Watcher:
         line = chain_line(evt, self.carddb)
         self.chain.append(line)
         self._emit(line)
+
+    def _fire_pending_game_end(self) -> None:
+        """game_end 延迟快照触发点: 树内包全部应用(冲刷)后再快照+导出。"""
+        if not self._pending_game_end:
+            return
+        self._pending_game_end = False
+        self._snapshot("game_end")
+        self._export_training()
 
     def _export_training(self) -> None:
         """每局结束自动导出训练样本(仅实时来源; 回放用 --import-all 批量做)。"""

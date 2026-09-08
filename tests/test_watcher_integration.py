@@ -24,6 +24,7 @@ def test_replay_produces_chain_snapshot_jsonl(tmp_path):
     assert "新对局 #1" in text
     assert "完整快照" in text                      # 回合切换触发了快照
     assert "对局结束" in text                      # 终局行
+    assert "1=WON" in text and "2=LOST" in text     # 终局行双方胜负完整(批尾快照)
     assert "快照导出失败" not in text              # 旧路径的失败模式必须消失
     assert "打出 CS2_029" in text                  # PLAY 块延迟发(fixture 友方未解析, 事件仍按 ctrl 发)
     assert "触发" in text                          # 新事件(spec §3.4)
