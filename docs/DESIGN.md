@@ -152,7 +152,7 @@ class DeckKnowledge:
 ```python
 @dataclass(frozen=True)
 class SimState:
-    """规划器内部的轻量可哈希状态——与 GameState 完全解耦，DFS/记忆化都用它。"""
+    """规划器内部的轻量可哈希状态——与 GameStore(实况状态)完全解耦，DFS/记忆化都用它。"""
     mana: int
     hand: tuple[tuple[str, int], ...] # 排序后的手牌多重集（可哈希）
     spell_damage: int
@@ -263,7 +263,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    B0[data/sessions/*.jsonl<br/>历史快照+当时建议] --> B1[逐条重放: 用原始日志重建该时刻 GameState]
+    B0[data/sessions/*.jsonl<br/>历史快照+当时建议] --> B1[逐条重放: 用原始日志重放前缀重建该时刻状态（packet 前缀稳定）]
     B1 --> B2[跑当前版本规划器]
     B2 --> B3{与实际结果对比<br/>实际伤害 = 该回合日志中<br/>敌方英雄 DAMAGE 增量}
     B3 --> B4[误差统计 → 修 burn_overlay /<br/>简化假设 / MC 抽样参数]
