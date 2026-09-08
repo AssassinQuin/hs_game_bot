@@ -120,12 +120,14 @@ Power.log ──tail──> hslog LogParser(行→packet,平铺游标保留)
 watcher 的 `shadow` 表整体删除 —— 其全部信息(cid/ctrl/cost/zone/ctype)都在库的实体标签里;
 `_mana` 同理(直查玩家实体标签)。
 
-### 3.2 变更入口(仅此三个)
+### 3.2 变更入口(仅此四个)
 
 ```python
-store.apply(packet)        # → adapter.StoreExporter.export_packet(packet)
-                            #   库 handle_* 维护实体状态 → 挂钩回调 → store 衍生链路事件
-store.hint_cid(eid, cid)   # 行级括号兜底(watcher 的行扫描器调用)
+store.apply(packet)          # → adapter.StoreExporter.export_packet(packet)
+                              #   库 handle_* 维护实体状态 → 挂钩回调 → store 衍生链路事件
+store.apply_block_end(block)  # 游标在块子树走完时调用(PLAY 延迟发/attack 归属需要块边界;
+                              #   块结构只有游标知道,必须显式通知)
+store.hint_cid(eid, cid)     # 行级括号兜底(watcher 的行扫描器调用)
 store.hint_ctrl(eid, pid)
 ```
 
