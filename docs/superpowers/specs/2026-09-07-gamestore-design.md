@@ -131,6 +131,10 @@ store.hint_cid(eid, cid)     # 行级括号兜底(watcher 的行扫描器调用)
 store.hint_ctrl(eid, pid)
 ```
 
+> 实现细化(2026-09-08 计划采纳):`apply_block_end(block)` 落地为
+> `apply(p, depth)`(游标给深度, 遇不深于挂起 PLAY 的包先冲刷)+ `settle()`(批尾冲刷
+> ended 块);另补 `hint_draw`(行级抽牌直通)与 `note_friendly`(友方探测回填)。
+
 StoreExporter 挂钩形态:子类覆写各 `handle_*`,先 `super()`(库维护状态),再调
 `self.hooks[tag_change](packet)` 类回调;容错行为沿用 `_TolerantExporter`(脏包跳过不炸)。
 
@@ -209,6 +213,7 @@ GameStore(实况真相,可变) --投影(只读一次性)--> PlannerState(值对�
 1. **基线语义对照**:当前 HEAD 跑 25 局语料留存输出(链路行+快照块+JSONL);新架构同语料回放,
    **既有事件逐条核对仍然正确**(不要求字节级零差异 —— 本次新增事件,输出本来就会增行)
 2. **新增事件核对**:trigger/fatigue/death 在语料中抽查来源实体与效果内容正确
+   裁定(2026-09-08 验收): 英雄首次掉血收录与 [T1] 链路回合戳为新行为(旧代码缺陷), 语义 diff 按此豁免。
 3. **单测**:packet 序列 → 状态/事件断言;脏形态(括号引用、PlayerReference、HideEntity 重隐、
    抽牌三路径、PLAY 块延迟、回合开始触发链)全部做成 fixture —— 近 5 个 fix 的全部案发现场
 4. **真实验收**:重跑 M1_MONITOR §6(真实对局人工核对血/费/手牌/牌库数/过载)
@@ -219,7 +224,7 @@ GameStore(实况真相,可变) --投影(只读一次性)--> PlannerState(值对�
 
 | # | 风险 | 应对 |
 |---|---|---|
-| R1 | "寻求指引类 hslog 不产包"的血量基数(8efa97e)在新链路丢信息 | 根因假设:旧 `_on_tag` 的 `_is_hero(sh)` 门槛在 shadow 未登记时丢标签,库的 `handle_tag_change` 无条件应用,预期自愈 —— 语料对照验证;若确认日志本身无信息,记为已知缺口 |
+| R1 | "寻求指引类 hslog 不产包"的血量基数(8efa97e)在新链路丢信息 | 根因假设:旧 `_on_tag` 的 `_is_hero(sh)` 门槛在 shadow 未登记时丢标签,库的 `handle_tag_change` 无条件应用,预期自愈 —— 语料对照验证;若确认日志本身无信息,记为已知缺口;已验证:库无条件应用 + 批尾快照使终局行双方 PLAYSTATE 完整(09d05c1)。 |
 | R2 | 重写无运行时对账,中间态错误难发现 | §6.3 单测 fixture 覆盖案发现场 + §6.1 语料对照覆盖全部链路行;链路行即中间态的渲染投影 |
 | R3 | 消费方误 mutate 查询返回的活引用 | §3.3 契约注释;单测不对抗此条(约定优于防御性拷贝,YAGNI) |
 | R4 | 事件订阅者重入 apply 导致状态错乱 | §3.4 契约注释;调试断言(apply 重入即 raise,dev 模式) |

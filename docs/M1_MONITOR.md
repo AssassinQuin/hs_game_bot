@@ -55,6 +55,9 @@ M1 需要识别的完整日志模式清单（hslog 已把它们解析成 packet�
 | 探底/发现揭示 | `FULL_ENTITY` zone=SETASIDE（探底 3 张 / 发现 3 张），未选者随后 `TAG_CHANGE zone=DECK` 且带 `ZONE_POSITION` | `FullEntity` + `TagChange(ZONE/ZONE_POSITION)` | **牌库序已知段**（见 §3.1） |
 | 卡牌位置 | 各区域实体的 `tag=ZONE_POSITION` | `TagChange(tag=ZONE_POSITION)` | 手牌顺序①②③ / 牌库位置 |
 | 局终 | `tag=PLAYSTATE value=WON/LOST/TIED` | `TagChange(tag=PLAYSTATE)` | 收尾输出 |
+| 回合开始生效的卡牌效果 | `BLOCK_START BlockType=TRIGGER Entity=<卡>` | Block(TRIGGER) | 链路行"触发 <卡名>" |
+| 疲劳 | `BLOCK_START BlockType=FATIGUE Entity=<玩家>` | Block(FATIGUE) | 链路行"疲劳" |
+| 随从死亡 | `TAG_CHANGE tag=ZONE value=GRAVEYARD`(自 PLAY) | TagChange(ZONE) | 链路行"阵亡 <卡名>" |
 
 触发规则（谁触发快照）：
 
@@ -88,8 +91,11 @@ hsbot/
 
 要点回顾（详情见 DESIGN.md）：
 
-- **不维护增量状态**：每个快照触发点全量重导出实体树（`EntityTreeExporter` + `tolerate_missing_entities=True`），投影成 `GameState`。单局毫秒级。
-- **链路事件用 packet 游标做增量**：hslog 解析器只追加 packet，"平铺后的 packet 列表"是前缀稳定的——保存上次的平铺长度，每次轮询只处理新增尾部即可。这是本层唯一需要游标的地方。
+- **库驱动唯一状态权威**:packet 平铺游标逐包喂 `GameStore.apply()`,实体/标签/区域
+  由 adapter.StoreExporter(hslog EntityTreeExporter 容错子类)维护在
+  hearthstone.entities 上;shadow 表/`_mana` 等散装字典全部退役。
+- **链路事件 = 状态迁移的衍生品**:apply 挂钩对比新旧标签衍生抽牌/出牌/血甲水晶/区域
+  事件;PLAY 块延迟到子树结束再发;TRIGGER/疲劳/死亡为补全收录(§2 表)。
 - 脏行：`read_line` 逐行 try/except；某局导出失败 → 整局放弃并提示，不跨局带病。
 
 ### 3.1 牌库序模型（探底 / 置底 / 牌位）
@@ -205,3 +211,5 @@ M1 的 jsonl 内容 = 4.2 快照块的机器可读版（字段即上表来源，
 4. 连续打两局（含中途切一次卡组）：切局干净，无上一局残留状态；萨满局正确进入通用模式。
 5. 程序中途重启：恢复后从当前局继续，不重复输出历史。
 6. 牌库序三件事各验证一次：水栖形态探底后"下一抽已知"提示与下回合实际抽到的牌一致；波涛形塑置底的 2 张出现在"底部已知"；生命缚誓者减费后手牌费用带 `⬇` 且数值与游戏画面一致。
+
+> 2026-09-08 GameStore 重构后: fixture 语义 diff 零差异(两项裁定豁免: 首掉血收录/[T1] 链路戳); 真机日志 diff 与人工验收待游戏机执行。

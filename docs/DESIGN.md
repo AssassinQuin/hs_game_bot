@@ -56,7 +56,7 @@ flowchart LR
 | 模块 | 职责 | 依赖的既有轮子 |
 |---|---|---|
 | W0 Watcher | 轮询日志增量、切局、发事件（回合开始/手牌变更/局终） | `hslog.LogParser`（可增量喂行） |
-| L1 State | hslog 实体树 → 协议化快照 `GameState`（Entity=标签桶） | `hslog.export.EntityTreeExporter / FriendlyPlayerExporter` |
+| L1 State | packet 直投 GameStore（每局一个，库驱动唯一权威）；GameState 协议层退役，导出为 `store.to_dict()`（JSONL 字段级兼容） | `hslog.export.EntityTreeExporter / FriendlyPlayerExporter` |
 | L2 Knowledge | 卡组 30 张多重集、卡牌属性字典、直伤/效果覆盖表、剩余牌库推断 | `hearthstone.deckstrings`、hearthstonejson JSON |
 | L3 Planner | 启动/预备两种模式的无状态规划：DFS+蒙特卡洛 | 无（自写，~200 行级） |
 | L4 Render+Persist | 控制台建议输出、JSONL 快照追加、节流去重 | 无 |
@@ -65,7 +65,15 @@ flowchart LR
 
 ## 3. 数据结构
 
+- **adapter 是全项目唯一允许 import hslog 解析/导出类的模块**(LogParser、packets、
+  exporter 及其子类)。`hearthstone.enums` 与 `hearthstone.entities` 是全项目共享的
+  状态模型与枚举;hsbot 的实体状态就维护在 hearthstone.entities 上(库驱动,不造轮子)。
+
 ### 3.1 状态层（L1）
+
+> 2026-09-08 GameStore 重构修订:本节的 `Entity`/`GameState` 协议层已退役——实体状态由库
+> `hearthstone.entities` 承载(adapter.StoreExporter 维护),查询 API 上移至 `GameStore`
+> (签名不变,spec §3.3),导出为 `store.to_dict()`(JSONL 字段级兼容)。下方代码块为重构前存档,保留备查。
 
 ```python
 PlayerKey = int  # 约定：统一使用 PLAYER_ID 命名空间(1=先手, 2=后手/硬币)
@@ -223,7 +231,7 @@ flowchart TD
     T2 -- 否 --> T4{触发条件满足?}
     T4 -- "STEP→MAIN_READY<br/>或 己方手牌/费用 tag 变更" --> T5[节流窗口 300ms 通过?]
     T4 -- 否 --> T0
-    T5 --> T6[EntityTreeExporter 全量导出实体树<br/>（一局内毫秒级，不做真增量）]
+    T5 --> T6[平铺游标逐包喂 GameStore.apply<br/>（库 exporter 维护 hearthstone.entities）]
     T6 --> T7[构建 GameState 快照<br/>+ DeckKnowledge 推断剩余牌库]
     T7 --> T8{我是行动方?}
     T8 -- 是 --> T9[GoPlanner：启动模式]
@@ -270,7 +278,8 @@ flowchart LR
 | 模式 | 用在哪 | 解决什么 |
 |---|---|---|
 | **适配器** | `HslogAdapter`：hslog 实体树 → `GameState` | 隔离 hslog 版本升级；统一 PLAYER_KEY 命名空间（实体 id vs PLAYER_ID 的坑在适配器里一次性消灭） |
-| **备忘录** | `GameState.deepcopy()` + JSONL 快照 | 任意时刻状态可存可回放；回测器直接消费 |
+| **备忘录** | `store.to_dict()` JSONL + packet 前缀重放（任意历史状态可重建） | 任意时刻状态可存可回放；回测器直接消费 |
+| **观察者** | `store.subscribe(回调)` | 链路事件由状态迁移衍生（渲染/M2 同轨） |
 | **策略** | `GoPlanner` / `SetupPlanner` 实现同一接口 `plan(gs, knowledge) -> Plan` | 两种模式共享同一套 DFS+MC 引擎，只是"输入状态的构造方式"不同 |
 | **纯函数核心 + 命令式外壳**（functional core, imperative shell） | L3 无状态；W0/L4 有状态 | 规划器可缓存、可并发跑 MC、可测试、可回放——这是全文档最重要的一条 |
 | **状态机** | Watcher：`IDLE → IN_GAME ⇄ PLANNING → GAME_END` | 切局/重连/脏行的生命周期管理，防止上一局状态泄漏 |
