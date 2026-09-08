@@ -90,7 +90,7 @@ python3 -m hsbot --replay tests/fixtures/mini_game.log --no-overlay --data-dir /
 - Test: `tests/test_fixtures_parse.py`
 
 **Interfaces:**
-- Produces: conftest 的 `mk_*` 系列构造器与 `drive()`/`EventLog`(后续所有 store 测试用);`data/baseline/mini_game.txt`(Task 7 验收基线)。
+- Produces: conftest 的 `mk_*` 系列构造器与 `EventLog`(后续所有 store 测试直接 `st.apply(pkt)` 驱动,无需额外 drive 助手);`data/baseline/mini_game.txt`(Task 7 验收基线)。
 
 - [ ] **Step 1: tests/__init__.py(空文件)与 conftest.py**
 
