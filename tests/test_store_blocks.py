@@ -1,12 +1,13 @@
 """GameStore 块与选择: PLAY 延迟/attack/trigger/fatigue/留牌/发现/to_dict。"""
-from hearthstone.enums import BlockType, CardType, GameTag, Zone
+from hearthstone.enums import BlockType, CardType, ChoiceType, GameTag, Zone
+from hslog import packets
 
 from hsbot.carddb import CardDB
 from hsbot.store import GameStore
 
-from .conftest import (EventLog, mk_block, mk_choices_general, mk_choices_mulligan,
-                       mk_create_game, mk_full, mk_pm, mk_send_general,
-                       mk_send_mulligan, mk_show, mk_tag)
+from .conftest import (TS, EventLog, _ref, mk_block, mk_choices_general,
+                       mk_choices_mulligan, mk_create_game, mk_full, mk_hide,
+                       mk_pm, mk_send_general, mk_send_mulligan, mk_show, mk_tag)
 
 
 class _Tree:
@@ -149,3 +150,38 @@ def test_mana_text_projection():
     st.apply(mk_tag(2, GameTag.RESOURCES, 2))
     st.apply(mk_tag(2, GameTag.OVERLOAD_OWED, 1))
     assert st.mana_text(1) == "水晶 2/2 (过载-1)"
+
+
+def test_hide_entity_writes_zone_back():
+    st, _ = _store()
+    _heroes(st)
+    st.apply(mk_full(10, "CS2_029", ZONE=Zone.HAND.value, CONTROLLER=1))
+    st.apply(mk_full(11, None, ZONE=Zone.HAND.value, CONTROLLER=1))
+    st.apply(mk_hide(10, Zone.DECK.value))
+    # 库缺口: entity.hide() 只撤 revealed 不落 ZONE, _on_hide_entity 补写
+    assert st.get(10).tags[GameTag.ZONE] == Zone.DECK.value
+    st.apply(mk_hide(11, "not-a-zone"))       # 脏 zone 值: 不炸也不覆盖
+    assert st.get(11).tags[GameTag.ZONE] == Zone.HAND.value
+
+
+def test_hint_draw_dedup():
+    st, log = _store()
+    st.hint_draw(10, "CS2_029", 1)
+    st.hint_draw(10, "CS2_029", 1)            # 0.5s 内同实体: 只报一次
+    assert log.kinds().count("draw") == 1
+    st.hint_draw(11, "CS2_029", 1)            # 不同实体: 正常发
+    assert log.kinds().count("draw") == 2
+
+
+def test_chosen_entities_mulligan_route():
+    st, log = _store()
+    _heroes(st)
+    st.apply(mk_full(10, "OG_048", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_choices_mulligan(2, 7, [10]))             # 我方(entity2=pid1)起手
+    chosen = packets.ChosenEntities(TS, _ref(2), 7)       # hslog 不产 type, 显式标注路由
+    chosen.type = ChoiceType.MULLIGAN
+    chosen.choices = [10]
+    st.apply(chosen)
+    assert log.kinds().count("mulligan") == 1
+    st.apply(chosen)                          # _mulligan_emitted 已发标: 不重复
+    assert log.kinds().count("mulligan") == 1

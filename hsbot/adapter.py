@@ -1,7 +1,7 @@
 """适配层 —— hslog/hearthstone 解析类唯一入口(DESIGN.md §3 铁律, 2026-09-07 spec 修订)。
 
-行→packet(LogParser); StoreExporter = 库状态机 + 挂钩(GameStore 用);
-友方探测; 语料导出用的 packet 归一化。
+行→packet(LogParser); StoreExporter = 库状态机(容错, GameStore 用;
+不回调, 衍生在 store.apply 内完成); 友方探测; 语料导出用的 packet 归一化。
 """
 from __future__ import annotations
 
@@ -47,60 +47,33 @@ class _TolerantExporter(EntityTreeExporter):
 
 
 class StoreExporter(_TolerantExporter):
-    """库状态机 + 挂钩: super() 维护实体状态后回调 hooks(duck-typing)。
+    """库状态机(容错): 逐包 export_packet 维护 hearthstone.entities;块不迭代子包
+    (游标逐包驱动)。状态衍生在 GameStore.apply 内完成,本类不回调。
 
-    铁律: hslog 导出类不出本模块。hooks 只需提供 on_*(packet) 方法(GameStore)。
-    handle_block/handle_sub_spell 不迭代子包 —— 游标逐包驱动, 连带应用会重复。
+    铁律: hslog 导出类不出本模块。
     """
 
-    def __init__(self, packet_tree, player_manager, hooks) -> None:
+    def __init__(self, packet_tree, player_manager) -> None:
         super().__init__(packet_tree, player_manager=player_manager,
                          tolerate_missing_entities=True)
-        self.hooks = hooks
-
-    def _notify(self, name: str, packet) -> None:
-        cb = getattr(self.hooks, name, None)
-        if cb is not None:
-            cb(packet)
-
-    def handle_create_game(self, packet):
-        super().handle_create_game(packet)
-        self._notify("on_create_game", packet)
-
-    def handle_tag_change(self, packet):
-        super().handle_tag_change(packet)
-        self._notify("on_tag_change", packet)
-
-    def handle_full_entity(self, packet):
-        super().handle_full_entity(packet)
-        self._notify("on_full_entity", packet)
-
-    def handle_show_entity(self, packet):
-        super().handle_show_entity(packet)
-        self._notify("on_show_entity", packet)
-
-    def handle_hide_entity(self, packet):
-        super().handle_hide_entity(packet)
-        self._notify("on_hide_entity", packet)
 
     def handle_change_entity(self, packet):
         try:
             super().handle_change_entity(packet)
         except Exception as exc:  # noqa: BLE001
             log.debug("ChangeEntity 导出失败: %s", exc)
-        self._notify("on_change_entity", packet)
 
     def handle_block(self, packet):
         if packet.type == BlockType.GAME_RESET and self.game is not None:
             self.game.reset()
-        self._notify("on_block", packet)       # 不调 super(): 不迭代子包
+        # 不调 super(): 不迭代子包(子包由游标逐包驱动)
 
     def handle_sub_spell(self, packet):
-        self._notify("on_block", packet)       # 同上, 子包由游标驱动
+        pass  # 同上, 子包由游标驱动
 
 
-def new_store_exporter(hooks, packet_tree, player_manager) -> StoreExporter:
-    return StoreExporter(packet_tree, player_manager, hooks)
+def new_store_exporter(packet_tree, player_manager) -> StoreExporter:
+    return StoreExporter(packet_tree, player_manager)
 
 
 def is_block(p) -> bool:

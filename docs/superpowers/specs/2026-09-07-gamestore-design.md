@@ -61,7 +61,7 @@ Power.log ──tail──> hslog LogParser(行→packet,平铺游标保留)
                           ▼  逐包 export_packet
    StoreExporter(adapter 内,_TolerantExporter 子类)
        ├─ super().handle_*()        ← 库维护 hearthstone.entities 状态(轮子,不自研)
-       └─ 挂钩回调 on_applied(packet) ← GameStore 衍生链路事件
+       └─(不回调; 应用即返回)
                           │
                           ▼
                     ┌─────────────┐
@@ -97,7 +97,7 @@ Power.log ──tail──> hslog LogParser(行→packet,平铺游标保留)
 原:"adapter 是全项目唯一允许 import hslog/hearthstone 实体类的模块"。
 修订为两条:
 - **hslog 解析/导出类**(LogParser、packets、exporter 及其子类)仍限 adapter —— `StoreExporter`
-  定义在 adapter,通过对构造函数传入的挂钩回调与 store 通信,store 不 import hslog;
+  定义在 adapter,不回调 store;store.apply 在 export_packet 返回后自行派生(_derive),store 不 import hslog;
 - **`hearthstone.entities` 与 `hearthstone.enums`** 为共享状态模型,store 可直接使用
   (enums 本就全项目在用;entities 的实例经 store 查询 API 流出,渲染层鸭子类型访问属性,
   无需 import)。
@@ -124,7 +124,7 @@ watcher 的 `shadow` 表整体删除 —— 其全部信息(cid/ctrl/cost/zone/c
 
 ```python
 store.apply(packet)          # → adapter.StoreExporter.export_packet(packet)
-                              #   库 handle_* 维护实体状态 → 挂钩回调 → store 衍生链路事件
+                              #   库 handle_* 维护实体状态;store 随后 _derive 衍生链路事件
 store.apply_block_end(block)  # 游标在块子树走完时调用(PLAY 延迟发/attack 归属需要块边界;
                               #   块结构只有游标知道,必须显式通知)
 store.hint_cid(eid, cid)     # 行级括号兜底(watcher 的行扫描器调用)
@@ -135,8 +135,8 @@ store.hint_ctrl(eid, pid)
 > `apply(p, depth)`(游标给深度, 遇不深于挂起 PLAY 的包先冲刷)+ `settle()`(批尾冲刷
 > ended 块);另补 `hint_draw`(行级抽牌直通)与 `note_friendly`(友方探测回填)。
 
-StoreExporter 挂钩形态:子类覆写各 `handle_*`,先 `super()`(库维护状态),再调
-`self.hooks[tag_change](packet)` 类回调;容错行为沿用 `_TolerantExporter`(脏包跳过不炸)。
+StoreExporter 覆写 handle_block/handle_sub_spell 使其不迭代子包(游标逐包驱动),
+覆写 handle_change_entity 容错;衍生逻辑在 GameStore.apply 于库应用前后对比标签完成。
 
 ### 3.3 查询 API(自 GameState 上移,签名不变)
 
@@ -198,12 +198,12 @@ GameStore(实况真相,可变) --投影(只读一次性)--> PlannerState(值对�
 
 | 文件 | 变化 |
 |---|---|
-| `hsbot/store.py`(新增,~300 行) | GameStore:挂钩回调接收库状态迁移 → 衍生链路事件(含 §3.4 补全项);查询 API;to_dict;留牌/发现/PLAY延迟/标题字段。吸收 watcher ~400 行逻辑 |
+| `hsbot/store.py`(新增,~300 行) | GameStore:apply 在库应用后自行衍生(_derive)链路事件(含 §3.4 补全项);查询 API;to_dict;留牌/发现/PLAY延迟/标题字段。吸收 watcher ~400 行逻辑 |
 | `hsbot/watcher.py`(732→~280 行,**整体重写**) | 只剩 tail/游标/FSM/行级括号扫描(喂 hint)/输出管线/Decks.log。不再持有对局状态 |
 | `hsbot/gamestate.py` | **删除**(自研平行模型退役);`PlayerKey` 等类型别名迁入 store.py |
 | `hsbot/render.py` | 查询调用点 GameState→GameStore(约 23 处,机械替换);输出格式不变 |
 | `hsbot/knowledge.py` | `rebuild(gs)`→`rebuild(store)`,全量重建哲学不变 |
-| `hsbot/adapter.py` | 保留 new_parser/feed_line/resolve_friendly;新增 `StoreExporter`(= _TolerantExporter + 挂钩);`export_game_state` 删除 |
+| `hsbot/adapter.py` | 保留 new_parser/feed_line/resolve_friendly;新增 `StoreExporter`(= _TolerantExporter 容错子类, 不回调);`export_game_state` 删除 |
 | `hsbot/main.py` | 基本不变(watcher 内部持有 store) |
 | `hsbot/corpus.py` / `overlay.py` / `persist.py` | 不变 |
 | `tests/store_test.py`(新增) | packet 序列 fixture → 断言状态与事件 |

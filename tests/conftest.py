@@ -52,6 +52,10 @@ def mk_tag(entity, tag: GameTag, value: int) -> packets.TagChange:
     return packets.TagChange(TS, entity, tag, value)
 
 
+def mk_hide(eid: int, zone) -> packets.HideEntity:
+    return packets.HideEntity(TS, eid, zone)
+
+
 def mk_block(btype: BlockType, entity, target=0) -> packets.Block:
     b = packets.Block(TS, entity, btype, None, None, None, target, None, None)
     return b

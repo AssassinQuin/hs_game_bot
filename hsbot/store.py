@@ -85,7 +85,7 @@ class GameStore:
                  tree=None, player_manager=None) -> None:
         self.carddb = carddb
         self.battletag = battletag
-        self.exporter = new_store_exporter(self, tree, player_manager)
+        self.exporter = new_store_exporter(tree, player_manager)
         self.meta: dict[str, str] = {}
         self.friendly_key: PlayerKey | None = None
         self.lines_consumed = 0
@@ -455,7 +455,7 @@ class GameStore:
         self._emit_event({"kind": "turn_start", "actor": key, "prev": prev,
                           "first": False, "my_turn_no": n, "total_turn": total})
 
-    # ---- 实体/揭示挂钩(Task 4 实现块/选择; 这两个在本任务即有行为) ----
+    # ---- 实体/揭示衍生(Task 4 实现块/选择; 这两个在本任务即有行为) ----
     def _on_full_entity(self, p) -> None:
         e = self.get(p.entity) if isinstance(p.entity, int) else None
         if (e is not None and e.zone == Zone.HAND and p.card_id

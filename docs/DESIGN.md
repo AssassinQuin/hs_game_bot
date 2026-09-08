@@ -277,7 +277,7 @@ flowchart LR
 
 | 模式 | 用在哪 | 解决什么 |
 |---|---|---|
-| **适配器** | `StoreExporter`（容错子类+挂钩）逐包应用；`FriendlyPlayerExporter` 友方探测 | 隔离 hslog 版本升级；统一 PLAYER_KEY 命名空间（实体 id vs PLAYER_ID 的坑在适配器里一次性消灭） |
+| **适配器** | `StoreExporter`（容错子类）逐包应用；`FriendlyPlayerExporter` 友方探测 | 隔离 hslog 版本升级；统一 PLAYER_KEY 命名空间（实体 id vs PLAYER_ID 的坑在适配器里一次性消灭） |
 | **备忘录** | `store.to_dict()` JSONL + packet 前缀重放（任意历史状态可重建） | 任意时刻状态可存可回放；回测器直接消费 |
 | **观察者** | `store.subscribe(回调)` | 链路事件由状态迁移衍生（渲染/M2 同轨） |
 | **策略** | `GoPlanner` / `SetupPlanner` 实现同一接口 `plan(store, knowledge) -> Plan` | 两种模式共享同一套 DFS+MC 引擎，只是"输入状态的构造方式"不同 |

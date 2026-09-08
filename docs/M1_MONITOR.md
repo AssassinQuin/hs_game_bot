@@ -94,7 +94,7 @@ hsbot/
 - **库驱动唯一状态权威**:packet 平铺游标逐包喂 `GameStore.apply()`,实体/标签/区域
   由 adapter.StoreExporter(hslog EntityTreeExporter 容错子类)维护在
   hearthstone.entities 上;shadow 表/`_mana` 等散装字典全部退役。
-- **链路事件 = 状态迁移的衍生品**:apply 挂钩对比新旧标签衍生抽牌/出牌/血甲水晶/区域
+- **链路事件 = 状态迁移的衍生品**:apply 在库应用前后对比新旧标签衍生抽牌/出牌/血甲水晶/区域
   事件;PLAY 块延迟到子树结束再发;TRIGGER/疲劳/死亡为补全收录(§2 表)。
 - 脏行：`read_line` 逐行 try/except；某局导出失败 → 整局放弃并提示，不跨局带病。
 
