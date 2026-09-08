@@ -69,7 +69,7 @@ flowchart LR
   exporter 及其子类)。`hearthstone.enums` 与 `hearthstone.entities` 是全项目共享的
   状态模型与枚举;hsbot 的实体状态就维护在 hearthstone.entities 上(库驱动,不造轮子)。
 
-### 3.1 状态层（L1）
+### 3.1 状态层（L1, 已退役存档）
 
 > 2026-09-08 GameStore 重构修订:本节的 `Entity`/`GameState` 协议层已退役——实体状态由库
 > `hearthstone.entities` 承载(adapter.StoreExporter 维护),查询 API 上移至 `GameStore`
@@ -280,7 +280,7 @@ flowchart LR
 | **适配器** | `StoreExporter`（容错子类+挂钩）逐包应用；`FriendlyPlayerExporter` 友方探测 | 隔离 hslog 版本升级；统一 PLAYER_KEY 命名空间（实体 id vs PLAYER_ID 的坑在适配器里一次性消灭） |
 | **备忘录** | `store.to_dict()` JSONL + packet 前缀重放（任意历史状态可重建） | 任意时刻状态可存可回放；回测器直接消费 |
 | **观察者** | `store.subscribe(回调)` | 链路事件由状态迁移衍生（渲染/M2 同轨） |
-| **策略** | `GoPlanner` / `SetupPlanner` 实现同一接口 `plan(gs, knowledge) -> Plan` | 两种模式共享同一套 DFS+MC 引擎，只是"输入状态的构造方式"不同 |
+| **策略** | `GoPlanner` / `SetupPlanner` 实现同一接口 `plan(store, knowledge) -> Plan` | 两种模式共享同一套 DFS+MC 引擎，只是"输入状态的构造方式"不同 |
 | **纯函数核心 + 命令式外壳**（functional core, imperative shell） | L3 无状态；W0/L4 有状态 | 规划器可缓存、可并发跑 MC、可测试、可回放——这是全文档最重要的一条 |
 | **状态机** | Watcher：`IDLE → IN_GAME ⇄ PLANNING → GAME_END` | 切局/重连/脏行的生命周期管理，防止上一局状态泄漏 |
 | **享元 + 缓存** | `CardDB` 只读字典，进程内单份 | 8154 张卡不重复构建；离线可跑 |

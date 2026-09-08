@@ -75,14 +75,14 @@ COST / ZONE_POSITION 变更 → 不触发快照，只刷新链路行（显示层
 
 ## 3. 模块与骨架（与 DESIGN.md §5 五组件一一对应）
 
-包名与最终项目结构统一为 `hsbot/`（完整目录树见 [PROJECT.md §1](PROJECT.md)），M1 阶段只创建其中这 6 个文件：
+包名与最终项目结构统一为 `hsbot/`（完整目录树见 [PROJECT.md §1](PROJECT.md)），M1 阶段只创建其中这 8 个文件：
 
 ```text
 hsbot/
 ├─ config.py       # 路径、卡组名、节流参数（纯数据）
-├─ gamestate.py    # Entity / GameState 数据类（协议忠实）
+├─ store.py        # GameStore: 每局唯一状态权威(事件衍生/查询/导出)
 ├─ watcher.py      # 轮询 + 行读取 + FSM(IDLE/IN_GAME/GAME_END) + 事件生成
-├─ adapter.py      # hslog packet树 → GameState（唯一允许 import hslog 的模块）
+├─ adapter.py      # 行→packet; StoreExporter 逐包应用(库状态机)
 ├─ knowledge.py    # decklist 加载 + seen 台账 + remaining 计算 + deck_order 牌库序视图（CREATOR 牌不入台账）
 ├─ render.py       # 两个渲染器：链路行 / 快照块
 ├─ persist.py      # sessions jsonl 追加
@@ -166,7 +166,7 @@ hsbot/
 
 （`⬇` 标记 = 该牌当前处于手牌减费状态，读实体 COST 标签。）
 
-快照字段与 `GameState`/`DeckKnowledge` 的对应（即验收时的自检清单）：
+快照字段与 store 查询/`DeckKnowledge` 的对应（即验收时的自检清单）：
 
 | 输出字段 | 来源 |
 |---|---|
