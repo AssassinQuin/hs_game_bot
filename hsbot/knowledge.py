@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -15,6 +16,8 @@ from hearthstone.enums import CardType, GameTag, Zone
 
 from .carddb import CardDB
 from .store import GameStore, is_generated, zone_pos
+
+log = logging.getLogger(__name__)
 
 # 台账只统计"真牌", 排除英雄/技能/附魔等
 _LEDGER_TYPES = (CardType.SPELL, CardType.MINION, CardType.WEAPON,
@@ -51,7 +54,7 @@ class DeckKnowledge:
             if cid:
                 decklist[cid] = decklist.get(cid, 0) + n
             else:
-                print(f"! 卡组中 dbfId={dbf} 无法映射到 card_id, 已跳过")
+                log.warning("卡组中 dbfId=%s 无法映射到 card_id, 已跳过", dbf)
         return cls(decklist, carddb, deck_name)
 
     # ---------- 每次快照全量重建 ----------

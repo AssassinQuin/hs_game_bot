@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -17,6 +18,8 @@ from pathlib import Path
 from hearthstone.enums import GameTag, PlayState
 
 from .adapter import feed_line, new_parser, packet_payload, walk_packets
+
+log = logging.getLogger(__name__)
 
 _TS_RE = re.compile(r"^[IWD] (\d[\d:.]+) ?(.*)$")
 _CODE_RE = re.compile(r"^AA[A-Za-z0-9+/=]{30,}$")
@@ -167,7 +170,7 @@ class CorpusExporter:
                     if cid:
                         decklist[cid] = decklist.get(cid, 0) + n
             except Exception as exc:  # noqa: BLE001
-                print(f"! 训练样本 deck code 解析失败: {exc}")
+                log.warning("训练样本 deck code 解析失败: %s", exc)
 
         def _mull_meta(m: dict) -> dict:
             offered, kept = m.get("offered") or [], m.get("kept") or []
@@ -229,7 +232,7 @@ class CorpusExporter:
                     path = self.export_game(tree, session=sess.name, idx=i,
                                             decks_path=sess / "Decks.log", source="import")
                 except Exception as exc:  # noqa: BLE001
-                    print(f"! 导入失败 {sess.name} 第{i}局: {exc}")
+                    log.error("导入失败 %s 第%s局: %s", sess.name, i, exc)
                     continue
                 if path:
                     done.add(key)

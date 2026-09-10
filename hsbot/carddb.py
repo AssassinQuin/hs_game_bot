@@ -6,7 +6,10 @@ M1 只用 name/cost/cardtype/dbfId 映射; burn_overlay(组件效果表)属于 M
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 class CardDB:
@@ -25,9 +28,9 @@ class CardDB:
                     if "dbfId" in c:
                         self._dbf_to_id[c["dbfId"]] = cid
             except Exception as exc:  # noqa: BLE001
-                print(f"! 卡表加载失败({path}): {exc} —— 将以原始 card_id 显示")
+                log.error("卡表加载失败(%s): %s —— 将以原始 card_id 显示", path, exc)
         else:
-            print(f"! 卡表不存在({path}) —— 将以原始 card_id 显示")
+            log.warning("卡表不存在(%s) —— 将以原始 card_id 显示", path)
 
     def __len__(self) -> int:
         return len(self._by_id)

@@ -9,16 +9,32 @@ import argparse
 import logging
 import sys
 import threading
+from pathlib import Path
 
 from .carddb import CardDB
 from .config import Config
 from .watcher import Watcher
 
 
+def _setup_logging(data_dir) -> None:
+    """诊断日志双通道: 文件 DEBUG 完整(含时间/模块/堆栈), 控制台只出 WARNING+。"""
+    log_dir = Path(data_dir) / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    fh = logging.FileHandler(log_dir / "hsbot.log", encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    sh = logging.StreamHandler(sys.stderr)
+    sh.setLevel(logging.WARNING)
+    sh.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    root.addHandler(fh)
+    root.addHandler(sh)
+
+
 def main(argv=None) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
-    logging.basicConfig(level=logging.ERROR, format="%(levelname)s %(name)s: %(message)s")
 
     ap = argparse.ArgumentParser(prog="hsbot",
                                  description="奇迹德实时军师 (配置见 config.yaml)")
@@ -43,6 +59,8 @@ def main(argv=None) -> None:
         "overlay_enabled": args.overlay_enabled,
         "config": args.config,
     })
+
+    _setup_logging(cfg.data_dir)
 
     carddb = CardDB(cfg.cache_dir / "cards.zh.json")
 

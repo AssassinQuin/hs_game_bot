@@ -4,9 +4,12 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 DEFAULTS = {
     "deck_name": "奇迹德",
@@ -105,7 +108,7 @@ class Config:
                 values.update(picked)
                 source = str(yaml_path)
             except Exception as exc:  # noqa: BLE001
-                print(f"! config.yaml 解析失败({exc}), 改用内置默认")
+                log.error("config.yaml 解析失败(%s), 改用内置默认", exc)
         else:
             source = "内置默认 (无 config.yaml)"
 
