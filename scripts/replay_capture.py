@@ -29,7 +29,7 @@ def main() -> int:
     rc = 0
     for log in args.logs:
         lines: list[str] = []
-        w = Watcher(cfg, carddb, out=lines.append)
+        w = Watcher(cfg, carddb, out=lambda m: lines.append(m.full))
         w.run_replay(log)
         dest = out / (Path(log).stem + ".txt")
         dest.write_text("\n".join(lines) + "\n", encoding="utf-8")

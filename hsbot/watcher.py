@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import logging
 import re
 import time
 from pathlib import Path
@@ -15,9 +16,12 @@ from .adapter import (feed_line, game_meta, is_block, new_parser,
 from .carddb import CardDB
 from .config import Config
 from .knowledge import DeckKnowledge, parse_decks_log
+from .overlay import Msg
 from .persist import SessionStore
-from .render import chain_line, game_end_line, snapshot_block
+from .render import chain_line, game_end_line, snapshot_block, snapshot_line
 from .store import GameStore
+
+log = logging.getLogger("hsbot.watcher")
 
 _CREATE_GAME_MARK = "GameState.DebugPrintPower() - CREATE_GAME"
 # 日志行括号兜底(hslog 解析不到的): id=...cardId= / id=...player= 温和匹配(不跨下一个 id=, 兼容嵌套括号)
@@ -41,7 +45,7 @@ class Watcher:
     def __init__(self, cfg: Config, carddb: CardDB, out=None, hub=None) -> None:
         self.cfg = cfg
         self.carddb = carddb
-        self.out = out if out is not None else print
+        self.out = out if out is not None else (lambda m: print(m.ui))
         self.hub = hub
 
         self.parser = new_parser()
@@ -299,6 +303,7 @@ class Watcher:
             try:
                 self.gs.apply(pkt, depth)
             except Exception as exc:  # noqa: BLE001  单包事件失败不拖垮监控
+                log.exception("事件处理异常")
                 self._emit(f"! 事件处理异常: {type(exc).__name__}: {exc}")
             i += 1
         self.cursor = limit
@@ -336,7 +341,7 @@ class Watcher:
             self.summary.append(self.carddb.name(evt["card_id"]))
         line = chain_line(evt, self.carddb)
         self.chain.append(line)
-        self._emit(line)
+        self._emit(line, "chain")
 
     def _fire_pending_game_end(self) -> None:
         """game_end 延迟快照触发点: 树内包全部应用(冲刷)后再快照+导出。"""
@@ -359,8 +364,9 @@ class Watcher:
                 idx=self.game_no, decks_path=self.decks_path, source="live")
             if path:
                 self._emit(f"训练样本已导出: {path}")
-        except Exception as exc:  # noqa: BLE001
-            self._emit(f"! 训练样本导出失败: {type(exc).__name__}: {exc}")
+        except Exception:  # noqa: BLE001
+            log.exception("训练样本导出失败")
+            self._emit("! 训练样本导出失败")
 
     def _snapshot(self, reason: str) -> None:
         if self.gs is None:
@@ -376,7 +382,11 @@ class Watcher:
             chain_summary=self.summary, carddb=self.carddb, reason=reason)
         if reason == "game_end":
             block += "\n" + game_end_line(self.gs)
-        self._emit(block)
+            ui = snapshot_line(self.gs, self.game_no, reason) + "\n" + game_end_line(self.gs)
+            self._emit(Msg("game_end", ui=ui, full=block))
+        else:
+            self._emit(Msg("snapshot", ui=snapshot_line(self.gs, self.game_no, reason),
+                           full=block))
         if self.store is not None:
             payload = self.gs.to_dict(reason)
             if led is not None:
@@ -391,6 +401,7 @@ class Watcher:
             self.store.write_snapshot(payload)
         self.chain, self.summary = [], []
 
-    def _emit(self, msg: str) -> None:
-        if not self.mute:
-            self.out(msg)
+    def _emit(self, msg: str | Msg, kind: str = "notice") -> None:
+        if self.mute:
+            return
+        self.out(msg if isinstance(msg, Msg) else Msg(kind, msg))

@@ -14,7 +14,7 @@ def _run(tmp_path):
                        "data_dir": str(tmp_path)})
     carddb = CardDB(cfg.cache_dir / "cards.zh.json")
     lines: list[str] = []
-    w = Watcher(cfg, carddb, out=lines.append)
+    w = Watcher(cfg, carddb, out=lambda m: lines.append(m.full))
     w.run_replay(FIXTURE)
     return "\n".join(lines), tmp_path / "sessions"
 
