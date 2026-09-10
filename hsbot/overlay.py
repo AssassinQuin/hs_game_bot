@@ -1,6 +1,7 @@
 """输出层 —— 半透明置顶日志窗 + 输出枢纽。
 
 * OutputHub: watcher 每行输出的三路分发(控制台 / 会话记录文件 / overlay 队列),
+  消息为 Msg 结构: 控制台/悬浮窗收 ui 简洁版, 文件收 full 完整版。
   线程安全, 替代裸 print。
 * OverlayWindow: tkinter 半透明置顶窗, 需在主线程跑 mainloop
   (watcher 放后台线程, 经 Queue 传递)。炉石需以"无边框/窗口化"模式运行,
@@ -10,9 +11,25 @@ from __future__ import annotations
 
 import queue
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 
 _MAX_LINES = 1500  # 窗口内保留的最大行数(防止内存/渲染膨胀)
+
+_KIND_COLORS = {"snapshot": "#ffd479", "game_end": "#7ec8ff"}  # 其余 kind 默认色
+
+
+@dataclass
+class Msg:
+    """业务输出消息: ui 版进控制台/悬浮窗, full 版进会话 .log 文件。"""
+
+    kind: str                  # chain / snapshot / game_end / notice
+    ui: str
+    full: str | None = None    # 缺省 = ui
+
+    def __post_init__(self) -> None:
+        if self.full is None:
+            self.full = self.ui
 
 
 class OutputHub:
@@ -28,18 +45,18 @@ class OutputHub:
         with self._lock:
             self._file = Path(path) if path else None
 
-    def __call__(self, text: str) -> None:
+    def __call__(self, msg: Msg) -> None:
         with self._lock:
             if self._file is not None:
                 try:
                     with self._file.open("a", encoding="utf-8") as fp:
-                        fp.write(text + "\n")
+                        fp.write(msg.full + "\n")
                 except OSError:
                     pass
         if self.q is not None:
-            self.q.put(text)
+            self.q.put((msg.kind, msg.ui))
         if self.console:
-            print(text)
+            print(msg.ui)
 
 
 class OverlayWindow:
@@ -67,6 +84,8 @@ class OverlayWindow:
                       insertbackground="#b8e6a0", relief="flat",
                       font=("Consolas", self.cfg.overlay_font_size),
                       state="disabled", padx=6, pady=4)
+        for tag, color in _KIND_COLORS.items():
+            txt.tag_configure(tag, foreground=color)
         sb = tk.Scrollbar(frm, command=txt.yview)
         txt.configure(yscrollcommand=sb.set)
         frm.pack(fill="both", expand=True)
@@ -82,8 +101,8 @@ class OverlayWindow:
                     break
             if lines:
                 txt.configure(state="normal")
-                for line in lines:
-                    txt.insert("end", line + "\n")
+                for kind, text in lines:
+                    txt.insert("end", text + "\n", kind)
                 count = int(float(txt.index("end-1c")))
                 if count > _MAX_LINES:
                     txt.delete("1.0", f"{count - _MAX_LINES + 1}.0")
