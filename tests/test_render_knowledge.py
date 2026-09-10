@@ -5,7 +5,7 @@ from hearthstone.enums import CardType, GameTag, Zone
 
 from hsbot.carddb import CardDB
 from hsbot.knowledge import DeckKnowledge
-from hsbot.render import chain_line, game_end_line, snapshot_block
+from hsbot.render import chain_line, game_end_line, snapshot_block, snapshot_line
 from hsbot.store import GameStore
 
 from .conftest import EventLog, mk_create_game, mk_full, mk_pm, mk_tag
@@ -71,3 +71,15 @@ def test_knowledge_rebuild_from_store():
     assert led.in_hand == Counter({"CS2_029": 1})
     assert led.remaining == Counter({"CS2_029": 1})
     assert led.deck_actual == 0
+
+
+def test_snapshot_line_compact_single_line():
+    st, _ = _store()
+    _board(st)
+    line = snapshot_line(st, 1, "turn_end")
+    assert line.startswith("── T")          # 回合头
+    assert "水晶" in line                    # 我方水晶
+    assert "手牌1" in line                   # _board 构造了 1 张手牌 CS2_029
+    assert "牌库" in line
+    assert "场上1" in line                   # 对面场面 CS2_120 ×1
+    assert "\n" not in line                 # 必须单行

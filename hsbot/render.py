@@ -100,6 +100,21 @@ def _board_txt(st: GameStore, key, carddb: CardDB) -> str:
 _REASON_CN = {"turn_end": "回合结束", "game_end": "终局", "flush": "日志截断"}
 
 
+def snapshot_line(st: GameStore, game_no: int, reason: str) -> str:
+    """单行精简快照(UI 用): 悬浮窗/控制台只看节奏, 完整版见 snapshot_block。"""
+    reason_cn = _REASON_CN.get(reason, reason)
+    me = st.friendly_key
+    if me is None:                          # 友方未解析: 只报局号与原因
+        return f"── 第{game_no}局快照({reason_cn}) ──"
+    f = st.mana_fields(me)
+    opp = st.opponent_key()
+    opp_board = len(st.board(opp)) if opp is not None else 0
+    return (f"── T{st.turn} 第{game_no}局({reason_cn})"
+            f" 我:水晶{st.mana_now(me)}/{f['res']} │ 手牌{len(st.hand(me))}"
+            f" │ 牌库{st.deck_count(me)} │ 场上{len(st.board(me))}"
+            f" │ 对面场上{opp_board} ──")
+
+
 def snapshot_block(st: GameStore, led: Ledger | None, *, knowledge: DeckKnowledge | None,
                    deck_name: str, generic: bool, game_no: int,
                    chain_lines: list[str], chain_summary: list[str],
