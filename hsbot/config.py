@@ -18,7 +18,6 @@ DEFAULTS = {
     "data_dir": "data",
     "battletag": "湫然#51704",   # 友方判定首选(exporter 启发式会翻转, 见 M1_MONITOR §1)
     "replay": "",               # 重放模式: 静态日志路径
-    "throttle_ms": 300,
     "poll_interval": 0.5,       # 实时轮询间隔(秒)
     "session_check_interval": 10.0,  # 检查新会话目录的间隔(秒)
     # 输出
@@ -73,7 +72,7 @@ def auto_logs_dir() -> str:
 
 
 class Config:
-    _INT = ("throttle_ms", "overlay_font_size")
+    _INT = ("overlay_font_size",)
     _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha")
     _BOOL = ("console_echo", "overlay_enabled", "overlay_borderless", "auto_training")
     _PATH = ("logs_dir", "data_dir", "training_dir")

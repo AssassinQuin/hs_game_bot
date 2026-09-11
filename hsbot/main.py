@@ -1,6 +1,6 @@
-"""入口: python -m hsbot [--config config.yaml] [--replay x.log] [--import-all]
+"""入口: python -m hsbot [--config config.yaml] [replay <log> | import-all]
 
-配置优先级: 命令行 > config.yaml > 内置默认(logs_dir 留空时按平台自动探测)。
+配置一律 config.yaml(优先级: 子命令注入 > config.yaml > 内置默认)。
 悬浮窗开启时: watcher 跑后台线程, tkinter 主循环占主线程(Windows 要求)。
 """
 from __future__ import annotations
@@ -32,56 +32,53 @@ def _setup_logging(data_dir) -> None:
     root.addHandler(sh)
 
 
+def run_import_all(cfg, carddb) -> None:
+    from .corpus import CorpusExporter
+    CorpusExporter(cfg, carddb).import_all()
+
+
+def build_config(argv: list[str] | None) -> tuple[Config, argparse.Namespace]:
+    ap = argparse.ArgumentParser(prog="hsbot",
+                                 description="奇迹德实时军师 (配置见 config.yaml)")
+    ap.add_argument("--config", default=None, help="配置文件路径(默认 ./config.yaml)")
+    sub = ap.add_subparsers(dest="cmd")
+    p_replay = sub.add_parser("replay", help="重放静态日志(开发/验收用, 自动关悬浮窗)")
+    p_replay.add_argument("log", help="Power.log 路径")
+    sub.add_parser("import-all", help="批量解析 logs_dir 下所有会话日志 -> 训练语料")
+    args = ap.parse_args(argv)
+
+    overrides: dict = {"config": args.config}
+    if args.cmd == "replay":
+        overrides["replay"] = args.log
+        overrides["overlay_enabled"] = False
+    return Config.load(overrides), args
+
+
 def main(argv=None) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
 
-    ap = argparse.ArgumentParser(prog="hsbot",
-                                 description="奇迹德实时军师 (配置见 config.yaml)")
-    ap.add_argument("--config", default=None, help="配置文件路径(默认 ./config.yaml)")
-    ap.add_argument("--deck", default=None, help="所选卡组名(匹配 Decks.log)")
-    ap.add_argument("--deck-code", default=None, help="直接指定 deck code(优先于 Decks.log)")
-    ap.add_argument("--logs-dir", default=None, help="Hearthstone Logs 根目录(留空自动探测)")
-    ap.add_argument("--data-dir", default=None)
-    ap.add_argument("--battletag", default=None, help="本机战网名(友方判定首选)")
-    ap.add_argument("--replay", default=None, help="重放静态日志(开发/验收用)")
-    ap.add_argument("--throttle-ms", type=int, default=None)
-    ap.add_argument("--no-overlay", dest="overlay_enabled", action="store_false",
-                    help="不开启悬浮日志窗(调试/回放常用)")
-    ap.add_argument("--import-all", action="store_true",
-                    help="批量解析 logs_dir 下所有会话日志 -> 训练语料目录(按卡组分文件夹)")
-    args = ap.parse_args(argv)
-
-    cfg = Config.load({
-        "deck_name": args.deck, "deck_code": args.deck_code, "logs_dir": args.logs_dir,
-        "data_dir": args.data_dir, "battletag": args.battletag,
-        "replay": args.replay, "throttle_ms": args.throttle_ms,
-        "overlay_enabled": args.overlay_enabled,
-        "config": args.config,
-    })
-
+    cfg, args = build_config(argv)
     _setup_logging(cfg.data_dir)
-
     carddb = CardDB(cfg.cache_dir / "cards.zh.json")
 
-    if args.import_all:
-        from .corpus import CorpusExporter
-        CorpusExporter(cfg, carddb).import_all()
+    if args.cmd == "import-all":
+        run_import_all(cfg, carddb)
         return
 
-    # ---- 输出枢纽: 控制台 + 会话记录文件 + 悬浮窗 ----
+    # ---- 输出枢纽: 控制台 + 会话记录文件 + 悬浮窗(永远存在, 无悬浮窗时 console-only) ----
+    from .overlay import OutputHub          # 不依赖 tkinter, 顶层 import 安全
+    OverlayWindow = None                    # 悬浮窗类: tkinter 不可用时保持 None(降级)
     if cfg.overlay_enabled:
         try:
-            from .overlay import OutputHub, OverlayWindow
+            from .overlay import OverlayWindow
         except Exception as exc:  # noqa: BLE001  无 tkinter 环境降级
             print(f"! 悬浮窗不可用({exc}), 仅控制台输出")
-            hub = None
-        else:
-            hub = OutputHub(console=cfg.console_echo, to_overlay=True)
-    else:
-        hub = None
 
-    watcher = Watcher(cfg, carddb, out=hub if hub is not None else print, hub=hub)
+    hub = OutputHub(console=cfg.console_echo if OverlayWindow is not None else True,
+                    to_overlay=OverlayWindow is not None)
+
+    watcher = Watcher(cfg, carddb, out=hub, hub=hub)
 
     def run_bot() -> None:
         if cfg.replay:
@@ -89,7 +86,7 @@ def main(argv=None) -> None:
         else:
             watcher.run_live()
 
-    if hub is not None:
+    if hub.q is not None:        # 悬浮窗模式: tkinter 占主线程
         t = threading.Thread(target=run_bot, daemon=True, name="hsbot-watcher")
         t.start()
         try:
