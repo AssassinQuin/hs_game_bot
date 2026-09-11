@@ -408,7 +408,7 @@ JSONL 单行 schema：
 ## 9. 坑与注意事项（全部实测踩过）
 
 1. **两个命名空间**：玩家实体 id（2/3）≠ `PLAYER_ID`（1/2）。比较"是不是我"必须用 `tags[PLAYER_ID]`。适配器统一翻译（见 3.1）。
-   **实测补充**：`FriendlyPlayerExporter` 的"第一条 SHOW_ENTITY 属于友方"启发式在同一会话的不同局可能翻转（镜像对局/对手手牌被提前揭示时）。友方判定以 `--battletag` 战网名匹配为首选，exporter 仅兜底（已实现）。
+   **实测补充**：`FriendlyPlayerExporter` 的"第一条 SHOW_ENTITY 属于友方"启发式在同一会话的不同局可能翻转（镜像对局/对手手牌被提前揭示时）。友方判定以 battletag 配置项战网名匹配为首选，exporter 仅兜底（已实现）。
 2. **费用四件套**：`RESOURCES / RESOURCES_USED / TEMP_RESOURCES / OVERLOAD_OWED+LOCKED`，缺一不可；雷霆绽放的过载只在"下回合"公式里扣。
 3. **CURRENT_PLAYER 在玩家实体上**，不在 Game 实体上；`TURN` 是半回合制，"我的第 N 回合"要按 `FIRST_PLAYER` 换算。
 4. **脏行**：hslog 对个别行会抛异常（如 `PlayerReference` 传入导出器），逐行 try/except 跳过；导出实体树用 `tolerate_missing_entities=True`。切局时如果上一局解析不完整，直接放弃该局。

@@ -1,6 +1,6 @@
-"""运行配置 —— 支持 config.yaml + 命令行覆盖, 跨平台日志目录探测。
+"""运行配置 —— 支持 config.yaml + 子命令注入, 跨平台日志目录探测。
 
-优先级: 命令行参数 > config.yaml > 内置默认(logs_dir 留空时按平台自动探测)。
+优先级: 子命令注入 > config.yaml > 内置默认(logs_dir 留空时按平台自动探测)。
 """
 from __future__ import annotations
 

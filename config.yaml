@@ -1,4 +1,4 @@
-# hsbot 配置 —— 命令行同名参数可临时覆盖这里的值
+# hsbot 配置 —— 配置项在此集中管理(CLI 仅有 --config 与 replay/import-all 子命令)
 deck_name: 奇迹德
 
 # 直接指定卡组代码(设置后优先于 Decks.log 匹配; 注释掉则按 deck_name 匹配 Decks.log)
