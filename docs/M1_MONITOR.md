@@ -8,7 +8,7 @@
 
 ## 1. 输入与配置
 
-配置三来源（优先级从高到低）：**命令行 > `config.yaml`（仓库根目录）> 内置默认**。`logs_dir` 留空时按平台自动探测候选目录（Windows 常见安装位 / macOS Library / Linux Proton、Wine 前缀）。
+配置来源：**`--config` 指定的配置文件（默认仓库根 `config.yaml`）> 内置默认**；CLI 不提供逐项覆盖参数。`logs_dir` 留空时按平台自动探测候选目录（Windows 常见安装位 / macOS Library / Linux Proton、Wine 前缀）。
 
 ```yaml
 # config.yaml
