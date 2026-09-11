@@ -18,7 +18,7 @@ logs_dir: E:\battle\Hearthstone\Logs
 # deck_code: AAEBA...     # 可选, 直接指定卡组代码, 优先于 Decks.log 匹配
 ```
 
-命令行同名参数（`--deck / --deck-code / --logs-dir / --battletag / --replay / --config`）可临时覆盖。
+配置一律走本文件；CLI 仅有 `--config <路径>` 与 `replay <log>` / `import-all` 两个子命令（replay 自动关悬浮窗）。
 
 | 输入 | 用途 | 方式 |
 |---|---|---|
@@ -86,7 +86,7 @@ hsbot/
 ├─ knowledge.py    # decklist 加载 + seen 台账 + remaining 计算 + deck_order 牌库序视图（CREATOR 牌不入台账）
 ├─ render.py       # 两个渲染器：链路行 / 快照块
 ├─ persist.py      # sessions jsonl 追加
-└─ main.py         # 装配：以上各件 + 轮询循环（支持 --replay 重放模式）
+└─ main.py         # 装配：以上各件 + 轮询循环（支持 replay 子命令重放）
 ```
 
 要点回顾（详情见 DESIGN.md）：

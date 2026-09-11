@@ -30,7 +30,7 @@ hs_game_bot/
    ├─ watcher.py                    # [M1] tail + packet游标 + FSM(IDLE/IN_GAME/GAME_END) + 事件
    ├─ knowledge.py                  # [M1] 组件台账 + 牌库序（known_top/known_bottom/中段）
    ├─ overlay.py                    # [M1] 半透明置顶日志窗(tkinter) + OutputHub 三路输出
-   ├─ corpus.py                     # [M1] 训练语料: packet→JSONL 归一化, 按卡组分目录, --import-all
+   ├─ corpus.py                     # [M1] 训练语料: packet→JSONL 归一化, 按卡组分目录, import-all 子命令
    ├─ render.py                     # [M1] 链路行 + 快照块；[M2]台账渲染；[M4]建议渲染
    ├─ persist.py                    # [M1] sessions jsonl 追加
    ├─ main.py                       # [M1] 入口：python -m hsbot
@@ -56,12 +56,12 @@ hs_game_bot/
 两个入口，共用同一套管线（回测只是换了数据源）：
 
 ```text
-python -m hsbot --deck 奇迹德 --logs-dir E:\battle\Hearthstone\Logs   # 实时监控（M1 起）
-python -m hsbot --replay examples/Power.log                           # 重放静态日志（M1 验收/开发用）
+python -m hsbot                                          # 实时监控（M1 起, 配置见 config.yaml）
+python -m hsbot replay examples/Power.log                           # 重放静态日志（M1 验收/开发用）
 python -m hsbot.backtest --sessions data/sessions/...                 # 离线回测（M5）
 ```
 
-`--replay` 的意义：不开游戏就能跑完整验收（M1_MONITOR §6 的六条全部可在样本日志上核对），也方便下断点调试。
+`replay` 子命令的意义：不开游戏就能跑完整验收（M1_MONITOR §6 的六条全部可在样本日志上核对），也方便下断点调试。
 
 日常使用流程：
 
@@ -124,7 +124,7 @@ flowchart TD
 
 | 里程碑 | 目标 | 新增文件 | 验收 | 预估 |
 |---|---|---|---|---|
-| **M1 监控层** | 日志监控 + 状态维护 + 链路/快照输出 + jsonl | config / gamestate / adapter / watcher / knowledge / render / persist / main | M1_MONITOR §6 六条（可用 `--replay` 先过一遍，再上真实对局） | 1~2 人日 |
+| **M1 监控层** | 日志监控 + 状态维护 + 链路/快照输出 + jsonl | config / gamestate / adapter / watcher / knowledge / render / persist / main | M1_MONITOR §6 六条（可用 `replay` 子命令先过一遍，再上真实对局） | 1~2 人日 |
 | **M2 知识层** | deck code→卡组、卡表+overlay、缺件概率曲线 | deck / carddb / planner/probability | "还差1张光子，2抽内到手37%" 这类输出；台账与牌局一致 | 1 人日 |
 | **M3 启动 DFS** | 手牌全知的确定性最优线与总伤 | planner/simstate / dfs | 构造局面：给出的打牌顺序经人工验证为最优 | 1~2 人日 |
 | **M4 MC+预备** | 中途抽牌 MC、下回合 P、法强曲线、可卖性 | planner/montecarlo / setup / plan | 全闭环：建议动态刷新，P 值随抽牌实时更新 | 2~3 人日 |
@@ -139,7 +139,7 @@ flowchart TD
 
 - `examples/hslog_utils.py` 的 `iter_game_chunks / parse_lines / build_game` 三个函数是 `adapter.py / watcher.py` 的直接起点（M1 搬进包内，带 `tolerate_missing_entities=True`）。
 - `examples/full_game_info.py / realtime_demo.py` 保留作教学参考，不再演进。
-- `examples/Power.log` 定位转为**回归测试素材**：M1 的 `--replay` 验收、M5 的算法回归都用它，升级 hslog 版本后重跑一遍即可发现解析兼容性问题。
+- `examples/Power.log` 定位转为**回归测试素材**：M1 的 `replay` 子命令验收、M5 的算法回归都用它，升级 hslog 版本后重跑一遍即可发现解析兼容性问题。
 
 ## 6. Git 与数据文件策略
 

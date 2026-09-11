@@ -22,6 +22,6 @@ data/sessions/
 data/cache/
 data/decks/
 
-# 训练语料(个人对局数据, 可用 --import-all 重新生成)
+# 训练语料(个人对局数据, 可用 import-all 子命令重新生成)
 # 训练语料(data/training/)如需排除, 恢复此行: data/training/
 data/baseline_new/

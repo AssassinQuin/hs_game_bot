@@ -352,7 +352,7 @@ class Watcher:
         self._export_training()
 
     def _export_training(self) -> None:
-        """每局结束自动导出训练样本(仅实时来源; 回放用 --import-all 批量做)。"""
+        """每局结束自动导出训练样本(仅实时来源; 回放用 import-all 子命令批量做)。"""
         if not (self.cfg.auto_training and self._live and self.parser.games):
             return
         try:

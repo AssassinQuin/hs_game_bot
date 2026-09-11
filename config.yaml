@@ -26,4 +26,4 @@ overlay_borderless: false # true=无边框(不可拖动/关闭, 需改配置还�
 
 # ── 训练语料 ──
 training_dir: data/training
-auto_training: true       # 每局结束自动导出训练样本(也可 --import-all 批量回填)
+auto_training: true       # 每局结束自动导出训练样本(也可 import-all 子命令批量回填)
