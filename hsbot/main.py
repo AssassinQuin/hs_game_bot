@@ -21,6 +21,7 @@ def _setup_logging(data_dir) -> None:
     log_dir = Path(data_dir) / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     root = logging.getLogger()
+    root.handlers.clear()        # 幂等: 重复调用不叠加 handler
     root.setLevel(logging.DEBUG)
     fh = logging.FileHandler(log_dir / "hsbot.log", encoding="utf-8")
     fh.setLevel(logging.DEBUG)
@@ -30,6 +31,7 @@ def _setup_logging(data_dir) -> None:
     sh.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
     root.addHandler(fh)
     root.addHandler(sh)
+    logging.getLogger("hslog").setLevel(logging.ERROR)   # 第三方 warning(Orphaned BLOCK_END 等)不扰控制台
 
 
 def run_import_all(cfg, carddb) -> None:
@@ -71,6 +73,7 @@ def main(argv=None) -> None:
     OverlayWindow = None                    # 悬浮窗类: tkinter 不可用时保持 None(降级)
     if cfg.overlay_enabled:
         try:
+            import tkinter  # noqa: F401  探测 tkinter 可用性
             from .overlay import OverlayWindow
         except Exception as exc:  # noqa: BLE001  无 tkinter 环境降级
             print(f"! 悬浮窗不可用({exc}), 仅控制台输出")

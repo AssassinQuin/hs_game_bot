@@ -25,10 +25,10 @@ class Msg:
 
     kind: str                  # chain / snapshot / game_end / notice
     ui: str
-    full: str | None = None    # 缺省 = ui
+    full: str = ""             # 缺省 = ui
 
     def __post_init__(self) -> None:
-        if self.full is None:
+        if not self.full:
             self.full = self.ui
 
 

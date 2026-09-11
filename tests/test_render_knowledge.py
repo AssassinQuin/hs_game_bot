@@ -81,5 +81,12 @@ def test_snapshot_line_compact_single_line():
     assert "水晶" in line                    # 我方水晶
     assert "手牌1" in line                   # _board 构造了 1 张手牌 CS2_029
     assert "牌库" in line
-    assert "场上1" in line                   # 对面场面 CS2_120 ×1
+    assert "场上0 │ 对面场上1" in line        # 我方场上 0, 对面场面 CS2_120 ×1
     assert "\n" not in line                 # 必须单行
+
+
+def test_snapshot_line_friendly_unknown_fallback():
+    st = GameStore(carddb=CardDB("/nonexistent/cards.json"), battletag="湫然#51704",
+                   tree=_Tree(), player_manager=mk_pm())   # 不 apply/note_friendly
+    line = snapshot_line(st, 7, "unknown_reason")
+    assert line == "── 第7局快照(unknown_reason) ──"

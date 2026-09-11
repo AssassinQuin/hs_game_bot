@@ -14,5 +14,6 @@ def test_setup_logging_dual_handlers(tmp_path):
     logging.getLogger("hsbot.test").warning("可见警告")
     for h in (fh, sh):
         root.handlers.remove(h)          # 清理, 不污染其他测试
+    root.setLevel(logging.WARNING)       # 还原 Python 默认 root level
     fh.flush()
     assert "调试细节" in open(fh.baseFilename, encoding="utf-8").read()
