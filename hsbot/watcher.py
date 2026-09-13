@@ -18,8 +18,9 @@ from .effects import EffectCache
 from .carddb import CardDB
 from .config import Config
 from .knowledge import DeckKnowledge, parse_decks_log
-from .overlay import (KIND_CHAIN, KIND_GAME_END, KIND_NOTICE, KIND_SNAPSHOT,
-                      Msg, TAG_MY, TAG_OPP, TAG_UNKNOWN)
+from .mulligan_ai import MulliganAdvisor, models_root_for
+from .overlay import (KIND_ADVICE, KIND_CHAIN, KIND_GAME_END, KIND_NOTICE,
+                      KIND_SNAPSHOT, Msg, TAG_MY, TAG_OPP, TAG_UNKNOWN)
 from .persist import SessionStore, atomic_write_text
 from .render import chain_line, game_end_line, snapshot_block, snapshot_line
 from .store import GameStore
@@ -28,6 +29,9 @@ log = logging.getLogger("hsbot.watcher")
 
 from .pipeline import (StreamContext, build_line_pipeline,
                        _CREATE_GAME_MARK, _tail_state)  # noqa: F401  重导出供测试
+
+# store 事件种类 → 输出 Msg 种类(缺省 chain); advice 走独立分色高亮
+_MSG_KIND_BY_EVENT = {"mulligan_offer": KIND_ADVICE}
 
 
 @dataclass
@@ -138,8 +142,14 @@ class Watcher:
         self.cfg = cfg
         self.carddb = carddb
         # 卡牌/效果解析层(渲染前富化); IR 缓存持久化到缓存目录
+        # 留牌建议器(mulligan_advice 开关): 读 LATEST 模型, 富化 mulligan_offer 事件
+        self.mulligan_ai = MulliganAdvisor(
+            models_root_for(cfg.data_dir, cfg.deck_name), cfg.deck_name, carddb,
+            prior_path=Path(cfg.data_dir) / "mulligan_prior.yaml") \
+            if getattr(cfg, "mulligan_advice", True) else None
         self.analyzer = EffectAnalyzer(
-            carddb, cache=EffectCache(Path(cfg.cache_dir) / "effects.json"))
+            carddb, cache=EffectCache(Path(cfg.cache_dir) / "effects.json"),
+            mulligan=self.mulligan_ai)
         self.out = out if out is not None else (lambda m: print(m.ui))
         self.hub = hub
 
@@ -482,12 +492,15 @@ class Watcher:
             self.match.rich_events.append(dict(evt))   # 富化结果随快照持久化
         line = chain_line(evt, self.carddb)
         self.match.chain.append(line)
-        actor, friendly = evt.get("actor"), evt.get("friendly")
-        if actor is not None and friendly is not None:
-            tag = TAG_MY if actor == friendly else TAG_OPP
+        msg_kind = _MSG_KIND_BY_EVENT.get(kind, KIND_CHAIN)
+        if msg_kind == KIND_CHAIN:
+            actor, friendly = evt.get("actor"), evt.get("friendly")
+            tag = TAG_MY if actor is not None and actor == friendly else \
+                (TAG_OPP if friendly is not None and actor is not None
+                 else TAG_UNKNOWN)
         else:
-            tag = TAG_UNKNOWN
-        self._emit(Msg(KIND_CHAIN, line, tag=tag), KIND_CHAIN)
+            tag = ""                     # advice 等专用分色: 不叠加人物色
+        self._emit(Msg(msg_kind, line, tag=tag), msg_kind)
 
     def _fire_pending_game_end(self) -> None:
         """game_end 延迟快照触发点: 树内包全部应用(冲刷)后再快照+导出。"""

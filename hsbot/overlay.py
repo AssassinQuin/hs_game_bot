@@ -27,6 +27,7 @@ KIND_SNAPSHOT = "snapshot"
 KIND_GAME_END = "game_end"
 KIND_NOTICE = "notice"          # 系统通知(新对局/监控会话)与未分类兜底
 KIND_ERROR = "error"
+KIND_ADVICE = "advice"          # 留牌建议(开局高亮)
 TAG_MY = "my"
 TAG_OPP = "opp"
 TAG_UNKNOWN = "unknown"
@@ -41,6 +42,7 @@ _DEFAULT_COLORS = {
     "game_end": "#7ec8ff", # 终局
     "notice": "#8fb7d4",   # 系统通知(新对局/监控会话)
     "error": "#ff6b6b",    # 错误
+    "advice": "#ffd700",   # 留牌建议(开局高亮)
 }
 
 
@@ -138,7 +140,7 @@ class OverlayWindow:
             return tag                    # 产生方显式指定, 最高优先
         if text.startswith("!"):
             return KIND_ERROR
-        if kind in (KIND_SNAPSHOT, KIND_GAME_END):
+        if kind in (KIND_SNAPSHOT, KIND_GAME_END, KIND_ADVICE):
             return kind
         if text.startswith("────"):
             return "header"

@@ -68,7 +68,9 @@ python -m hsbot --config my.yaml replay x.log    # 任意子命令均可 --confi
 - **链路行**：回合内实时打出 抽牌/出牌（含抉择与实付费用）/攻击/触发/阵亡/疲劳等事件；
 - **单行快照**：回合结束刷一行节奏信息（悬浮窗默认视图）；
 - **完整快照**：回合结束与终局输出完整块（双方手牌/场面/牌库/台账），同步落盘 `data/sessions/<会话>/game_NNN.jsonl`；
-- **悬浮窗**：tkinter 半透明置顶日志窗（炉石需用无边框/窗口化显示模式），关闭窗口即退出监控。
+- **悬浮窗**：tkinter 半透明置顶日志窗（炉石需用无边框/窗口化显示模式），关闭窗口即退出监控；
+- **留牌建议**：发牌即出高亮行 `【留牌建议·vs牧师·后手】留 X(+9.9%) │ 换 Y`（金色，
+  依据对手职业与留/换胜率；`mulligan_advice` 开关，模型来自留牌 AI，无模型时只显示"起手可留"）。
 
 ## 留牌 AI（离线）
 
@@ -90,6 +92,7 @@ python -m hsbot --config my.yaml replay x.log    # 任意子命令均可 --confi
 | `poll_interval` / `session_check_interval` | 0.5 / 10 秒 | 日志轮询与新会话检查间隔 |
 | `overlay_enabled` / `alpha` / `geometry` / `font_size` / `borderless` | 见 config.yaml | 悬浮窗开关与外观；`borderless: true` 后不可拖动，只能改配置还原 |
 | `console_echo` | true | 悬浮窗之外是否同步打印控制台 |
+| `mulligan_advice` | true | 留牌环节高亮建议（留X换Y+增益；模型来自 `scripts/train_mulligan.py`） |
 | `auto_training` / `training_dir` | true / data/training | 每局结束自动导出训练语料（`import-all` 可批量回填，增量去重） |
 
 完整注释版见 [config.yaml](config.yaml)；字段语义与运行细节见 [docs/M1_MONITOR.md](docs/M1_MONITOR.md) §1。

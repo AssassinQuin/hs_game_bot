@@ -166,13 +166,24 @@ python scripts/train_mulligan.py advise --explore --seed 7 \
 `card:ID`; `--coin`/`--first` 指定后手/先手(缺省=不限, 统计表走"本职业"级联,
 LR 取先/后手交集)。
 
-## 7. 与 hsbot 的集成路径
+## 7. 实时集成(已落地)
 
-军师(M4)在收到 `mulligan` 事件时: 读 `LATEST.json` → `stats.json`/`model.json`
-→ `card_advice()`/`best_keep_set()` 出建议, 经 render 层进悬浮窗; 探索局可按
-日期低频触发。推理零 sklearn 依赖, `train_mulligan.py` 的
-`card_advice / best_keep_set / thompson_gain` 即推理 API(后续如需常驻,
-再把这些纯函数提升进 `hsbot/analysis/`)。
+留牌建议作为责任链上的一环进入实时军师, 每层各加一段、职责不变:
+
+```
+store   发结构化事件 mulligan_offer{actor, offered[cid], msg兜底文本}
+        → analysis.enrich   我方事件才富化: 对手职业(事件流英雄CLASS)+幸运币剔除
+          → MulliganAdvisor.advise()  读 LATEST 模型+专家先验(mtime 失配自动重读)
+        → render            @chain_renderer("mulligan_offer"): 有 advice 出建议行,
+          无建议器/无模型 → 回退"起手可留"
+        → watcher._route    事件→输出种类映射表(_MSG_KIND_BY_EVENT), advice 独立分色
+        → overlay           KIND_ADVICE 金色高亮(config overlay_colors.advice 可调)
+```
+
+输出形态: `[T1·我] 【留牌建议·vs牧师·后手】留 黑市拍卖师(+20.0%)、顺水漂流(+8.3%) │ 换 月火术(+4.0%)`。
+开关 `mulligan_advice`(config.yaml, 默认开); 推理零 sklearn 依赖 ——
+`hsbot/mulligan_ai.py` 是纯 stdlib 推理层, 训练器(scripts/train_mulligan.py)
+与实时军师共用同一份结论函数与先验文件, 训练出新版本即自动生效。
 
 ## 8. 业界参照
 

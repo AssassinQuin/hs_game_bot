@@ -18,6 +18,7 @@ from typing import Optional
 from .carddb import CardDB
 from .consts import RENATHAL_CARD_ID, RENATHAL_MIN_DECK_COUNT, SPELLPOWER_TYPES
 from .effects import Damage, Heal, EffectCache
+from .mulligan_ai import UNKNOWN, hero_class, is_coin
 
 _CID_SCAN_RE = re.compile(r"cardId=([A-Za-z0-9_]+)")
 
@@ -25,9 +26,11 @@ _DMG_TYPES = SPELLPOWER_TYPES          # 只有法术/英雄技能吃法强(随�
 
 
 class EffectAnalyzer:
-    def __init__(self, carddb: CardDB, cache: Optional[EffectCache] = None) -> None:
+    def __init__(self, carddb: CardDB, cache: Optional[EffectCache] = None,
+                 mulligan=None) -> None:
         self.carddb = carddb
         self.cache = cache or EffectCache()   # 无路径 = 仅内存增量
+        self.mulligan = mulligan              # 留牌建议器(MulliganAdvisor), 可选
 
     # ---------- IR 访问 ----------
     def _compiled(self, card_id: str | None):
@@ -83,6 +86,20 @@ class EffectAnalyzer:
                     evt.get("actor_deck_count"))
                 if inferred:
                     evt = {**evt, "card_id": inferred, "inferred": True}
+        elif kind == "mulligan_offer":
+            # 留牌建议(责任链的分析环): 只对我方、只富化不改事件事实;
+            # 无建议器/无模型 → 事件原样通过, 渲染层回退到"起手可留"。
+            if self.mulligan is not None and evt.get("actor") == store.friendly_key:
+                offered = [c for c in evt.get("offered") or []
+                           if c and not is_coin(c)]     # 幸运币不可换, 不进决策
+                opp_cid = next((cid for pid, cid in
+                                (store.heroes_facts() or {}).items()
+                                if pid != evt.get("actor")), None)
+                advice = self.mulligan.advise(
+                    offered, hero_class(opp_cid) or UNKNOWN,
+                    coin=any(is_coin(c) for c in evt.get("offered") or []))
+                if advice:
+                    evt = {**evt, "advice": advice}
         elif kind == "cost":
             eid = evt.get("eid")
             via = store.enchantments_on(eid) if eid is not None else []

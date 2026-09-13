@@ -39,7 +39,9 @@ DEFAULTS = {
         "game_end": "#7ec8ff",  # 终局
         "notice": "#8fb7d4",    # 系统通知(新对局/监控会话)
         "error": "#ff6b6b",     # 错误
+        "advice": "#ffd700",    # 留牌建议(开局高亮)
     },
+    "mulligan_advice": True,    # 留牌环节高亮建议(需先跑 scripts/train_mulligan.py)
     # 训练语料
     "training_dir": "data/training",
     "auto_training": True,      # 每局结束自动导出训练样本
@@ -88,7 +90,8 @@ class Config:
     _INT = ("overlay_font_size",)
     _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha",
               "draw_dedup_seconds")
-    _BOOL = ("console_echo", "overlay_enabled", "overlay_borderless", "auto_training")
+    _BOOL = ("console_echo", "overlay_enabled", "overlay_borderless", "auto_training",
+             "mulligan_advice")
     _PATH = ("logs_dir", "data_dir", "training_dir")
 
     def __init__(self, **values) -> None:

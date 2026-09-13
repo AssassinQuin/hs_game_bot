@@ -24,6 +24,8 @@ overlay_geometry: 460x780+8+120   # 默认宽x高+左边距+上边距; 实际位
                                   # 记忆到 data/overlay_state.json 并优先生效
 overlay_font_size: 10
 overlay_borderless: false # true=无边框(不可拖动/关闭, 需改配置还原)
+mulligan_advice: true     # 留牌环节高亮建议: 留X换Y(依据对手+留/换胜率, 模型来自
+                          # scripts/train_mulligan.py; 无模型时只显示"起手可留")
 # 信息分色(按人物与事件类型; 需自定义时取消注释整块并改色值):
 # overlay_colors:
 #   my: "#b8e6a0"         # 我方动作
@@ -34,6 +36,7 @@ overlay_borderless: false # true=无边框(不可拖动/关闭, 需改配置还�
 #   game_end: "#7ec8ff"   # 终局
 #   notice: "#8fb7d4"     # 系统通知(新对局/监控会话)
 #   error: "#ff6b6b"      # 错误
+#   advice: "#ffd700"     # 留牌建议(开局高亮)
 
 # ── 训练语料 ──
 training_dir: data/training

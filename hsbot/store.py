@@ -732,8 +732,11 @@ class GameStore:
                 names.append(nm or "?")
             if all(n == "?" for n in names):
                 names = [f"第{i}张" for i in range(1, len(names) + 1)]
-            self._emit_event({"kind": "text", "actor": key,
-                              "msg": f"起手可留: {'、'.join(names)}"})
+            self._emit_event({"kind": "mulligan_offer", "actor": key,
+                              "msg": f"起手可留: {'、'.join(names)}",
+                              "offered": [c for c in
+                                          (self.cid_of(e) for e in p.choices or [])
+                                          if c]})
         elif ctype == ChoiceType.GENERAL:
             src = getattr(p, "source", None)
             pid = getattr(getattr(p, "entity", None), "player_id", None)

@@ -152,10 +152,10 @@ def test_train_versions_and_increment(tmp_path, capsys):
     out2 = capsys.readouterr().out
     assert "语料 4 局(较上一版新增 1)" in out2
     assert "v002" in out2 and "上一版 v001" in out2
-    # 内容未变 → 重跑新增 0
+    # 内容未变 → 重跑不空转版本(守卫: 沿用旧版)
     assert _run(tmp_path, corpus, "--data", str(tmp_path / "corpus"),
                 "--deck", "奇迹德") == 0
-    assert "新增 0" in capsys.readouterr().out
+    assert "无新增对局, 沿用 v002" in capsys.readouterr().out
 
 
 def test_advise_without_lr_uses_table(tmp_path, capsys):

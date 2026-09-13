@@ -16,6 +16,7 @@ from hearthstone.enums import GameTag
 
 from .carddb import CardDB
 from .knowledge import DeckKnowledge, Ledger
+from .mulligan_ai import class_zh
 from .store import (GameStore, atk, hp_total, is_generated, is_taunt,
                     zone_pos)
 
@@ -52,6 +53,26 @@ def chain_line(evt: dict, carddb: CardDB) -> str:
     return f"{_head(evt)} {renderer(evt, carddb)}"
 
 
+@chain_renderer("mulligan_offer")
+def _render_mulligan_offer(evt: dict, carddb: CardDB) -> str:
+    """留牌建议(有 advice 富化)高亮行; 无建议 → 回退"起手可留"。"""
+    adv = evt.get("advice")
+    if not adv:
+        return evt.get("msg", "")
+
+    def fmt(cid):
+        info = adv.get("per_card", {}).get(cid) or {}
+        gain = info.get("gain")
+        name = str(info.get("name") or cid)
+        return f"{name}({gain * 100:+.1f}%)" if gain is not None else name
+
+    coin_txt = "后手" if adv.get("coin") else "先手"
+    keep = "、".join(fmt(c) for c in adv.get("keep") or []) or "无"
+    drop = "、".join(fmt(c) for c in adv.get("drop") or []) or "无"
+    return (f"【留牌建议·vs{class_zh(adv.get('opp_class', ''))}·{coin_txt}】"
+            f"留 {keep} │ 换 {drop}")
+
+
 @chain_renderer("play")
 def _render_play(evt: dict, carddb: CardDB) -> str:
     base, tag = evt.get("cost_base"), evt.get("cost_tag")
@@ -68,6 +89,9 @@ def _render_play(evt: dict, carddb: CardDB) -> str:
     sub = evt.get("suboption")
     if sub is not None:
         cost += f" 抉择{sub + 1}"
+        sub_cid = evt.get("suboption_card_id")   # 抉择所选子卡(随事件保存)
+        if sub_cid:
+            cost += f"·{carddb.name(sub_cid)}"
     left = evt.get("mana_left")
     left_txt = f" 剩{left}费" if left is not None else ""
     pred = evt.get("pred_dmg")               # 解析层产物: {"total": 总伤, "hits": 段数}
@@ -77,6 +101,11 @@ def _render_play(evt: dict, carddb: CardDB) -> str:
         left_txt += f" → 预计{pred['total']}伤{seg}"
     verb = "使用技能" if evt.get("is_power") else "打出"
     return f"{verb} {carddb.name(evt['card_id'])} {cost}{left_txt}"
+
+
+@chain_renderer("prepare")
+def _render_prepare(evt: dict, carddb: CardDB) -> str:
+    return f"预备完成 {carddb.name(evt.get('card_id'))}"
 
 
 @chain_renderer("discover")
