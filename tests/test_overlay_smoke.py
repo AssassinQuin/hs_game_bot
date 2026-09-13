@@ -43,7 +43,7 @@ def _run_with_auto_close(monkeypatch, q, after_ms=800, data_dir="."):
     raise last
 
 
-def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch):
+def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch, tmp_path):
     q = queue.Queue()
     for kind, text in [("notice", "监控会话: Hearthstone_x │ 卡组=奇迹德"),
                        ("chain", "[T1·我] 起手可留: 黑市拍卖师、雷霆绽放、月火术"),
@@ -51,16 +51,16 @@ def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch):
                        ("game_end", "──── 对局结束 ──── Player1=WON / Player2=LOST"),
                        ("error", "! 监控线程已退出, 请重启 hsbot")]:
         q.put((kind, text))
-    _run_with_auto_close(monkeypatch, q)      # run() 正常返回即通过
+    _run_with_auto_close(monkeypatch, q, data_dir=str(tmp_path))
 
 
-def test_overlay_survives_bad_message(ensure_display, monkeypatch):
+def test_overlay_survives_bad_message(ensure_display, monkeypatch, tmp_path):
     """坏消息(None 文本)曾会让 after 刷新链断掉 → 悬浮窗永久冻结。"""
     q = queue.Queue()
     q.put(("chain", "[T1·我] 正常行"))
     q.put((None, None))                        # 坏形态: insert 时 TypeError
     q.put(("chain", "[T1·我] 坏消息之后的正常行"))
-    _run_with_auto_close(monkeypatch, q)
+    _run_with_auto_close(monkeypatch, q, data_dir=str(tmp_path))
 
 
 def test_overlay_classify_lines():
