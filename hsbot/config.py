@@ -21,6 +21,7 @@ DEFAULTS = {
     "replay": "",               # 重放模式: 静态日志路径
     "poll_interval": 0.5,       # 实时轮询间隔(秒)
     "session_check_interval": 10.0,  # 检查新会话目录的间隔(秒)
+    "draw_dedup_seconds": 0.5,  # 同一实体抽牌多重揭示路径的去重窗口(秒)
     # 输出
     "console_echo": True,       # 除悬浮窗外是否同步打印到控制台
     "overlay_enabled": True,    # 半透明置顶日志窗(游戏需无边框/窗口化模式)
@@ -48,7 +49,8 @@ _FIELDS = tuple(DEFAULTS)  # Config.__init__ 的合法键
 
 
 def _candidate_logs_dirs() -> list[Path]:
-    """各平台 Hearthstone Logs 候选目录(按常见程度排序)。"""
+    """各平台 Hearthstone Logs 候选目录(按常见程度排序; 本机自定义安装位
+    不进代码库 —— 显式写进 config.yaml 的 logs_dir, 审计 2026-09-13 五)。"""
     home = Path.home()
     cands: list[Path] = []
     if sys.platform == "win32":
@@ -56,7 +58,6 @@ def _candidate_logs_dirs() -> list[Path]:
         cands += [
             Path(pf86) / "Hearthstone" / "Logs",
             Path("D:/Program Files (x86)/Hearthstone/Logs"),
-            Path("E:/battle/Hearthstone/Logs"),  # 本机自定义安装位
             Path(os.environ.get("LOCALAPPDATA", "")) / "Blizzard" / "Hearthstone" / "Logs",
         ]
     elif sys.platform == "darwin":
@@ -85,7 +86,8 @@ def auto_logs_dir() -> str:
 
 class Config:
     _INT = ("overlay_font_size",)
-    _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha")
+    _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha",
+              "draw_dedup_seconds")
     _BOOL = ("console_echo", "overlay_enabled", "overlay_borderless", "auto_training")
     _PATH = ("logs_dir", "data_dir", "training_dir")
 

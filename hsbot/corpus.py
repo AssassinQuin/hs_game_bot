@@ -19,23 +19,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from .adapter import feed_line, new_parser, packet_payload, walk_packets
+from .knowledge import deck_timeline, parse_log_time, session_date
+from .persist import atomic_write_text
 
 log = logging.getLogger(__name__)
 
-_TS_RE = re.compile(r"^[IWD] (\d[\d:.]+) ?(.*)$")
-_CODE_RE = re.compile(r"^AA[A-Za-z0-9+/=]{30,}$")
 _UNSAFE = re.compile(r'[\\/:*?"<>|]')
 _CREATE_GAME_MARK = "GameState.DebugPrintPower() - CREATE_GAME"
 
 
 def _safe_dirname(name: str) -> str:
     return _UNSAFE.sub("_", name).strip() or "未知卡组"
-
-
-def _parse_log_time(s: str) -> datetime:
-    """'20:59:52.6130042' -> 今日该时刻。"""
-    s = s.split(".")[0]
-    return datetime.combine(datetime.now().date(), datetime.strptime(s, "%H:%M:%S").time())
 
 
 class CorpusExporter:
@@ -56,33 +50,10 @@ class CorpusExporter:
         return set()
 
     def _save_index(self, done: set) -> None:
-        self.index_path.write_text(json.dumps(sorted(done), ensure_ascii=False, indent=0),
-                                   encoding="utf-8")
+        atomic_write_text(self.index_path,
+                          json.dumps(sorted(done), ensure_ascii=False, indent=0))
 
-    # ---------- Decks.log 时间线 → 卡组归因 ----------
-    def _deck_timeline(self, decks_path: str | Path | None) -> list:
-        """[(时刻, 卡组名, deck code)], 只取每次'Finding Game With Deck'序列。"""
-        entries: list = []
-        if not decks_path or not Path(decks_path).exists():
-            return entries
-        pending_t = None
-        pending_name = None
-        for raw in Path(decks_path).read_text(encoding="utf-8", errors="replace").splitlines():
-            m = _TS_RE.match(raw.strip())
-            t_str, content = (m.group(1), m.group(2)) if m else (None, raw.strip())
-            if content.startswith("Finding Game With Deck") and t_str:
-                try:
-                    pending_t = _parse_log_time(t_str)
-                except ValueError:
-                    pending_t = None          # 畸形时刻: 该条不参与归因
-                pending_name = None
-            elif content.startswith("### ") and pending_t is not None:
-                pending_name = content[4:].strip()
-            elif pending_t is not None and pending_name and _CODE_RE.match(content):
-                entries.append((pending_t, pending_name, content))
-                pending_t = pending_name = None
-        return entries
-
+    # ---------- 卡组归因: 时间线解析在 knowledge(唯一解释点) ----------
     def _attribute(self, entries, game_time) -> tuple:
         """该局开始时刻之前最近的一次排队记录; 跨午夜视为昨天。"""
         best = None
@@ -133,10 +104,10 @@ class CorpusExporter:
                     continue
             events.append(ev)
 
-        entries = self._deck_timeline(decks_path)
+        entries = deck_timeline(decks_path, day=session_date(session))
         try:
-            game_time = datetime.combine(datetime.now().date(),
-                                         datetime.strptime(start_ts.split(".")[0], "%H:%M:%S").time())
+            # 日期锚 = 会话目录名(跨午夜对局不再归错卡组); 解析失败退回"现在"
+            game_time = parse_log_time(start_ts, session_date(session))
         except ValueError:
             game_time = datetime.now()
         deck_name, deck_code = self._attribute(entries, game_time)
@@ -178,10 +149,25 @@ class CorpusExporter:
         out_dir = self.dir / _safe_dirname(meta["deck_name"])
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f"{_safe_dirname(session)}_g{idx:02d}.jsonl"
-        with path.open("w", encoding="utf-8") as fp:
-            fp.write(json.dumps(meta, ensure_ascii=False, default=str) + "\n")
-            for ev in events:
-                fp.write(json.dumps(ev, ensure_ascii=False, default=str) + "\n")
+        body = [json.dumps(meta, ensure_ascii=False, default=str)]
+        body += [json.dumps(ev, ensure_ascii=False, default=str) for ev in events]
+        atomic_write_text(path, "\n".join(body) + "\n")
+        return path
+
+    # ---------- live 导出去重(审计 中#8) ----------
+    def export_if_new(self, tree, *, session: str, idx: int,
+                      decks_path=None, store=None) -> Path | None:
+        """与 import-all 共用 _imported.json 索引: 已收录的 (session|idx) 跳过,
+        重复 attach 同一会话不再重复导出。跳过时返回 None。"""
+        done = self._load_index()
+        key = f"{session}|{idx}"
+        if key in done:
+            return None
+        path = self.export_game(tree, session=session, idx=idx,
+                                decks_path=decks_path, source="live", store=store)
+        if path is not None:
+            done.add(key)
+            self._save_index(done)
         return path
 
     # ---------- 当局原始日志切片 ----------
@@ -192,7 +178,7 @@ class CorpusExporter:
         if not jsonl_path or not lines:
             return None
         out = Path(jsonl_path).with_suffix(".power.log")
-        out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        atomic_write_text(out, "\n".join(lines) + "\n")
         return out
 
     # ---------- 批量导入 ----------

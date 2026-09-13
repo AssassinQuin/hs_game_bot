@@ -10,6 +10,7 @@ import logging
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 
 from hearthstone.enums import CardType, GameTag, Zone
@@ -99,25 +100,82 @@ class DeckKnowledge:
         return sum(1 for c in played_card_ids if c not in self.decklist)
 
 
-# ---------- Decks.log 解析 ----------
+# ---------- Decks.log 解析(唯一解释点; 冗余#2: parse_decks_log 与
+# corpus 的排队时间线同源于 _parse_decks_log 单遍扫描) ----------
 _CODE_RE = re.compile(r"^AA[A-Za-z0-9+/=]{30,}$")
-_TS_RE = re.compile(r"^[IWD] \d[\d:.]+ ?(.*)$")
+_TS_RE = re.compile(r"^[IWD] (\d[\d:.]+) ?(.*)$")
+_SESSION_DATE_RE = re.compile(r"Hearthstone_(\d{4})_(\d{2})_(\d{2})_")
+
+
+def parse_log_time(s: str, day=None):
+    """'20:59:52.6130042' -> day(缺省今天)该时刻的 datetime。"""
+    s = s.split(".")[0]
+    return datetime.combine(day or datetime.now().date(),
+                            datetime.strptime(s, "%H:%M:%S").time())
+
+
+def session_date(session: str | None):
+    """会话目录名 Hearthstone_YYYY_MM_DD_HH_MM_SS 中的日期。
+
+    Decks.log 行只有时刻没有日期, 归因需要绝对时间 —— 会话目录名是唯一
+    可靠的日期锚(审计 2026-09-13 中#7: 用"今天"拼日期, 跨午夜会归错卡组)。"""
+    m = _SESSION_DATE_RE.search(session or "")
+    if m is None:
+        return None
+    return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+
+def _parse_decks_log(path: str | Path, day=None) -> tuple[dict[str, str], list]:
+    """单遍扫描, 双出口:
+      codes    {卡组名: 最新 deck code} —— 客户端每次开局/编辑卡组都会追加;
+      timeline [(时刻, 卡组名, code)] —— 只取每次 'Finding Game With Deck'
+               序列(有时刻锚才入列, 供训练导出按局归因)。
+    无 Finding 的 '### 名 + code'(编辑卡组)只进 codes: 若只看排队序列,
+    "编辑了卡组但上次玩的是别的"会丢最新代码。"""
+    codes: dict[str, str] = {}
+    timeline: list = []
+    if not path or not Path(path).exists():
+        return codes, timeline
+    pending_t = None       # 最近一次 Finding 的时刻
+    pending_name = None    # 最近一次 ### 卡组名
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fp:
+            lines = fp.readlines()
+    except OSError:
+        return codes, timeline
+    for raw in lines:
+        m = _TS_RE.match(raw.strip())
+        t = None
+        if m is not None:
+            try:
+                t = parse_log_time(m.group(1), day)
+            except ValueError:
+                t = None              # 畸形时刻: 该条不参与时间线
+            content = m.group(2)
+        else:
+            content = raw.strip()
+        if content.startswith("Finding Game With Deck"):
+            if t is not None:
+                pending_t, pending_name = t, None
+            continue
+        if content.startswith("### "):
+            pending_name = content[4:].strip()
+        elif pending_name and _CODE_RE.match(content):
+            codes[pending_name] = content
+            if pending_t is not None:
+                timeline.append((pending_t, pending_name, content))
+            pending_t = pending_name = None
+    return codes, timeline
 
 
 def parse_decks_log(path: str | Path) -> dict[str, str]:
-    """Decks.log → {卡组名: 最新 deck code}。客户端每次开局/编辑卡组都会追加。"""
-    codes: dict[str, str] = {}
-    last_name: str | None = None
-    try:
-        with open(path, encoding="utf-8", errors="replace") as fp:
-            for raw in fp:
-                m = _TS_RE.match(raw.strip())
-                content = (m.group(1) if m else raw).strip()
-                if content.startswith("### "):
-                    last_name = content[4:].strip()
-                elif last_name and _CODE_RE.match(content):
-                    codes[last_name] = content
-                    last_name = None
-    except OSError:
-        pass
-    return codes
+    """Decks.log → {卡组名: 最新 deck code}(卡组代码匹配用)。"""
+    return _parse_decks_log(path)[0]
+
+
+def deck_timeline(path: str | Path, day=None) -> list:
+    """Decks.log 排队时间线 [(时刻, 卡组名, deck code)](训练导出归因用)。
+
+    day: 行时刻的日期锚(传会话目录名解析出的日期); 缺省今天,
+    跨午夜由 corpus._attribute 的 ±12h 启发式兜底。"""
+    return _parse_decks_log(path, day)[1]

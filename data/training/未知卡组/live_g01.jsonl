@@ -1,0 +1,22 @@
+{"_meta": true, "source": "live", "session": "live", "game_index": 1, "start_ts": "20:00:00", "turns": 1, "deck_name": "未知卡组", "deck_code": null, "decklist": null, "players": {"1": {"name": "Player1", "player_id": 1, "hero_power": null}, "2": {"name": "Player2", "player_id": 2, "hero_power": null}}, "heroes": {"1": "HERO_01a", "2": "HERO_02a"}, "results": {"1": "WON", "2": "LOST"}, "mulligan": {}, "event_count": 21}
+{"t": "CreateGame", "d": 0, "ts": "20:00:00", "entity": 1, "tags": [["TURN", 1]], "players": [{"entity": {"name": null, "entity_id": 2, "player_id": 1}, "player_id": 1, "hi": 2, "lo": 1, "tags": [], "name": null, "packet_id": 2}, {"entity": {"name": null, "entity_id": 3, "player_id": 2}, "player_id": 2, "hi": 2, "lo": 2, "tags": [], "name": null, "packet_id": 3}], "packet_id": 1}
+{"t": "FullEntity", "d": 0, "ts": "20:00:00", "entity": 4, "card_id": "HERO_01a", "tags": [["CARDTYPE", "HERO"], ["ZONE", "PLAY"], ["CONTROLLER", 1], ["HEALTH", 30]], "packet_id": 4}
+{"t": "FullEntity", "d": 0, "ts": "20:00:00", "entity": 5, "card_id": "HERO_02a", "tags": [["CARDTYPE", "HERO"], ["ZONE", "PLAY"], ["CONTROLLER", 2], ["HEALTH", 30]], "packet_id": 5}
+{"t": "FullEntity", "d": 0, "ts": "20:00:00", "entity": 10, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1]], "packet_id": 6}
+{"t": "FullEntity", "d": 0, "ts": "20:00:00", "entity": 11, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1]], "packet_id": 7}
+{"t": "ShowEntity", "d": 0, "ts": "20:00:00.000001", "entity": 10, "card_id": "CS2_029", "tags": [], "packet_id": 8}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000001", "entity": 10, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 9}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000001", "entity": 10, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 10}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000001", "entity": 2, "tag": "RESOURCES", "value": 1, "has_change_def": false, "packet_id": 11}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000001", "entity": 2, "tag": "CURRENT_PLAYER", "value": 1, "has_change_def": false, "packet_id": 12}
+{"t": "Block", "d": 0, "ts": "20:00:00.000002", "entity": 10, "type": "PLAY", "index": null, "effectid": "", "effectindex": "-1", "target": 0, "suboption": null, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 23, "spectator_mode": false}, "packet_id": 13}
+{"t": "TagChange", "d": 1, "ts": "20:00:00.000002", "entity": 10, "tag": "ZONE", "value": "PLAY", "has_change_def": false, "packet_id": 14}
+{"t": "TagChange", "d": 1, "ts": "20:00:00.000002", "entity": 10, "tag": "CARDTYPE", "value": "SPELL", "has_change_def": false, "packet_id": 15}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000003", "entity": 5, "tag": "DAMAGE", "value": 3, "has_change_def": false, "packet_id": 16}
+{"t": "Block", "d": 0, "ts": "20:00:00.000003", "entity": 4, "type": "ATTACK", "index": null, "effectid": "", "effectindex": "-1", "target": 5, "suboption": null, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 23, "spectator_mode": false}, "packet_id": 17}
+{"t": "Block", "d": 0, "ts": "20:00:00.000004", "entity": 10, "type": "TRIGGER", "index": null, "effectid": "", "effectindex": "-1", "target": 0, "suboption": null, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 23, "spectator_mode": false}, "packet_id": 18}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000005", "entity": 2, "tag": "CURRENT_PLAYER", "value": 0, "has_change_def": false, "packet_id": 19}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000005", "entity": 3, "tag": "CURRENT_PLAYER", "value": 1, "has_change_def": false, "packet_id": 20}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000005", "entity": 3, "tag": "RESOURCES", "value": 1, "has_change_def": false, "packet_id": 21}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000006", "entity": 2, "tag": "PLAYSTATE", "value": "WON", "has_change_def": false, "packet_id": 22}
+{"t": "TagChange", "d": 0, "ts": "20:00:00.000006", "entity": 3, "tag": "PLAYSTATE", "value": "LOST", "has_change_def": false, "packet_id": 23}

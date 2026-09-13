@@ -1,6 +1,5 @@
 """渲染与知识层换源: snapshot_block/game_end_line/rebuild 吃 GameStore。"""
 from collections import Counter
-from pathlib import Path
 
 from hearthstone.enums import CardType, GameTag, Zone
 
@@ -9,22 +8,8 @@ from hsbot.knowledge import DeckKnowledge
 from hsbot.render import chain_line, game_end_line, snapshot_block, snapshot_line
 from hsbot.store import GameStore
 
-from .conftest import EventLog, mk_create_game, mk_full, mk_pm, mk_tag
-
-
-class _Tree:
-    def __iter__(self):
-        return iter(())
-
-
-def _store():
-    carddb = CardDB("/nonexistent/cards.json")
-    st = GameStore(carddb=carddb, battletag="湫然#51704",
-                   tree=_Tree(), player_manager=mk_pm())
-    st.subscribe(EventLog())
-    st.apply(mk_create_game())
-    st.note_friendly(1)
-    return st, carddb
+from .conftest import (EmptyTree, mk_full, mk_heroes as _heroes,
+                       mk_pm, mk_store as _store, mk_tag)
 
 
 def _board(st):
@@ -42,34 +27,34 @@ def _board(st):
 
 
 def test_snapshot_block_renders_from_store():
-    st, carddb = _store()
+    st, _ = _store()
     _board(st)
     block = snapshot_block(st, None, knowledge=None, deck_name="奇迹德",
                            generic=True, game_no=1, chain_lines=[],
-                           chain_summary=[], carddb=carddb, reason="turn_end")
+                           chain_summary=[], carddb=st.carddb, reason="turn_end")
     assert "完整快照" in block and "回合T0" in block
     assert "我  " in block and "CS2_029(2费)" in block
     assert "对面" in block and "CS2_120(2/3)" in block
 
 
 def test_game_end_line_and_chain_line_new_kinds():
-    st, carddb = _store()
+    st, _ = _store()
     _board(st)
     assert "对局结束" in game_end_line(st)
     assert "触发 CS2_029" in chain_line(
-        {"kind": "trigger", "card_id": "CS2_029", "turn": 3, "friendly": 1}, carddb)
+        {"kind": "trigger", "card_id": "CS2_029", "turn": 3, "friendly": 1}, st.carddb)
     assert "疲劳" in chain_line(
-        {"kind": "fatigue", "actor": 2, "turn": 9, "friendly": 1}, carddb)
+        {"kind": "fatigue", "actor": 2, "turn": 9, "friendly": 1}, st.carddb)
     assert "疲劳 第2抽(-2血)" in chain_line(
-        {"kind": "fatigue", "actor": 2, "count": 2, "turn": 9, "friendly": 1}, carddb)
+        {"kind": "fatigue", "actor": 2, "count": 2, "turn": 9, "friendly": 1}, st.carddb)
     assert "场上法强 2→3" in chain_line(
         {"kind": "spellpower", "actor": 2, "prev": 2, "total": 3,
-         "turn": 9, "friendly": 1}, carddb)
+         "turn": 9, "friendly": 1}, st.carddb)
     assert "场上法强 3" in chain_line(
         {"kind": "spellpower", "actor": 2, "total": 3,
-         "turn": 9, "friendly": 1}, carddb)
+         "turn": 9, "friendly": 1}, st.carddb)
     assert "阵亡" in chain_line(
-        {"kind": "death", "card_id": "CS2_120", "turn": 5, "friendly": 1}, carddb)
+        {"kind": "death", "card_id": "CS2_120", "turn": 5, "friendly": 1}, st.carddb)
 
 
 def test_knowledge_rebuild_from_store():
@@ -95,16 +80,16 @@ def test_knowledge_rebuild_survives_player_entity():
 
 def test_trigger_line_eid_fallback_for_unrevealed():
     """未揭示实体(对面暗牌附魔)触发: card_id 未知时报实体号而非裸 '?'。"""
-    st, carddb = _store()
+    st, _ = _store()
     assert "触发 #113" in chain_line(
         {"kind": "trigger", "eid": 113, "card_id": None,
-         "turn": 3, "friendly": 1}, carddb)
+         "turn": 3, "friendly": 1}, st.carddb)
     assert "触发 CS2_029" in chain_line(
         {"kind": "trigger", "eid": 10, "card_id": "CS2_029",
-         "turn": 3, "friendly": 1}, carddb)
+         "turn": 3, "friendly": 1}, st.carddb)
     assert "触发 #84(开局)" in chain_line(
         {"kind": "trigger", "eid": 84, "card_id": None,
-         "keyword": "START_OF_GAME_KEYWORD", "turn": 1, "friendly": 1}, carddb)
+         "keyword": "START_OF_GAME_KEYWORD", "turn": 1, "friendly": 1}, st.carddb)
 
 
 def test_play_render_formats_prediction():
@@ -137,6 +122,6 @@ def test_snapshot_line_compact_single_line():
 
 def test_snapshot_line_friendly_unknown_fallback():
     st = GameStore(carddb=CardDB("/nonexistent/cards.json"), battletag="湫然#51704",
-                   tree=_Tree(), player_manager=mk_pm())   # 不 apply/note_friendly
+                   tree=EmptyTree(), player_manager=mk_pm())   # 不 apply/note_friendly
     line = snapshot_line(st, 7, "unknown_reason")
     assert line == "── 第7局快照(unknown_reason) ──"

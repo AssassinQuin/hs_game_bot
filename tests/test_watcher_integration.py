@@ -114,6 +114,8 @@ def test_training_includes_raw_log_slice(tmp_path):
     assert snaps, "会话快照未落盘"
     payload = json.loads(snaps[0].read_text(encoding="utf-8").splitlines()[0])
     assert "recent_events" in payload, "富化事件未随快照持久化"
+    evs = payload["recent_events"]
+    assert evs and all("kind" in e for e in evs), "富化事件列表为空/缺 kind"
     text = logs[0].read_text(encoding="utf-8")
     assert "CREATE_GAME" in text
     jsonl = logs[0].name.replace(".power.log", ".jsonl")
@@ -157,6 +159,29 @@ def test_attach_survives_batch_exception(tmp_path, monkeypatch):
     offset = w._attach(FIXTURE)           # 不得向外抛异常
     assert offset > 0                     # 仍返回文件尾偏移, 实时可继续
     assert calls["n"] == 1                # 首批即炸, 兜底后跳过余下历史
+
+
+def test_live_training_export_dedup(tmp_path):
+    """审计 2026-09-13 中#8: live 导出与 import-all 共用 _imported.json 索引,
+    重复 attach 同一会话时已导过的 (session|局号) 不再重导。"""
+    from .conftest import mk_create_game
+    from hsbot.corpus import CorpusExporter
+
+    cfg = Config.load({"overlay_enabled": False, "auto_training": True,
+                       "data_dir": str(tmp_path),
+                       "training_dir": str(tmp_path / "training")})
+    ex = CorpusExporter(cfg, CardDB("/nonexistent.json"))
+
+    class _T:
+        ts = "20:00:00.0"
+        packets = [mk_create_game()]
+
+    path = ex.export_if_new(_T(), session="S", idx=1)
+    assert path is not None and path.exists()
+    assert ex.export_if_new(_T(), session="S", idx=1) is None    # 已收录: 跳过
+    assert ex.export_if_new(_T(), session="S", idx=2) is not None  # 新局照常导
+    done = json.loads(ex.index_path.read_text(encoding="utf-8"))
+    assert done == ["S|1", "S|2"]
 
 
 def test_gamestate_module_deleted():

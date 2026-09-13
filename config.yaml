@@ -12,9 +12,9 @@ battletag: 湫然#51704
 logs_dir: E:\battle\Hearthstone\Logs
 
 data_dir: data
-throttle_ms: 300
 poll_interval: 0.5        # 日志轮询间隔(秒)
 session_check_interval: 10  # 新会话目录检查间隔(秒)
+# draw_dedup_seconds: 0.5 # 同一实体抽牌多重揭示路径的去重窗口(秒)
 
 # ── 输出 ──
 console_echo: true        # 悬浮窗之外是否同步打印到控制台

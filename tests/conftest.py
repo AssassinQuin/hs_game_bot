@@ -13,6 +13,9 @@ from hearthstone.enums import BlockType, CardType, ChoiceType, GameTag, Zone
 from hslog import packets
 from hslog.player import PlayerManager
 
+from hsbot.carddb import CardDB
+from hsbot.store import GameStore
+
 TS = "2026-09-08 20:00:00.0000000"
 
 
@@ -108,3 +111,33 @@ class EventLog:
 def hero_packets(eid: int, cid: str, ctrl: int) -> list:
     return [mk_full(eid, cid, CARDTYPE=CardType.HERO.value, ZONE=Zone.PLAY.value,
                     CONTROLLER=ctrl, HEALTH=30)]
+
+
+# ================= 组合级 helper(冗余#6: 三处 _store/_heroes 收敛于此) =================
+
+class EmptyTree:
+    """无包的 packet 树占位(store 构造参数; 查询走手工 apply)。"""
+
+    def __iter__(self):
+        return iter(())
+
+
+def mk_store(battletag: str = "湫然#51704") -> tuple[GameStore, EventLog]:
+    """开局态 store(已 CREATE_GAME + friendly=1)+ 事件收集器。
+    carddb 指向不存在路径 → 降级模式 name()=card_id。"""
+    carddb = CardDB("/nonexistent/cards.json")
+    st = GameStore(carddb=carddb, battletag=battletag,
+                   tree=EmptyTree(), player_manager=mk_pm())
+    log = EventLog()
+    st.subscribe(log)
+    st.apply(mk_create_game())
+    st.note_friendly(1)
+    return st, log
+
+
+def mk_heroes(st) -> None:
+    """双方英雄: entity 4=pid1(我), entity 5=pid2(对面)。"""
+    st.apply(mk_full(4, "HERO_01a", CARDTYPE=CardType.HERO.value,
+                     ZONE=Zone.PLAY.value, CONTROLLER=1, HEALTH=30))
+    st.apply(mk_full(5, "HERO_02a", CARDTYPE=CardType.HERO.value,
+                     ZONE=Zone.PLAY.value, CONTROLLER=2, HEALTH=30))

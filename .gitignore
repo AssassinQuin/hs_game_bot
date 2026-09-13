@@ -5,9 +5,10 @@ __pycache__/
 .venv/
 venv/
 
-# 炉石真实日志与生成物(含战网昵称等个人数据,不入库;样例可自行放开)
+# 炉石真实日志与生成物(样例可自行放开; 训练语料切片按用户要求入库)
 *.log
 !tests/fixtures/*.log
+!data/training/**/*.power.log
 logs/
 *.hsreplay.xml
 
@@ -26,4 +27,5 @@ data/overlay_state.json
 # 训练语料(个人对局数据, 可用 import-all 子命令重新生成)
 # 训练语料(data/training/)如需排除, 恢复此行: data/training/
 data/baseline_new/
+data/models/
 tests/fixtures/cards_dmg_test.json

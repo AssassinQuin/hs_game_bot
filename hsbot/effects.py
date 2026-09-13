@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+from .persist import atomic_write_text
 
 # ---------- IR(不可变纯数据; 规则全部在语法表与求值器) ----------
 
@@ -154,8 +155,6 @@ class EffectCache:
         data = {cid: {"h": ir.source_hash, "type": ir.cardtype,
                       "fx": _effects_to_json(ir.effects)}
                 for cid, ir in self._memo.items()}
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, self.path)              # 原子替换, 防截断
+        atomic_write_text(self.path,
+                          json.dumps(data, ensure_ascii=False))
         self._dirty = False

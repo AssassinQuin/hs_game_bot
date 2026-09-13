@@ -1,34 +1,10 @@
 """GameStore 核心: apply 管线 / TagChange 衍生 / 查询 API。"""
 from hearthstone.enums import CardType, GameTag, Zone
 
-from hsbot.carddb import CardDB
-from hsbot.store import GameStore, is_hero
+from hsbot.store import is_hero
 
-from .conftest import (EventLog, mk_create_game, mk_full, mk_pm, mk_show,
-                       mk_tag)
-
-
-class _Tree:
-    def __iter__(self):
-        return iter(())
-
-
-def _store(battletag="湫然#51704"):
-    carddb = CardDB("/nonexistent/cards.json")     # 降级: name()=card_id
-    st = GameStore(carddb=carddb, battletag=battletag,
-                   tree=_Tree(), player_manager=mk_pm())
-    log = EventLog()
-    st.subscribe(log)
-    st.apply(mk_create_game())
-    st.note_friendly(1)
-    return st, log
-
-
-def _heroes(st):
-    st.apply(mk_full(4, "HERO_01a", CARDTYPE=CardType.HERO.value,
-                     ZONE=Zone.PLAY.value, CONTROLLER=1, HEALTH=30))
-    st.apply(mk_full(5, "HERO_02a", CARDTYPE=CardType.HERO.value,
-                     ZONE=Zone.PLAY.value, CONTROLLER=2, HEALTH=30))
+from .conftest import (mk_create_game, mk_full, mk_heroes as _heroes,
+                       mk_show, mk_store as _store, mk_tag)
 
 
 def test_turn_start_events():
@@ -135,10 +111,10 @@ def test_queries():
     assert st.playstate(1) == "INVALID"
 
 
-def test_hint_and_friendly_and_lines():
+def test_apply_hints_and_progress():
+    """行级线索/进度推进: store 的显式入口(不再允许后门直写字段)。"""
     st, log = _store(battletag="")
-    st.hint_cid(77, "TTN_001")
-    st.hint_ctrl(77, 1)
+    st.apply_hints({77: "TTN_001"}, {77: 1})
     assert st.cid_of(77) == "TTN_001"
-    st.lines_consumed = 42
+    st.note_progress(42)
     assert st.lines_consumed == 42

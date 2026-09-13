@@ -2,35 +2,10 @@
 from hearthstone.enums import BlockType, CardType, ChoiceType, GameTag, Zone
 from hslog import packets
 
-from hsbot.carddb import CardDB
-from hsbot.store import GameStore
-
-from .conftest import (TS, EventLog, _ref, mk_block, mk_choices_general,
+from .conftest import (TS, _ref, mk_block, mk_choices_general,
                        mk_choices_mulligan, mk_create_game, mk_full, mk_hide,
-                       mk_pm, mk_send_general, mk_send_mulligan, mk_show, mk_tag)
-
-
-class _Tree:
-    def __iter__(self):
-        return iter(())
-
-
-def _store():
-    carddb = CardDB("/nonexistent/cards.json")
-    st = GameStore(carddb=carddb, battletag="湫然#51704",
-                   tree=_Tree(), player_manager=mk_pm())
-    log = EventLog()
-    st.subscribe(log)
-    st.apply(mk_create_game())
-    st.note_friendly(1)
-    return st, log
-
-
-def _heroes(st):
-    st.apply(mk_full(4, "HERO_01a", CARDTYPE=CardType.HERO.value,
-                     ZONE=Zone.PLAY.value, CONTROLLER=1, HEALTH=30))
-    st.apply(mk_full(5, "HERO_02a", CARDTYPE=CardType.HERO.value,
-                     ZONE=Zone.PLAY.value, CONTROLLER=2, HEALTH=30))
+                       mk_heroes as _heroes, mk_send_general, mk_send_mulligan,
+                       mk_show, mk_store as _store, mk_tag)
 
 
 def test_play_deferred_until_block_settles():
@@ -234,6 +209,28 @@ def test_hero_power_change_event():
     assert d["players"][2]["hero_power"] == "EDR_449p"
 
 
+def test_hero_power_hidden_then_revealed_emits_once():
+    """审计 2026-09-13 中#4: 技能实体先无名进 PLAY 再揭示时,
+    不得连发 "#22" 与真名两条 —— 未知名静默登记, 揭示后才报一条。"""
+    st, log = _store()
+    _heroes(st)
+    st.apply(mk_full(20, "HERO_05bp", ZONE=Zone.PLAY.value, CONTROLLER=2,
+                     CARDTYPE=CardType.HERO_POWER.value))
+    st.apply(mk_full(21, "EDR_449p", ZONE=Zone.PLAY.value, CONTROLLER=2,
+                     CARDTYPE=CardType.HERO_POWER.value))
+    assert len(log.by_kind("hero_power")) == 1
+    # 换成未知名实体: 只登记(旧实现此处会发一条只有实体号的 "#22")
+    st.apply(mk_full(22, None, ZONE=Zone.PLAY.value, CONTROLLER=2,
+                     CARDTYPE=CardType.HERO_POWER.value))
+    assert st.hero_power[2] == 22
+    assert len(log.by_kind("hero_power")) == 1
+    # 揭示后: 恰好一条, 带真名
+    st.apply(mk_show(22, "HERO_05bp", ZONE=Zone.PLAY.value))
+    evs = log.by_kind("hero_power")
+    assert len(evs) == 2 and evs[-1]["card_id"] == "HERO_05bp" and evs[-1]["eid"] == 22
+    assert st.hero_power_cid[2] == "HERO_05bp"
+
+
 def test_mulligan_flow():
     st, log = _store()
     _heroes(st)
@@ -273,6 +270,19 @@ def test_raw_records_unhandled_packets():
     assert "MetaData" in types and "Block:POWER" in types
     assert "Block:PLAY" not in types
     assert log.kinds().count("raw") >= 2
+
+
+def test_unhandled_bounded_and_listable():
+    """deque(maxlen) 自动裁剪; 快照 payload 走 list() 转换
+    (真实日志回归: deque 不可切片, unhandled[-50:] 曾炸掉终局快照)。"""
+    st, _ = _store()
+    _heroes(st)
+    for i in range(520):
+        st._record_raw(f"X{i}", mk_tag(2, GameTag.TURN, i))
+    assert len(st.unhandled) == 500
+    assert st.unhandled[0]["packet_type"] == "X20"         # 最老的被挤出
+    tail = list(st.unhandled)[-50:]
+    assert len(tail) == 50 and tail[-1]["packet_type"] == "X519"
 
 
 def test_gain_event_with_creator():
@@ -359,7 +369,7 @@ def test_trigger_actor_hint_ctrl_fallback():
     st, log = _store()
     _heroes(st)
     st.apply(mk_full(20, None, ZONE=Zone.SETASIDE.value, CONTROLLER=2))
-    st.hint_ctrl(20, 2)
+    st.apply_hints(ctrl={20: 2})
     st.apply(mk_show(20, "JAIL_907e02", ZONE=Zone.PLAY.value))
     st.apply(mk_block(BlockType.TRIGGER, 20))
     trig = log.by_kind("trigger")[-1]

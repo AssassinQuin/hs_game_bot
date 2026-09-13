@@ -18,8 +18,9 @@ from .effects import EffectCache
 from .carddb import CardDB
 from .config import Config
 from .knowledge import DeckKnowledge, parse_decks_log
-from .overlay import Msg
-from .persist import SessionStore
+from .overlay import (KIND_CHAIN, KIND_GAME_END, KIND_NOTICE, KIND_SNAPSHOT,
+                      Msg, TAG_MY, TAG_OPP, TAG_UNKNOWN)
+from .persist import SessionStore, atomic_write_text
 from .render import chain_line, game_end_line, snapshot_block, snapshot_line
 from .store import GameStore
 
@@ -77,10 +78,11 @@ class SnapshotService:
         if reason == "game_end":
             end = game_end_line(st)
             nl = chr(10)
-            self._emit(Msg("game_end", ui=snapshot_line(st, game_no, reason) + nl + end,
+            self._emit(Msg(KIND_GAME_END,
+                           ui=snapshot_line(st, game_no, reason) + nl + end,
                            full=block + nl + end))
         else:
-            self._emit(Msg("snapshot", ui=snapshot_line(st, game_no, reason),
+            self._emit(Msg(KIND_SNAPSHOT, ui=snapshot_line(st, game_no, reason),
                            full=block))
         if persist is None:
             return
@@ -94,12 +96,15 @@ class SnapshotService:
         payload["chain_summary"] = summary
         payload["recent_events"] = rich_events[-100:]
         if st.unhandled:
-            payload["unhandled"] = st.unhandled[-50:]
+            payload["unhandled"] = list(st.unhandled)[-50:]   # deque 不可切片
         persist.write_snapshot(payload)
 
 
 class TrainingExporter:
-    """训练样本(语料 jsonl + 当局原始切片)的导出与收尾。"""
+    """训练样本(语料 jsonl + 当局原始切片)的导出与收尾。
+
+    live 导出与 import-all 共用 _imported.json 索引(审计 中#8):
+    重复 attach 同一会话时已导过的 (session|局号) 自动跳过。"""
 
     def __init__(self, cfg, carddb) -> None:
         self.cfg = cfg
@@ -107,9 +112,10 @@ class TrainingExporter:
         self._corpus = None
 
     def export(self, *, tree, store, session, idx, decks_path):
+        """返回 (样本路径|None(已导过/失败), corpus)。"""
         corpus = self._ensure_corpus()
-        path = corpus.export_game(tree, session=session, idx=idx,
-                                  decks_path=decks_path, source="live", store=store)
+        path = corpus.export_if_new(tree, session=session, idx=idx,
+                                    decks_path=decks_path, store=store)
         return path, corpus
 
     def finalize_slice(self, *, last_raw_path, game_lines) -> None:
@@ -326,16 +332,14 @@ class Watcher:
         for line in lines:
             self.lines += 1
             if self.match and self.match.gs is not None:
-                self.match.gs.lines_consumed = self.lines
+                self.match.gs.note_progress(self.lines)
             self.pipeline.feed(line, self.stream)
 
     def _after_batch(self) -> None:
         self._detect_game()
         if self.match and self.match.gs is not None:               # 括号线索刷进状态仓(幂等)
-            for eid, cid in self.stream.pend_cid.items():
-                self.match.gs.hint_cid(eid, cid)
-            for eid, pid in self.stream.pend_ctrl.items():
-                self.match.gs.hint_ctrl(eid, pid)
+            self.match.gs.apply_hints(self.stream.pend_cid,
+                                      self.stream.pend_ctrl)
         if self.parser.games:
             self._process_tree(self.parser.games[-1])
         self.analyzer.cache.save()             # IR 增量回写(dirty 才落盘)
@@ -386,7 +390,9 @@ class Watcher:
         self.state = "IN_GAME"
         self.match.gs = GameStore(carddb=self.carddb, battletag=self.cfg.battletag,
                                   tree=self.parser.games[-1] if self.parser.games else None,
-                                  player_manager=self.parser.player_manager)
+                                  player_manager=self.parser.player_manager,
+                                  draw_dedup=self.cfg.draw_dedup_seconds)
+        self.match.gs.set_meta(game_meta(self.parser))   # 一次会话内不变, 新局注入一次
         self.match.gs.subscribe(self._route)
         if self.store is not None:
             self.store.new_game()
@@ -405,11 +411,10 @@ class Watcher:
         k = DeckKnowledge.from_code(code, self.carddb, self.cfg.deck_name)
         try:
             import json as _json
-            out = self.cfg.data_dir / "decks" / "decklist.json"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text(_json.dumps({"name": self.cfg.deck_name, "code": code,
-                                        "cards": k.decklist}, ensure_ascii=False, indent=1),
-                           encoding="utf-8")
+            atomic_write_text(self.cfg.data_dir / "decks" / "decklist.json",
+                              _json.dumps({"name": self.cfg.deck_name, "code": code,
+                                           "cards": k.decklist},
+                                          ensure_ascii=False, indent=1))
         except OSError:
             pass
         return k
@@ -466,18 +471,23 @@ class Watcher:
             return            # 全量收录: 已入 store.unhandled(随 JSONL 落盘), 不渲染
         if (kind == "play" and self.match and self.match.gs is not None
                 and evt.get("actor") == self.match.gs.friendly_key):
-            self.match.summary.append(self.carddb.name(evt["card_id"]))
+            is_my_play = True
+        else:
+            is_my_play = False
         evt = self.analyzer.enrich(evt, self.gs)   # 解析层: 渲染前实时富化
+        if is_my_play:
+            # 富化之后才记账: 若将来推断改变 card_id, 摘要与链路行仍一致(审计 低#10)
+            self.match.summary.append(self.carddb.name(evt["card_id"]))
         if len(self.match.rich_events) < 400:
             self.match.rich_events.append(dict(evt))   # 富化结果随快照持久化
         line = chain_line(evt, self.carddb)
         self.match.chain.append(line)
         actor, friendly = evt.get("actor"), evt.get("friendly")
         if actor is not None and friendly is not None:
-            tag = "my" if actor == friendly else "opp"
+            tag = TAG_MY if actor == friendly else TAG_OPP
         else:
-            tag = "unknown"
-        self._emit(Msg("chain", line, tag=tag), "chain")
+            tag = TAG_UNKNOWN
+        self._emit(Msg(KIND_CHAIN, line, tag=tag), KIND_CHAIN)
 
     def _fire_pending_game_end(self) -> None:
         """game_end 延迟快照触发点: 树内包全部应用(冲刷)后再快照+导出。"""
@@ -488,7 +498,8 @@ class Watcher:
         self._export_training()
 
     def _export_training(self) -> None:
-        """每局结束自动导出训练样本(仅实时来源; 回放用 import-all 子命令批量做)。"""
+        """每局结束自动导出训练样本(仅实时来源; 回放用 import-all 子命令批量做)。
+        已导过的 (session|局号) 静默跳过(_imported.json 只导新语义)。"""
         if not (self.cfg.auto_training and self._live and self.parser.games):
             return
         try:
@@ -496,6 +507,8 @@ class Watcher:
                 tree=self.parser.games[-1], store=self.match.gs,
                 session=self.session_name or "live", idx=self.game_no,
                 decks_path=self.decks_path)
+            if path is None:
+                return                     # 重复 attach: 该局已导过
             raw = corpus.export_raw_log(path, self.stream.game_lines or [])
             if self.match:
                 self.match.last_raw_path = raw
@@ -518,7 +531,10 @@ class Watcher:
     def _snapshot(self, reason: str) -> None:
         if self.match is None or self.match.gs is None:
             return
-        self.match.gs.meta = game_meta(self.parser)
+        if not self.match.gs.meta:
+            # DebugPrintGame 在真实日志里位于 CREATE_GAME 块之后(实测 +540 行):
+            # 新局注入时可能尚无内容, 此处补注一次; 非空后不再重算 game_meta
+            self.match.gs.set_meta(game_meta(self.parser))
         if self.match and self.match.knowledge is not None \
                 and self.knowledge.mismatch_count(self.match.gs.played_cids) >= 2:
             self.match.generic = True
@@ -533,7 +549,7 @@ class Watcher:
         self.match.chain, self.match.summary = [], []
         self.match.rich_events = []
 
-    def _emit(self, msg: str | Msg, kind: str = "notice") -> None:
+    def _emit(self, msg: str | Msg, kind: str = KIND_NOTICE) -> None:
         if self.mute:
             return
         self.out(msg if isinstance(msg, Msg) else Msg(kind, msg))

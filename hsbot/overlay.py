@@ -11,14 +11,25 @@
 from __future__ import annotations
 
 import json
-import os
 import queue
 import threading
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
 
+from .persist import atomic_write_text
+
 _MAX_LINES = 1500  # 窗口内保留的最大行数(防止内存/渲染膨胀)
+
+# ---- Msg 协议常量(耦合#5: kind/tag 取值唯一在此, watcher/render/overlay 共用) ----
+KIND_CHAIN = "chain"
+KIND_SNAPSHOT = "snapshot"
+KIND_GAME_END = "game_end"
+KIND_NOTICE = "notice"          # 系统通知(新对局/监控会话)与未分类兜底
+KIND_ERROR = "error"
+TAG_MY = "my"
+TAG_OPP = "opp"
+TAG_UNKNOWN = "unknown"
 
 # 信息分色默认表(可被 config.yaml 的 overlay_colors 覆盖)
 _DEFAULT_COLORS = {
@@ -101,12 +112,9 @@ class OverlayWindow:
         if not self._last_geom:
             return
         try:
-            self._state_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._state_path.with_suffix(".json.tmp")
-            tmp.write_text(
-                json.dumps({"geometry": self._last_geom}, ensure_ascii=False),
-                encoding="utf-8")
-            os.replace(tmp, self._state_path)   # 原子替换, 防截断
+            atomic_write_text(self._state_path,
+                              json.dumps({"geometry": self._last_geom},
+                                         ensure_ascii=False))
         except OSError:
             pass
 
@@ -129,18 +137,18 @@ class OverlayWindow:
         if tag:
             return tag                    # 产生方显式指定, 最高优先
         if text.startswith("!"):
-            return "error"
-        if kind in ("snapshot", "game_end"):
+            return KIND_ERROR
+        if kind in (KIND_SNAPSHOT, KIND_GAME_END):
             return kind
         if text.startswith("────"):
             return "header"
         if "·我]" in text:
-            return "my"
+            return TAG_MY
         if "·对面]" in text:
-            return "opp"
+            return TAG_OPP
         if text.startswith("[T") and "] " in text:
-            return "unknown"
-        return "notice"
+            return TAG_UNKNOWN
+        return KIND_NOTICE
 
     def run(self) -> None:
         tk = self._tk

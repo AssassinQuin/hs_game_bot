@@ -101,7 +101,7 @@ def main(argv=None) -> None:
         return
 
     # ---- 输出枢纽: 控制台 + 会话记录文件 + 悬浮窗(永远存在, 无悬浮窗时 console-only) ----
-    from .overlay import Msg, OutputHub    # 不依赖 tkinter, 顶层 import 安全
+    from .overlay import KIND_ERROR, Msg, OutputHub    # 不依赖 tkinter, 顶层 import 安全
     OverlayWindow = None                   # 悬浮窗类: tkinter 不可用时保持 None(降级)
     if cfg.overlay_enabled:
         try:
@@ -123,7 +123,7 @@ def main(argv=None) -> None:
                 watcher.run_live()
         except Exception:  # noqa: BLE001  监控线程死亡必须可见(曾静默假死一下午)
             log.exception("监控线程终止")
-            hub(Msg("error", ui="! 监控线程已退出, 请重启 hsbot(详见 data/logs/hsbot.log)"))
+            hub(Msg(KIND_ERROR, ui="! 监控线程已退出, 请重启 hsbot(详见 data/logs/hsbot.log)"))
 
     if hub.q is not None:        # 悬浮窗模式: tkinter 占主线程
         t = threading.Thread(target=run_bot, daemon=True, name="hsbot-watcher")

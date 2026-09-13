@@ -8,7 +8,8 @@ hearthstone.entities 上(不造轮子); store 只追踪库没有的部分(留牌
 回合计数/括号线索), 并从状态迁移衍生链路事件。
 
 变更入口(spec §3.2 细化): apply(p, depth) / settle() / note_friendly(pid)
-/ hint_cid / hint_ctrl / hint_draw —— 之外无人可改状态。
+/ apply_hints(cid, ctrl) / hint_draw(eid, cid, actor) / note_progress(n)
+/ set_meta(meta) —— 之外无人可改状态。
 契约: 查询返回活引用只读; 单线程(watcher 轮询线程独占);
 订阅者同步调用、不得重入 apply。
 """
@@ -18,6 +19,7 @@ import logging
 import time
 
 log = logging.getLogger(__name__)
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Iterator
 
@@ -91,7 +93,8 @@ class GameStore:
     """每局一个; 由 Watcher._new_game 创建, 局终丢弃(spec §3.6)。"""
 
     def __init__(self, *, carddb: CardDB, battletag: str = "",
-                 tree=None, player_manager=None) -> None:
+                 tree=None, player_manager=None,
+                 draw_dedup: float = 0.5) -> None:
         self.carddb = carddb
         self.battletag = battletag
         self.exporter = new_store_exporter(tree, player_manager)
@@ -116,10 +119,11 @@ class GameStore:
         self._hint_cid: dict[int, str] = {}
         self._hint_ctrl: dict[int, PlayerKey] = {}
         self._draw_ts: dict[int, float] = {}
+        self._draw_dedup = draw_dedup       # 同实体多重揭示路径的去重窗口(秒)
         self._ent2pid: dict[int, PlayerKey] = {}
         self._ended = False
         self._subs: list[EventCb] = []
-        self.unhandled: list[dict] = []    # raw 台账(spec §3.4 全量收录, 上限 500)
+        self.unhandled: deque = deque(maxlen=500)   # raw 台账(spec §3.4 全量收录, 上限 500)
 
     # ================= 基础 =================
     @property
@@ -345,15 +349,25 @@ class GameStore:
         if pid is not None:
             self.friendly_key = pid
 
-    def hint_cid(self, eid: int, cid: str) -> None:
-        self._hint_cid[eid] = cid
-
-    def hint_ctrl(self, eid: int, pid: PlayerKey) -> None:
-        self._hint_ctrl[eid] = pid
+    def apply_hints(self, cid: dict[int, str] | None = None,
+                    ctrl: dict[int, PlayerKey] | None = None) -> None:
+        """行级括号线索批量注入(watcher 采集, hslog 丢弃信息的兜底)。"""
+        if cid:
+            self._hint_cid.update(cid)
+        if ctrl:
+            self._hint_ctrl.update(ctrl)
 
     def hint_draw(self, eid: int, cid: str, actor: PlayerKey) -> None:
         """行级括号 SHOW_ENTITY(抽牌揭示主形态)的直通口, 走同一去重。"""
         self._emit_draw(eid, cid, actor)
+
+    def note_progress(self, lines: int) -> None:
+        """监控线程行号推进(诊断/进度展示用)。"""
+        self.lines_consumed = lines
+
+    def set_meta(self, meta: dict[str, str]) -> None:
+        """对局元信息(GameType/FormatType 等, 一次会话内不变), 新局时注入。"""
+        self.meta = dict(meta)
 
     def _pre_tags(self, p) -> dict | None:
         """受影响实体应用前的标签快照(推导 区域/费用/血甲/法强 变化用)。
@@ -401,9 +415,7 @@ class GameStore:
     def _record_raw(self, ptype: str, p) -> None:
         """raw 事件: 入库(store.unhandled -> JSONL), 照常分发订阅, 但渲染层跳过。"""
         evt = {"kind": "raw", "packet_type": ptype, "payload": packet_payload(p)}
-        self.unhandled.append(evt)
-        if len(self.unhandled) > 500:
-            del self.unhandled[:len(self.unhandled) - 500]
+        self.unhandled.append(evt)          # deque(maxlen) 自动裁剪
         self._emit_event(evt)
 
     def _key_of(self, entity) -> PlayerKey | None:
@@ -487,7 +499,10 @@ class GameStore:
 
     # ---- 英雄技能(灌注/替换/升级) ----
     def _note_hero_power(self, e) -> None:
-        """技能实体进 PLAY 或被揭示时登记; 实体更换或牌名变化即发事件。"""
+        """技能实体进 PLAY 或被揭示时登记; 更换或牌名变化即发事件。
+
+        去重语义(审计 2026-09-13 中#4): 未知名(card_id=None)只登记不发声,
+        延迟到可知名再报 —— 同实体先隐后揭不会连发 "#126" 与真名两条。"""
         if (e is None or e.zone != Zone.PLAY
                 or e.tags.get(GameTag.CARDTYPE) != CardType.HERO_POWER):
             return
@@ -497,9 +512,7 @@ class GameStore:
         cid = getattr(e, "card_id", None) or None
         prev_eid = self.hero_power.get(pid)
         known = self.hero_power_cid.get(pid)
-        changed = ((prev_eid is not None and prev_eid != e.id)
-                   or (prev_eid == e.id and cid and cid != known))
-        if changed:
+        if prev_eid is not None and cid and (prev_eid != e.id or cid != known):
             self._emit_event({"kind": "hero_power", "actor": pid,
                               "card_id": cid, "eid": e.id})
         if cid:
@@ -594,7 +607,7 @@ class GameStore:
     def _emit_draw(self, eid: int, cid: str, actor) -> None:
         now = time.monotonic()
         last = self._draw_ts.get(eid)
-        if last is not None and now - last < 0.5:
+        if last is not None and now - last < self._draw_dedup:
             return   # 同一实体的多重揭示路径只报一次
         self._draw_ts[eid] = now
         self._emit_event({"kind": "draw", "card_id": cid, "actor": actor})
