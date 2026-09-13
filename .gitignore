@@ -29,3 +29,7 @@ data/overlay_state.json
 data/baseline_new/
 data/models/
 tests/fixtures/cards_dmg_test.json
+
+# 离线训练系统(trainer)私有产物
+data/models/
+trainer/data/

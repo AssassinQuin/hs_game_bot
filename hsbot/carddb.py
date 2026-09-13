@@ -54,6 +54,12 @@ class CardDB:
         c = self._by_id.get(card_id)
         return (c.get("type") or "") if c else ""
 
+    def card_class(self, card_id: str | None) -> str | None:
+        """职业(CardClass 英文标签, 卡表 cardClass 字段)。缓存过旧无此字段时
+        返回 None —— 调用方以 consts.HERO_ID_CLASS 前缀表兜底。"""
+        c = self._by_id.get(card_id) if card_id else None
+        return c.get("cardClass") if c else None
+
     def text(self, card_id: str | None) -> str | None:
         """原始卡牌文本(语义解释是 analysis 层的职责)。"""
         c = self._by_id.get(card_id) if card_id else None

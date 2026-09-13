@@ -15,8 +15,8 @@ from typing import Callable
 from hearthstone.enums import GameTag
 
 from .carddb import CardDB
+from .consts import class_zh
 from .knowledge import DeckKnowledge, Ledger
-from .mulligan_ai import class_zh
 from .store import (GameStore, atk, hp_total, is_generated, is_taunt,
                     zone_pos)
 
@@ -71,6 +71,46 @@ def _render_mulligan_offer(evt: dict, carddb: CardDB) -> str:
     drop = "、".join(fmt(c) for c in adv.get("drop") or []) or "无"
     return (f"【留牌建议·vs{class_zh(adv.get('opp_class', ''))}·{coin_txt}】"
             f"留 {keep} │ 换 {drop}")
+
+
+# ================= 留牌结论词: 事实 → 中文(输出层政策) =================
+# 阈值属于"何时开口/如何措辞"的展示政策, 改这里不影响 mulligan_ai 的统计计算。
+
+MULL_GAIN_KEEP = 0.03       # 增益 ≥ +3% → 建议留
+MULL_GAIN_DROP = -0.03      # 增益 ≤ −3% → 建议换
+MULL_N_ADVICE_MIN = 6       # 无先验的卡: 样本低于此值只报"样本不足"
+_MULL_SRC_ZH = {"coin": "同先手", "class": "本职业", "all": "全体",
+                "prior": "专家先验", "none": "无数据"}
+_MULL_LEVEL_ZH = {"near": "近似手牌", "same": "同职业同手"}
+
+
+def mulligan_verdict(adv: dict) -> str:
+    """逐卡结论词: mulligan_ai 的事实 → 中文。有专家先验的卡不受样本门槛限制。"""
+    gain, src = adv.get("gain", 0.0), adv.get("src")
+    if src == "prior":
+        return ("建议留" if gain >= MULL_GAIN_KEEP
+                else "建议换" if gain <= MULL_GAIN_DROP else "先验中性")
+    if src == "none" or (adv.get("n", 0) < MULL_N_ADVICE_MIN
+                         and not adv.get("prior")):
+        return "样本不足"
+    return ("建议留" if gain >= MULL_GAIN_KEEP
+            else "建议换" if gain <= MULL_GAIN_DROP else "中性")
+
+
+def mulligan_src_zh(src: str) -> str:
+    """结论出处键 → 中文(同先手/本职业/全体/专家先验/无数据)。"""
+    return _MULL_SRC_ZH.get(src, src or "")
+
+
+def mulligan_matched_zh(ev: dict | None) -> str:
+    """同情境匹配事实 → 中文一行; 无可比对局照实说。"""
+    if not ev or ev.get("level") == "none":
+        return "无可比对局"
+    kw, kl = ev["keep"]
+    dw, dl = ev["drop"]
+    name = _MULL_LEVEL_ZH.get(ev.get("level"), ev.get("level"))
+    return (f"{name}{ev['n']}局: 留{kw + kl}({kw}胜{kl}负) "
+            f"换{dw + dl}({dw}胜{dl}负)")
 
 
 @chain_renderer("play")
@@ -229,12 +269,12 @@ def snapshot_line(st: GameStore, game_no: int, reason: str) -> str:
         return f"── 第{game_no}局快照({reason_cn}) ──"
     f = st.mana_fields(me)
     opp = st.opponent_key()
-    opp_board = len(st.board(opp)) if opp is not None else 0
+    opp_atk = st.board_attack(opp) if opp is not None else 0
     sp = st.spellpower(me)
     return (f"── T{st.turn} 第{game_no}局({reason_cn})"
             f" 我:水晶{st.mana_now(me)}/{f['res']} │ 手牌{len(st.hand(me))}"
             f" │ 牌库{st.deck_count(me)} │ 场上{len(st.board(me))}"
-            f" │ 对面场上{opp_board}"
+            f" │ 对面场攻{opp_atk}"
             + (f" │ 法强{sp}" if sp else "") + " ──")
 
 

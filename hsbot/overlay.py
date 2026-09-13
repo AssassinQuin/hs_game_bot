@@ -157,7 +157,9 @@ class OverlayWindow:
         root = tk.Tk()
         self.root = root
         root.title("hsbot")
-        root.attributes("-topmost", True)
+        if self.cfg.overlay_topmost:
+            # 置顶只应真实运行开启; 测试/回放关掉, 不抢机器前台
+            root.attributes("-topmost", True)
         try:
             root.attributes("-alpha", float(self.cfg.overlay_alpha))
         except Exception:  # noqa: BLE001  部分平台不支持透明

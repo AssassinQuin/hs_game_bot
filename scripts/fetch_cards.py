@@ -16,7 +16,11 @@ import urllib.request
 from pathlib import Path
 
 URL = "https://api.hearthstonejson.com/v1/latest/zhCN/cards.json"
-KEEP = ("id", "name", "cost", "type", "dbfId", "text")
+KEEP = ("id", "name", "cost", "type", "dbfId", "text", "cardClass",
+        # 引擎级机制标签(HsJson cards.json 自带, 2026-09-13 调研补收):
+        # mechanics=["DREDGE"/"CHOOSE_ONE"/"BATTLECRY"...] 是效果编译器的
+        # 数据级机制来源(卡牌无须逐张写死); set/rarity/spellSchool 备统计用
+        "mechanics", "set", "rarity", "spellSchool")
 
 
 def main() -> int:

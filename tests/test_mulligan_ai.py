@@ -9,7 +9,9 @@ sys.path.insert(0, str(ROOT))
 
 from hsbot.carddb import CardDB
 from hsbot.mulligan_ai import MulliganAdvisor, models_root_for
-from hsbot.render import chain_line
+from hsbot.render import chain_line, mulligan_matched_zh, mulligan_verdict
+
+MULL_PRIOR = {"cards": {}, "pairs": {}, "engine": []}
 
 NO_DB = CardDB("/nonexistent/cards.json")      # 降级: name=card_id, cost=None
 
@@ -55,8 +57,8 @@ def test_advise_table_path_with_prior(tmp_path):
                           prior_path=data / "mulligan_prior.yaml")
     r = adv.advise(["GOOD", "BAD"], "PALADIN", True)
     assert r is not None and r["keep"] == ["GOOD"] and r["drop"] == ["BAD"]
-    assert r["per_card"]["BAD"]["label"] == "建议换"
-    assert r["per_card"]["GOOD"]["ev"] == ""        # 无 digest → 无匹配证据
+    assert mulligan_verdict(r["per_card"]["BAD"]) == "建议换"
+    assert r["per_card"]["GOOD"]["matched"] is None  # 无 digest → 无匹配证据
     # 对手职业未知 → 级联走全体格, 仍有结论
     r2 = adv.advise(["GOOD"], "UNKNOWN", False)
     assert r2["keep"] == ["GOOD"]
@@ -69,7 +71,7 @@ def test_advise_lr_gated_out_mentions_reference(tmp_path):
           "metrics": {"test_auc": 0.30}}
     root = _mk_model(tmp_path / "data", stats, lr=lr)
     r = MulliganAdvisor(root, "奇迹德", NO_DB).advise(["GOOD"], "PALADIN", False)
-    assert "仅参考" in r["basis"]
+    assert r["scorer"] == "table" and r["auc"] == 0.30   # LR 未过门控 → 统计表评分
 
 
 def test_advise_matched_evidence_from_digest(tmp_path):
@@ -79,7 +81,9 @@ def test_advise_matched_evidence_from_digest(tmp_path):
               {"c": "PALADIN", "o": 0, "f": ["GOOD", "A", "D"], "k": ["GOOD"], "r": 1}]
     root = _mk_model(tmp_path / "data", stats, digest=digest)
     r = MulliganAdvisor(root, "奇迹德", NO_DB).advise(["GOOD", "A"], "PALADIN", False)
-    assert "近似手牌3局" in r["per_card"]["GOOD"]["ev"]
+    ev = r["per_card"]["GOOD"]["matched"]
+    assert ev["level"] == "near" and ev["n"] == 3
+    assert "近似手牌3局" in mulligan_matched_zh(ev)      # 中文在输出层
 
 
 def test_prior_hot_reload_on_mtime_change(tmp_path):
@@ -132,3 +136,74 @@ def test_render_mulligan_offer_fallback_and_advice():
                         "BAD": {"name": "坏牌", "gain": None}}}
     line = chain_line({"kind": "mulligan_offer", "advice": adv}, NO_DB)
     assert "【留牌建议·vs牧师·后手】留 好牌(+20.0%) │ 换 坏牌" in line
+
+
+def test_hero_class_prefers_carddb_then_fallback(tmp_path):
+    from hsbot.mulligan_ai import hero_class
+
+    cache = tmp_path / "cards.json"
+    cache.write_text(json.dumps([
+        {"id": "HERO_99zz", "cardClass": "MAGE"},   # 皮肤卡: 前缀表覆盖不到
+        {"id": "HERO_06x"},
+    ], ensure_ascii=False), encoding="utf-8")
+    db = CardDB(cache)
+    assert hero_class("HERO_99zz", db) == "MAGE"    # 卡表权威
+    assert hero_class("HERO_06x", db) == "DRUID"    # 卡表无字段 → 前缀兜底
+    assert hero_class(None, db) is None
+    assert hero_class("HERO_06x") == "DRUID"        # 无卡表 → 纯兜底
+
+
+def test_is_coin_single_source():
+    import hsbot.consts as consts
+    import hsbot.mulligan_ai as mai
+    import hsbot.store as st
+
+    assert mai.is_coin is consts.is_coin and st.is_coin is consts.is_coin
+    assert consts.is_coin("GAME_005") and consts.is_coin("MUDAN_COIN1")
+    assert not consts.is_coin("EX1_169")
+
+
+def test_mulligan_verdict_is_output_policy():
+    """结论词是输出层政策: 阈值/样本门槛在 render, 不在 mulligan_ai 事实里。"""
+    f = lambda **kw: {"gain": 0.0, "src": "all", "n": 10, "prior": False, **kw}
+    assert mulligan_verdict(f(gain=0.05)) == "建议留"
+    assert mulligan_verdict(f(gain=-0.05)) == "建议换"
+    assert mulligan_verdict(f(gain=0.01)) == "中性"
+    assert mulligan_verdict(f(n=3)) == "样本不足"                        # 门槛
+    assert mulligan_verdict(f(n=3, prior=True, gain=0.05)) == "建议留"   # 先验豁免
+    assert mulligan_verdict({"src": "prior", "gain": 0.20, "n": 0}) == "建议留"
+    assert mulligan_verdict({"src": "none", "gain": 0.0, "n": 0}) == "样本不足"
+
+
+def _tab_payload(auc=0.9, n=16):
+    """可分小数据: 留 GOOD→胜, 留 BAD→负(与 lr_features 布局一致)。"""
+    X, y = [], []
+    for i in range(n):
+        win = i % 2 == 0
+        cards, kept = (["GOOD"], ["GOOD"]) if win else (["GOOD"], [])
+        x = [1.0, 0.0, 1.0 if win else 0.0, 0.0, 0.0, 1.0]   # GOOD在/无BAD/kept/coin/职业
+        X.append(x)
+        y.append(1 if win else 0)
+    return {"vocab": ["GOOD", "BAD"], "classes": ["PALADIN"], "pairs": [],
+            "X": X, "y": y, "metrics": {"test_auc": auc}}
+
+
+def test_tabpfn_wrap_gating():
+    from hsbot.mulligan_ai import TabPFNWrap
+    assert not TabPFNWrap.usable(None, ROOT / "data")
+    assert not TabPFNWrap.usable(_tab_payload(auc=0.30), ROOT / "data")  # 未过门控
+    try:
+        import tabpfn  # noqa: F401
+    except ImportError:
+        return                                   # 未装包: 门控路径已验证
+    assert TabPFNWrap.usable(_tab_payload(auc=0.90), ROOT / "data")
+
+
+def test_tabpfn_wrap_best_set(tmp_path):
+    import pytest
+    pytest.importorskip("tabpfn")
+    from hsbot.mulligan_ai import TabPFNWrap
+    payload = dict(_tab_payload(auc=0.90), data_dir=str(ROOT / "data"))
+    wrap = TabPFNWrap(payload, ROOT / "data")
+    assert wrap.best_set(["GOOD"], False, "PALADIN") == ["GOOD"]
+    assert wrap.best_set(["BAD"], False, "PALADIN") in ([], ["BAD"])  # 无证据卡不妄断

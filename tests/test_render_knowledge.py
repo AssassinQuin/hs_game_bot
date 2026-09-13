@@ -78,6 +78,68 @@ def test_knowledge_rebuild_survives_player_entity():
     assert led.in_hand == Counter({"CS2_029": 1})   # 台账不受玩家实体影响
 
 
+def test_discover_bottom_facts_enter_ledger(tmp_path):
+    """2026-09-13 实测: 发现(水栖形态/波涛形塑)置底的牌是隐藏实体, 台账曾
+    看不见 → "底部已知: 无"。发现事实并入牌底: 未选项按浅→深 = 牌库最底。
+    门槛=来源卡机制文本; 非置底类发现的未选项会消失, 不入牌底。"""
+    import json
+
+    from hslog import packets as P
+
+    from .conftest import TS, mk_choices_general, mk_send_general
+
+    p = tmp_path / "cards.json"
+    p.write_text(json.dumps([
+        # 无"探底"措辞: 门槛必须走数据级 mechanics 标签(解析器 IR), 不是文本匹配
+        {"id": "TSC_654", "name": "水栖形态", "type": "SPELL",
+         "text": "如果你在本回合中有足够的法力值使用选中的牌，则抽取这张牌。",
+         "mechanics": ["DREDGE"]},
+        {"id": "TIME_999", "name": "普通发现", "type": "SPELL", "text": "发现一张牌。",
+         "mechanics": ["DISCOVER"]},
+    ], ensure_ascii=False), encoding="utf-8")
+    db = CardDB(p)
+
+    st, _ = _store()
+    _heroes(st)
+    for i in range(20, 28):                     # 牌库 8 张隐藏实体
+        st.apply(mk_full(i, None, ZONE=Zone.DECK.value, CONTROLLER=1))
+    st.apply(mk_full(45, "TSC_654", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value))
+    st.apply(mk_full(40, "TID_001", ZONE=Zone.SETASIDE.value, CONTROLLER=1))
+    st.apply(mk_full(41, "SC_755", ZONE=Zone.SETASIDE.value, CONTROLLER=1))
+    st.apply(mk_full(42, "VAC_428", ZONE=Zone.SETASIDE.value, CONTROLLER=1))
+    ch = mk_choices_general(2, 9, [40, 41, 42])
+    ch.source = 45                              # hslog 真实包带 Source=
+    st.apply(ch)
+    st.apply(mk_send_general(9, [42]))          # 取 42, 其余置底
+    assert st.last_discover == {"source": "TSC_654",
+                                "picked": ["VAC_428"],
+                                "unpicked": ["TID_001", "SC_755"]}
+    k = DeckKnowledge({"TID_001": 2, "SC_755": 2, "VAC_428": 2}, db, "测试")
+    led = k.rebuild(st)
+    assert led.known_bottom == [("SC_755", 8), ("TID_001", 7)]   # 浅→深
+    assert led.unknown_middle == 6
+    # 洗牌作废牌底事实
+    st.apply(P.ShuffleDeck(TS, 1))
+    assert st.last_discover is None
+    assert k.rebuild(st).known_bottom == []
+    # 非置底机制: 未选项消失, 不入牌底
+    st2, _ = _store()
+    _heroes(st2)
+    for i in range(30, 34):
+        st2.apply(mk_full(i, None, ZONE=Zone.DECK.value, CONTROLLER=1))
+    st2.apply(mk_full(46, "TIME_999", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                      CARDTYPE=CardType.SPELL.value))
+    st2.apply(mk_full(50, "AAA", ZONE=Zone.SETASIDE.value, CONTROLLER=1))
+    st2.apply(mk_full(51, "BBB", ZONE=Zone.SETASIDE.value, CONTROLLER=1))
+    ch2 = mk_choices_general(2, 9, [50, 51])
+    ch2.source = 46
+    st2.apply(ch2)
+    st2.apply(mk_send_general(9, [50]))
+    k2 = DeckKnowledge({"AAA": 1}, db, "测试")
+    assert k2.rebuild(st2).known_bottom == []
+
+
 def test_trigger_line_eid_fallback_for_unrevealed():
     """未揭示实体(对面暗牌附魔)触发: card_id 未知时报实体号而非裸 '?'。"""
     st, _ = _store()
@@ -116,7 +178,8 @@ def test_snapshot_line_compact_single_line():
     assert "水晶" in line                    # 我方水晶
     assert "手牌1" in line                   # _board 构造了 1 张手牌 CS2_029
     assert "牌库" in line
-    assert "场上0 │ 对面场上1" in line        # 我方场上 0, 对面场面 CS2_120 ×1
+    assert "场上0 │ 对面场攻2" in line        # 我方场上 0; 对面 CS2_120 ×1 总攻 2
+    assert "对面场上" not in line            # 是场攻, 不是随从数量(2026-09-13 用户要求)
     assert "\n" not in line                 # 必须单行
 
 

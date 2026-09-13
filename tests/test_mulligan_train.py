@@ -1,15 +1,13 @@
 """留牌 AI 训练器: 语料提取 / 平滑统计表 / 版本化训练 / 建议。"""
-import importlib.util
 import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from hsbot.render import mulligan_verdict
+from trainer import mulligan as tm
+
 ROOT = Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location(
-    "train_mulligan", ROOT / "scripts" / "train_mulligan.py")
-tm = importlib.util.module_from_spec(_spec)
-sys.modules["train_mulligan"] = tm          # dataclass 解析注解需要可查到模块
-_spec.loader.exec_module(tm)
 
 NO_DB = tm.CardDB("/nonexistent/cards.json")   # 降级: name=card_id, cost=None
 
@@ -99,8 +97,9 @@ def test_table_signal_ordering(tmp_path):
     deck_wr = 4 / 6
     good = tm.card_advice(stats, "GOOD", "PALADIN", None, deck_wr, NO_DB)
     bad = tm.card_advice(stats, "BAD", "PALADIN", None, deck_wr, NO_DB)
-    assert good["label"] == "建议留" and bad["label"] == "建议换"
+    assert mulligan_verdict(good) == "建议留" and mulligan_verdict(bad) == "建议换"
     assert good["gain"] > 0.03 > bad["gain"]
+    assert good["src"] == "class" and bad["src"] == "class"   # 未指定先/后手 → 职业格
     cell = stats["GOOD"]["PALADIN|0"]
     assert cell["keep"] == {"w": 3, "l": 1} and cell["drop"] == {"w": 1, "l": 1}
 
@@ -112,9 +111,9 @@ def test_cascade_falls_back_to_all():
         tm.table_update(stats, tm.Game(f"b{i}.jsonl", r, False, "DRUID",
                                        ["C"], kept))
     adv = tm.card_advice(stats, "C", "SHAMAN", None, 0.5, NO_DB)
-    assert adv["src"] == "全体"
+    assert adv["src"] == "all"
     adv_druid = tm.card_advice(stats, "C", "DRUID", None, 0.5, NO_DB)
-    assert adv_druid["src"] == "本职业"
+    assert adv_druid["src"] == "class"
     assert adv_druid["gain"] > adv["gain"]   # 本职业正面数据优于混合池
 
 
@@ -189,14 +188,15 @@ PRIOR = {"cards": {"X": {"keep": 0.10, "keep_coin": 0.20},
 def test_prior_fills_cards_without_data():
     stats = {}
     adv = tm.card_advice(stats, "X", "PALADIN", None, 0.5, NO_DB, PRIOR)
-    assert adv["src"] == "专家先验" and adv["label"] == "建议留"
+    assert adv["src"] == "prior" and mulligan_verdict(adv) == "建议留"
     assert adv["gain"] == 0.10
     adv_coin = tm.card_advice(stats, "X", "PALADIN", 1, 0.5, NO_DB, PRIOR)
     assert adv_coin["gain"] == 0.20            # keep_coin 覆盖
     adv_y = tm.card_advice(stats, "Y", "PALADIN", None, 0.5, NO_DB, PRIOR)
-    assert adv_y["label"] == "建议换"
+    assert mulligan_verdict(adv_y) == "建议换"
     # 无先验卡仍走费用启发 → 样本不足
-    assert tm.card_advice(stats, "Z", "PALADIN", None, 0.5, NO_DB, PRIOR)["label"] == "样本不足"
+    assert mulligan_verdict(
+        tm.card_advice(stats, "Z", "PALADIN", None, 0.5, NO_DB, PRIOR)) == "样本不足"
 
 
 def test_prior_file_loader(tmp_path):
@@ -260,14 +260,14 @@ def test_matched_evidence_levels():
     far = [g(["Y", "Z"], ["X"], 1)]            # 共享不足 2 张
     digest = near + far
     ev = tm.matched_evidence(digest, "X", ["X", "A", "Q"], "PALADIN", 0)
-    assert ev["level"] == "近似手牌" and ev["n"] == 4
+    assert ev["level"] == "near" and ev["n"] == 4
     assert ev["keep"] == (2, 1) and ev["drop"] == (0, 1)
     ev1 = tm.matched_evidence(digest[:1], "X", ["X", "A"], "PALADIN", 0)
-    assert ev1["level"] == "无可比对局"
+    assert ev1["level"] == "none"
     # 手牌不近似但同职业同手样本足 → 降级到同职业同手
     many_far = [g(["X", "Y"], ["X"], r) for r in (1, 0, 1, 0)]
     ev2 = tm.matched_evidence(many_far, "X", ["X", "A"], "PALADIN", 0)
-    assert ev2["level"] == "同职业同手"
+    assert ev2["level"] == "same"
 
 
 def test_train_saves_digest_and_advise_shows_matched(tmp_path, capsys):

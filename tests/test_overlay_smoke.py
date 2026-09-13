@@ -12,20 +12,25 @@ _ORIG_MAINLOOP = tk.Tk.mainloop
 def ensure_display():
     try:
         root = tk.Tk()
+        root.withdraw()          # 探测窗不闪现桌面(测试不扰机器前台)
         root.destroy()
     except Exception as exc:  # noqa: BLE001  无显示环境
         pytest.skip(f"无可用显示: {exc}")
 
 
 def _run_with_auto_close(monkeypatch, q, after_ms=800, data_dir="."):
-    """mainloop 注入定时 destroy: 刷新链若断, 定时器仍会收窗, 测试不悬挂。"""
+    """mainloop 注入定时 destroy: 刷新链若断, 定时器仍会收窗, 测试不悬挂。
+    窗口一律 withdraw + 不置顶 —— 测试不显示 UI(2026-09-13 用户要求),
+    刷新链(insert/after/坏消息隔离)逻辑照常被覆盖。"""
     from hsbot.config import Config
     from hsbot.overlay import OverlayWindow
 
-    cfg = Config.load({"overlay_enabled": True, "data_dir": data_dir})
+    cfg = Config.load({"overlay_enabled": True, "overlay_topmost": False,
+                       "data_dir": data_dir})
     orig = tk.Tk.mainloop
 
     def mainloop_with_close(self, n=0):
+        self.withdraw()
         self.after(after_ms, self.destroy)
         orig(self, n)
 
@@ -83,18 +88,32 @@ def test_overlay_geometry_persisted(tmp_path, monkeypatch):
     from hsbot.config import Config
     from hsbot.overlay import OverlayWindow
 
-    cfg = Config.load({"overlay_enabled": True, "data_dir": str(tmp_path)})
+    cfg = Config.load({"overlay_enabled": True, "overlay_topmost": False,
+                       "data_dir": str(tmp_path)})
     q = queue.Queue()
+    win = OverlayWindow(cfg, q)
+
+    class _Ev:                                 # Configure 事件最小桩
+        widget = None
 
     def fake_mainloop(self, n=0):
-        self.after(300, lambda: self.geometry("500x600+40+50"))   # 模拟拖动
+        self.withdraw()                                           # 测试不弹窗
+        _Ev.widget = self
+
+        def drag():
+            self.geometry("500x600+40+50")
+            win._on_configure(_Ev())    # withdraw 无 Configure 事件, 手动喂
+
+        self.after(300, drag)
         self.after(1800, self.destroy)                            # > 防抖 800ms
         _ORIG_MAINLOOP(self, n)
 
     monkeypatch.setattr(tk.Tk, "mainloop", fake_mainloop)
-    OverlayWindow(cfg, q).run()
+    win.run()
 
     state_file = tmp_path / "overlay_state.json"
     assert state_file.exists(), "几何状态未保存"
     data = json.loads(state_file.read_text(encoding="utf-8"))
-    assert data["geometry"].startswith("500x600")
+    # withdraw 窗口: Windows Tk 不改未映射窗口的尺寸, 位置生效 —— 校验拖动
+    # 后的位置被捕获即覆盖"变更→防抖→落盘"链(初始是 +8+120)
+    assert data["geometry"].endswith("+40+50")

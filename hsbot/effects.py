@@ -33,6 +33,13 @@ class Heal:
 
 
 @dataclass(frozen=True)
+class Mechanic:
+    """非数值机制标记(通用): 由机制表按文本模式统一编译, 消费方只认 kind,
+    不逐卡写死。kind: "deck_bottom" = 未选项即当前牌库底(置于牌库底/探底)。"""
+    kind: str
+
+
+@dataclass(frozen=True)
 class Unknown:
     raw: str               # 语法表未覆盖: 诚实降级, 不产生标注
 
@@ -41,7 +48,7 @@ class Unknown:
 class CardEffect:
     card_id: str
     cardtype: str
-    effects: tuple                 # tuple[Damage | Heal | Unknown, ...]
+    effects: tuple                 # tuple[Damage | Heal | Mechanic | Unknown, ...]
     source_hash: str               # 增量键: 参与编译的原始字段指纹
 
 
@@ -63,9 +70,27 @@ GRAMMAR = [
      lambda m: Heal(int(m.group(1)))),
 ]
 
+# 机制标记表(文本通道): 卡牌数据没有对应标签时, 按显示文本措辞识别。
+# 加一行 = 认识一种新措辞(数据级标签见 MECHANIC_MARKS, 优先于本表)。
+MECHANICS = [
+    (re.compile(r"置于牌库底"), "deck_bottom"),   # 发现其余选项置底(波涛形塑类:
+                                                 # 引擎只有泛化 DISCOVER, 无置底标签)
+    (re.compile(r"探底"), "deck_bottom"),          # 措辞兜底(DREDGE 标签通常已在数据里)
+]
+
+# 机制标记表(数据通道): HsJson cards.json 的 mechanics[](引擎审核的统一标签)
+# → IR 机制标记。加一行 = 认识一种引擎机制, 全部该类卡自动生效, 不逐卡写死。
+MECHANIC_MARKS = {
+    "DREDGE": "deck_bottom",     # 探底: 选项即当前牌库底三张(水栖形态类)
+}
+
+# 编译语义版本: 语法表/机制表语义变化时 +1, 强制缓存全量重编译
+COMPILER_VERSION = "2"
+
 
 def source_hash(card: dict) -> str:
-    raw = json.dumps([card.get("id"), card.get("text"), card.get("type")],
+    raw = json.dumps([COMPILER_VERSION, card.get("id"), card.get("text"),
+                      card.get("type"), card.get("mechanics")],
                      ensure_ascii=False, sort_keys=True)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
@@ -79,6 +104,12 @@ def compile_card(card: dict) -> CardEffect:
         if m:
             effects.append(build(m))
             break
+    marks = {MECHANIC_MARKS[m] for m in (card.get("mechanics") or [])
+             if m in MECHANIC_MARKS}
+    for rx, kind in MECHANICS:
+        if rx.search(text):
+            marks.add(kind)
+    effects.extend(Mechanic(kind) for kind in sorted(marks))
     if not effects:
         effects.append(Unknown(text[:60]))
     return CardEffect(card_id=card.get("id") or "",
@@ -96,6 +127,8 @@ def _effects_to_json(effects: tuple) -> list[dict]:
                         "scope": e.scope, "scaled": e.scaled})
         elif isinstance(e, Heal):
             out.append({"k": "heal", "base": e.base, "hits": e.hits})
+        elif isinstance(e, Mechanic):
+            out.append({"k": "mechanic", "kind": e.kind})
         else:
             out.append({"k": "unknown"})
     return out
@@ -110,6 +143,8 @@ def _effects_from_json(items: list[dict]) -> tuple:
                               it.get("scope", "single"), bool(it.get("scaled", True))))
         elif k == "heal":
             out.append(Heal(int(it["base"]), int(it.get("hits", 1))))
+        elif k == "mechanic":
+            out.append(Mechanic(it.get("kind", "")))
         else:
             out.append(Unknown(""))
     return tuple(out)

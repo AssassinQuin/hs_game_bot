@@ -38,15 +38,21 @@ class Ledger:
 
 
 class DeckKnowledge:
-    def __init__(self, decklist: dict[str, int], carddb: CardDB, deck_name: str = "") -> None:
+    def __init__(self, decklist: dict[str, int], carddb: CardDB, deck_name: str = "",
+                 analyzer=None) -> None:
         self.decklist = dict(decklist)
         self.carddb = carddb
         self.deck_name = deck_name
+        self.analyzer = analyzer              # 解析层(机制判定); 缺省自建
+        if self.analyzer is None:
+            from .analysis import EffectAnalyzer
+            self.analyzer = EffectAnalyzer(carddb)
         self.ledger: Ledger = Ledger()
 
     # ---------- 构造 ----------
     @classmethod
-    def from_code(cls, code: str, carddb: CardDB, deck_name: str = "") -> "DeckKnowledge":
+    def from_code(cls, code: str, carddb: CardDB, deck_name: str = "",
+                  analyzer=None) -> "DeckKnowledge":
         from hearthstone.deckstrings import parse_deckstring
         cards, _heroes, _fmt, _sb = parse_deckstring(code)
         decklist: dict[str, int] = {}
@@ -56,7 +62,7 @@ class DeckKnowledge:
                 decklist[cid] = decklist.get(cid, 0) + n
             else:
                 log.warning("卡组中 dbfId=%s 无法映射到 card_id, 已跳过", dbf)
-        return cls(decklist, carddb, deck_name)
+        return cls(decklist, carddb, deck_name, analyzer=analyzer)
 
     # ---------- 每次快照全量重建 ----------
     def rebuild(self, st: GameStore) -> Ledger:
@@ -87,11 +93,22 @@ class DeckKnowledge:
             if revealed and zone_pos(revealed[0]) == 1:
                 led.known_top = revealed[0].card_id
             pos_known = [e for e in revealed if zone_pos(e) > 0]
-            led.known_bottom = [(e.card_id, zone_pos(e)) for e in
-                                sorted(pos_known, key=lambda e: -zone_pos(e))[:3]]
+            # 牌底合并: 实体揭示(真实位置)优先, 我方最近一次发现事实补缺口
+            # (置底/探底的未选项是隐藏真身的替身, 实体状态里看不见)
+            bottom_map = {zone_pos(e): e.card_id for e in pos_known}
+            disc = st.last_discover
+            if disc and self.analyzer.discover_bottom_mechanic(disc["source"]):
+                unpicked = disc["unpicked"]        # 浅→深, 最深=牌库最底
+                for i, cid in enumerate(unpicked):
+                    pos = len(deck_ents) - (len(unpicked) - 1 - i)
+                    if pos >= 1:
+                        bottom_map.setdefault(pos, cid)
+            led.known_bottom = [(cid, pos) for pos, cid in
+                                sorted(bottom_map.items(),
+                                       key=lambda kv: -kv[0])[:3]]
             # 换牌换回的牌位置随机(0/未知) —— 不能标成"牌库底"
             led.known_unpositioned = [e.card_id for e in revealed if zone_pos(e) == 0]
-            led.unknown_middle = len(deck_ents) - len(pos_known)
+            led.unknown_middle = len(deck_ents) - len(bottom_map)
         self.ledger = led
         return led
 

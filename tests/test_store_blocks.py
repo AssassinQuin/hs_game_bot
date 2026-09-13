@@ -37,6 +37,99 @@ def test_play_flushed_by_shallower_packet():
     assert log.by_kind("play")
 
 
+def test_play_precedes_its_draw_and_choice_fact():
+    """2026-09-13 实测: 抉择打出引发的抽牌曾排在打出之前(PLAY 块延迟发的副作用)。
+    顺序必须 打出→抽到; store 只发原始事实(suboption 下标+eid), 子卡解析归 analysis。"""
+    st, log = _store()
+    _heroes(st)
+    st.apply(mk_tag(2, GameTag.CURRENT_PLAYER, 1))
+    st.apply(mk_full(53, "AV_295", ZONE=Zone.HAND.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value, COST=2))
+    # 抉择按钮实体: PARENT_CARD=主卡, 实体号序即抉择顺序
+    st.apply(mk_full(54, "AV_295a", ZONE=Zone.SETASIDE.value, CONTROLLER=1,
+                     PARENT_CARD=53))
+    st.apply(mk_full(55, "AV_295b", ZONE=Zone.SETASIDE.value, CONTROLLER=1,
+                     PARENT_CARD=53))
+    st.apply(mk_full(83, None, ZONE=Zone.DECK.value, CONTROLLER=1))
+    b = packets.Block(TS, 53, BlockType.PLAY, None, None, None, 0, 1, None)
+    st.apply(b, depth=0)
+    st.apply(mk_show(83, "JAIL_718", ZONE=Zone.HAND.value), depth=1)  # 块内抽牌
+    b.end()
+    st.settle()
+    kinds = log.kinds()
+    assert kinds.index("play") < kinds.index("draw")
+    play = log.by_kind("play")[0]
+    assert play["suboption"] == 1 and play["eid"] == 53
+    assert "suboption_card_id" not in play
+    # 解析层富化: 下标1 → 按钮实体55 = AV_295b; 渲染带子卡名
+    from hsbot.analysis import EffectAnalyzer
+    from hsbot.render import chain_line
+    enriched = EffectAnalyzer(st.carddb).enrich(dict(play), st)
+    assert enriched["suboption_card_id"] == "AV_295b"
+    line = chain_line(dict(enriched, turn=3, friendly=1), st.carddb)
+    assert "抉择2·AV_295b" in line
+
+
+def test_hint_draw_inside_pending_play_ordered():
+    """行级抽牌 hint(括号 SHOW_ENTITY, hslog 不解析)发生在挂起 PLAY 期间,
+    同样扣留到 play 事件之后冲出 —— 与包路径同序。"""
+    st, log = _store()
+    _heroes(st)
+    st.apply(mk_full(53, "AV_295", ZONE=Zone.HAND.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value))
+    b = mk_block(BlockType.PLAY, 53)
+    st.apply(b, depth=0)
+    st.hint_draw(83, "JAIL_718", 1)
+    b.end()
+    st.settle()
+    kinds = log.kinds()
+    assert kinds.index("play") < kinds.index("draw")
+
+
+def test_deferred_drained_even_when_play_bails():
+    """play 事件发不出(实体未知→早退)时, 块内扣留的事件仍须冲出, 不得吞掉。"""
+    st, log = _store()
+    _heroes(st)
+    b = mk_block(BlockType.PLAY, 999)      # 实体不存在 → flush 早退
+    st.apply(b, depth=0)
+    st.hint_draw(83, "JAIL_718", 1)
+    b.end()
+    st.settle()
+    assert log.kinds().count("draw") == 1
+    assert log.kinds().count("play") == 0
+
+
+def test_prepare_precedes_its_cost_change():
+    """2026-09-13 实测: 预备完成(DECK_ACTION)块内的费用变化曾先于预备信息。
+    块开始即发"预备完成", 块内费用变化随后 —— 先预备后费用改变。"""
+    st, log = _store()
+    _heroes(st)
+    st.apply(mk_full(83, "JAIL_718", ZONE=Zone.HAND.value, CONTROLLER=1,
+                     CARDTYPE=CardType.MINION.value, COST=9, PREPARE=1))
+    b = mk_block(BlockType.DECK_ACTION, 83)
+    st.apply(b, depth=0)
+    st.apply(mk_tag(83, GameTag.COST, 4), depth=1)   # 块内: 预备减费 9→4
+    b.end()
+    st.settle()
+    kinds = log.kinds()
+    assert kinds.index("prepare") < kinds.index("cost")
+    prep = log.by_kind("prepare")[0]
+    assert prep["card_id"] == "JAIL_718" and prep["actor"] == 1
+    from hsbot.render import chain_line
+    line = chain_line(dict(prep, turn=7, friendly=1), st.carddb)
+    assert "预备完成 JAIL_718" in line
+
+
+def test_deck_action_without_prepare_not_reported():
+    """PREPARE=1 才认定预备完成: 其他 DECK_ACTION 块不误报。"""
+    st, log = _store()
+    _heroes(st)
+    st.apply(mk_full(20, "CS2_008", ZONE=Zone.HAND.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value))
+    st.apply(mk_block(BlockType.DECK_ACTION, 20))
+    assert log.by_kind("prepare") == []
+
+
 def test_attack_event():
     st, log = _store()
     _heroes(st)

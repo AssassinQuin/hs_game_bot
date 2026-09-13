@@ -23,9 +23,11 @@ overlay_alpha: 0.72
 overlay_geometry: 460x780+8+120   # 默认宽x高+左边距+上边距; 实际位置/大小自动
                                   # 记忆到 data/overlay_state.json 并优先生效
 overlay_font_size: 10
+overlay_topmost: true     # 窗口置顶: 只应真实运行开启。测试/回放一律不置顶、
+                          # 不弹窗(只走日志/控制台), 不抢机器前台
 overlay_borderless: false # true=无边框(不可拖动/关闭, 需改配置还原)
 mulligan_advice: true     # 留牌环节高亮建议: 留X换Y(依据对手+留/换胜率, 模型来自
-                          # scripts/train_mulligan.py; 无模型时只显示"起手可留")
+                          # python -m trainer mulligan; 无模型时只显示"起手可留")
 # 信息分色(按人物与事件类型; 需自定义时取消注释整块并改色值):
 # overlay_colors:
 #   my: "#b8e6a0"         # 我方动作

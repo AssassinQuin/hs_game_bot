@@ -25,6 +25,8 @@ DEFAULTS = {
     # 输出
     "console_echo": True,       # 除悬浮窗外是否同步打印到控制台
     "overlay_enabled": True,    # 半透明置顶日志窗(游戏需无边框/窗口化模式)
+    "overlay_topmost": True,    # 窗口置顶: 只应真实运行开启; 测试/回放一律关闭,
+                                # 不抢机器前台(2026-09-13 用户要求)
     "overlay_alpha": 0.72,
     "overlay_geometry": "460x780+8+120",  # 默认宽x高+左边距+上边距; 实际位置/大小
                                           # 会自动记忆到 data/overlay_state.json 并优先
@@ -41,7 +43,7 @@ DEFAULTS = {
         "error": "#ff6b6b",     # 错误
         "advice": "#ffd700",    # 留牌建议(开局高亮)
     },
-    "mulligan_advice": True,    # 留牌环节高亮建议(需先跑 scripts/train_mulligan.py)
+    "mulligan_advice": True,    # 留牌环节高亮建议(需先跑 python -m trainer mulligan)
     # 训练语料
     "training_dir": "data/training",
     "auto_training": True,      # 每局结束自动导出训练样本
@@ -90,8 +92,8 @@ class Config:
     _INT = ("overlay_font_size",)
     _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha",
               "draw_dedup_seconds")
-    _BOOL = ("console_echo", "overlay_enabled", "overlay_borderless", "auto_training",
-             "mulligan_advice")
+    _BOOL = ("console_echo", "overlay_enabled", "overlay_topmost",
+             "overlay_borderless", "auto_training", "mulligan_advice")
     _PATH = ("logs_dir", "data_dir", "training_dir")
 
     def __init__(self, **values) -> None:

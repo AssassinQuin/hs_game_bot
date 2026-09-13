@@ -31,6 +31,19 @@ CardDefs 含完整任务树)。因此:
   静态属性(type/battlecry/deathrattle/…)改由 **hearthstone_data + cardxml** 提供;
 - CardDefs 若未来恢复脚本导出,§6 的任务投影可作为升级路径,接口不变。
 
+### §2.1 机制标签通道(HsJson mechanics[],2026-09-13 晚补测)
+
+HsJson cards.json 每卡自带 `mechanics[]`(引擎审核的统一机制标签,14281 张卡
+带值:DREDGE/CHOOSE_ONE/BATTLECRY/TRIGGER_VISUAL…;词表≈GameTag 名)。
+曾被 fetch_cards.py 的 KEEP 白名单丢弃——机制识别不应逐卡/逐措辞写死:
+- **数据通道(优先)**:`MECHANIC_MARKS` 把 mechanics[] 名映射为 IR 机制标记
+  (如 DREDGE→deck_bottom),一张表行=认识一种引擎机制,全类卡自动生效;
+- **文本通道(兜底)**:引擎无标签的措辞(如"置于牌库底"只有泛化 DISCOVER)
+  走 MECHANICS 正则表,与数据通道并集编译,互不排斥;
+- 消费方只查 IR 标记(analysis.has_mechanic),永不接触文本与卡牌号;
+- entourage 字段新版 HsJson 已删除——抉择按钮仍以日志 PARENT_CARD 实体为准。
+- COMPILER_VERSION 随表语义 +1,强制缓存全量重编译。
+
 ## 3. 分层(编译器管线隐喻)
 
 ```

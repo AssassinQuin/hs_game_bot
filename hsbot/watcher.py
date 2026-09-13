@@ -7,6 +7,11 @@
 from __future__ import annotations
 
 import logging
+import os
+import re
+import subprocess
+import sys
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -137,6 +142,73 @@ class TrainingExporter:
         return self._corpus
 
 
+class AutoModelTrainer:
+    """局终后台自动增量训练(留牌三级评分器 + trainer 价值模型)。
+
+    与训练系统解耦: 子进程调用训练入口(python -m trainer mulligan / python -m
+    trainer), 失败只进诊断日志不影响监控; 忙则合并为一次待办, 不堆积线程。
+    产物按版本落盘, MulliganAdvisor 按 mtime 自动切换 —— 下一局即用新模型。"""
+
+    def __init__(self, cfg, emit=None) -> None:
+        self.cfg = cfg
+        self._emit = emit
+        self._busy = False
+        self._pending = False
+        self._lock = threading.Lock()
+
+    def commands(self) -> list:
+        root = Path(__file__).resolve().parents[1]
+        cfg_arg = ["--config", str(self.cfg.source)] \
+            if Path(str(self.cfg.source)).exists() else []
+        data = ["--data-dir", str(self.cfg.data_dir), "--deck", self.cfg.deck_name]
+        mull = ["-m", "trainer", *cfg_arg, *data]
+        return [
+            [sys.executable, *mull, "mulligan", "train"],
+            [sys.executable, *mull, "material"],
+            [sys.executable, *mull, "train"],
+        ]
+
+    def request(self) -> None:
+        if not getattr(self.cfg, "auto_train_models", True):
+            return
+        with self._lock:
+            if self._busy:
+                self._pending = True
+                return
+            self._busy = True
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        while True:
+            versions = []
+            for argv in self.commands():
+                try:
+                    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+                    r = subprocess.run(
+                        argv, capture_output=True, text=True,
+                        encoding="utf-8", errors="replace", timeout=900,
+                        cwd=str(Path(__file__).resolve().parents[1]), env=env)
+                    if r.returncode != 0:
+                        log.warning("自动增量训练失败(%s): %s",
+                                    argv[-1], (r.stderr or "")[-300:])
+                        continue
+                    m = re.search(r"模型已保存: \S*?(v\d+)", r.stdout or "")
+                    if m:
+                        versions.append(m.group(1))
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("自动增量训练异常(%s): %s", argv[-1], exc)
+            if self._emit is not None:
+                msg = ("后台增量训练完成: 留牌模型 "
+                       + ("→".join(versions) if versions else "无变化"))
+                self._emit(msg)
+            with self._lock:
+                if self._pending:
+                    self._pending = False
+                    continue
+                self._busy = False
+                return
+
+
 class Watcher:
     def __init__(self, cfg: Config, carddb: CardDB, out=None, hub=None) -> None:
         self.cfg = cfg
@@ -167,6 +239,8 @@ class Watcher:
         self.scanner = SessionScanner(cfg.logs_dir)            # 会话发现
         self.snapshot_service = SnapshotService(cfg, carddb, self._emit)
         self.exporter = TrainingExporter(cfg, carddb)          # 训练导出
+        # 局终后台自动增量训练(留牌评分器 + trainer 价值模型), 子进程解耦
+        self.model_trainer = AutoModelTrainer(cfg, self._emit)
         # ---- 日志流状态唯一维护点(责任链的共享上下文) ----
         self.stream = StreamContext()
         self.pipeline = build_line_pipeline(
@@ -188,7 +262,16 @@ class Watcher:
         return None
 
     def _hint_draw_pid(self, eid: int, cid: str, pid: int) -> None:
-        if self.match and self.match.gs is not None:
+        # 行级抽牌 hint 批尾统一派发: 喂行阶段 PLAY 块的包尚未被应用,
+        # store 的"play 先发"扣留接不住 hint —— 先攒住, 包处理完再发(顺序归位)
+        self.stream.pend_draws.append((eid, cid, pid))
+
+    def _drain_pend_draws(self) -> None:
+        if not (self.match and self.match.gs is not None
+                and self.stream.pend_draws):
+            return
+        draws, self.stream.pend_draws = self.stream.pend_draws, []
+        for eid, cid, pid in draws:
             self.match.gs.hint_draw(eid, cid, pid)
 
     # ---- 局作用域只读别名(兼容旧调用点/测试) ----
@@ -308,9 +391,10 @@ class Watcher:
         self.game_count = 0
         self.match = None             # 会话切换: 局作用域整体作废(历史不导训练)
         self.stream.game_lines = None  # 旧切片作废
-        self.stream.pend_cid = {}      # 跨会话线索/真名一并作废
+        self.stream.pend_cid = {}      # 跨会话线索/真名/抽牌hint一并作废
         self.stream.pend_ctrl = {}
         self.stream.pend_names = []
+        self.stream.pend_draws = []
         self.state = "IDLE"
         self.stream.partial = ""
         self.stream.tail_open = True
@@ -352,6 +436,7 @@ class Watcher:
                                       self.stream.pend_ctrl)
         if self.parser.games:
             self._process_tree(self.parser.games[-1])
+        self._drain_pend_draws()               # 批内包已应用/settle: hint 抽牌此时发不越序
         self.analyzer.cache.save()             # IR 增量回写(dirty 才落盘)
         if self.match and self.match.gs is not None and self.match.gs.friendly_key is None:
             self.match.gs.note_friendly(resolve_friendly(self.parser, self.cfg.battletag))
@@ -397,6 +482,7 @@ class Watcher:
         self.match = GameScope(no=self.game_no)
         self.stream.pend_cid = {}        # 新局边界: 跨局流缓冲清空
         self.stream.pend_ctrl = {}
+        self.stream.pend_draws = []
         self.state = "IN_GAME"
         self.match.gs = GameStore(carddb=self.carddb, battletag=self.cfg.battletag,
                                   tree=self.parser.games[-1] if self.parser.games else None,
@@ -418,7 +504,8 @@ class Watcher:
             code = parse_decks_log(self.decks_path).get(self.cfg.deck_name)
         if not code:
             return None
-        k = DeckKnowledge.from_code(code, self.carddb, self.cfg.deck_name)
+        k = DeckKnowledge.from_code(code, self.carddb, self.cfg.deck_name,
+                                    analyzer=self.analyzer)
         try:
             import json as _json
             atomic_write_text(self.cfg.data_dir / "decks" / "decklist.json",
@@ -509,6 +596,8 @@ class Watcher:
         self.match.pending_game_end = False
         self._snapshot("game_end")
         self._export_training()
+        if self._live:                       # 语料已落盘 → 后台增量训练(忙则合并)
+            self.model_trainer.request()
 
     def _export_training(self) -> None:
         """每局结束自动导出训练样本(仅实时来源; 回放用 import-all 子命令批量做)。

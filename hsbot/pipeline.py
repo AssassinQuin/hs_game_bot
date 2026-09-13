@@ -57,6 +57,7 @@ class StreamContext:
         self.pend_cid: dict[int, str] = {}          # 括号 cardId 线索
         self.pend_ctrl: dict[int, int] = {}         # 括号 controller 线索
         self.pend_names: list[str] = []             # 真名缓冲
+        self.pend_draws: list[tuple[int, str, int]] = []   # 行级抽牌 hint(批尾派发)
         self.game_lines: list | None = None         # 当局原始行(训练切片)
 
 

@@ -26,7 +26,7 @@ import json
 import math
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import combinations
@@ -36,15 +36,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from hsbot.carddb import CardDB
 from hsbot.config import Config
-from hsbot.mulligan_ai import (CLASS_ZH, MulliganAdvisor, UNKNOWN,
-                               best_keep_set, card_advice, cell_n, class_zh,
-                               hero_class, is_coin, load_prior, lr_features,
-                               matched_evidence, models_root_for, new_cell,
-                               read_latest, thompson_gain)
+from hsbot.consts import CLASS_ZH, class_zh
+from hsbot.mulligan_ai import (MulliganAdvisor, UNKNOWN, best_keep_set,
+                               card_advice, cell_n, hero_class, is_coin,
+                               load_prior, lr_features, matched_evidence,
+                               models_root_for, new_cell, read_latest,
+                               tabpfn_env, thompson_gain)
 from hsbot.mulligan_ai import table_update as _table_update_ai
+from hsbot.render import (mulligan_matched_zh, mulligan_src_zh,
+                          mulligan_verdict)
+from .backtest import cv_auc, group_folds, print_cv_report
 
 LR_MIN_GAMES = 20      # 语料低于此局数不训逻辑回归(训练专用)
 LR_TEST_FRAC = 0.2     # 时序留出比例(训练专用)
+LAYOUT = 2             # 特征布局版本(1=无卡组特征; 变布局必须重训, 守卫会比对)
 LR_PAIR_SUPPORT = 4    # 留牌组合特征最少共现次数(训练专用)
 
 
@@ -58,8 +63,39 @@ class Game:
     opp_class: str     # 对手职业(CLASS 英文标签)
     cards: list        # 起手 offered(去幸运币, 保序, 可能重复)
     kept: list         # 其中留下的(逐张)
+    decklist: dict | None = None   # 本局卡组构成 {card_id: 张数}(旧样本可能缺)
     mtime: float = 0.0
     size: int = 0
+
+
+def deck_features(decklist: dict | None, carddb: CardDB,
+                  prior: dict | None) -> tuple[list, list]:
+    """卡组构成特征(留牌行尾段): 曲线/规模/类型/引擎组件。缺卡组或缺卡表
+    → 对应位 0 并以 deck_known 标记, 模型可区分"未知的卡组"。"""
+    names = ([f"deck_curve_{i}" for i in range(8)] + ["deck_size", "deck_minion",
+             "deck_spell", "deck_weapon", "deck_engine", "deck_cheap_spell",
+             "deck_known"])
+    if not decklist:
+        return [0.0] * len(names), names
+    curve = [0.0] * 8
+    types = {"MINION": 0.0, "SPELL": 0.0, "WEAPON": 0.0}
+    size, engine, cheap_spell = 0.0, 0.0, 0.0
+    engine_ids = set((prior or {}).get("engine") or [])
+    for cid, n in (decklist or {}).items():
+        n = float(n)
+        size += n
+        if cid in engine_ids:
+            engine += n
+        cost = carddb.cost(cid)
+        if cost is not None:
+            curve[min(cost, 7)] += n
+            ctype = carddb.cardtype(cid)
+            if ctype in types:
+                types[ctype] += n
+                if ctype == "SPELL" and cost <= 2:
+                    cheap_spell += n
+    return curve + [size, types["MINION"], types["SPELL"], types["WEAPON"],
+                    engine, cheap_spell, 1.0], names
 
 
 def _scan_hero_classes(path: Path, need_pids: set) -> dict:
@@ -129,6 +165,7 @@ def load_game(path: Path, battletag: str) -> tuple[Game | None, str]:
     return Game(path=path.name, result=win,
                 coin=any(is_coin(c) for c in offered_all),
                 opp_class=opp_class or UNKNOWN, cards=offered, kept=kept,
+                decklist=meta.get("decklist") or None,
                 mtime=mtime, size=size), ""
 
 
@@ -184,7 +221,7 @@ def _vocab_pairs(games: list) -> tuple[list, list]:
     return vocab, pairs
 
 
-def _fit_eval(games: list, vocab: list, pairs: list) -> dict | None:
+def _fit_eval(games: list, vocab: list, pairs: list, carddb, prior) -> dict | None:
     """时序留出评估(前 80% 拟合 → 后 20% 打分), 返回测试段指标。"""
     try:
         from sklearn.linear_model import LogisticRegression
@@ -193,14 +230,17 @@ def _fit_eval(games: list, vocab: list, pairs: list) -> dict | None:
     n_test = max(1, int(len(games) * LR_TEST_FRAC))
     tr, te = games[:-n_test], games[-n_test:]
     classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
-    xof = lambda g: lr_features(vocab, classes, pairs, g.cards, g.kept,
-                                g.coin, g.opp_class)
+    tails = [deck_features(g.decklist, carddb, prior)[0] for g in games]
+    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.kept,
+                                   g.coin, g.opp_class) + t
     ytr = [g.result for g in tr]
     if len(set(ytr)) < 2:
         return None
     try:
-        m = LogisticRegression(C=0.3, max_iter=2000).fit([xof(g) for g in tr], ytr)
-        pte = m.predict_proba([xof(g) for g in te])[:, 1]
+        m = LogisticRegression(C=0.3, max_iter=2000).fit(
+            [xof(g, tails[i]) for i, g in enumerate(tr)], ytr)
+        pte = m.predict_proba([xof(g, tails[len(tr) + i])
+                               for i, g in enumerate(te)])[:, 1]
         yte = [g.result for g in te]
     except ValueError:
         return None
@@ -214,7 +254,7 @@ def _fit_eval(games: list, vocab: list, pairs: list) -> dict | None:
     return out
 
 
-def train_lr(games: list) -> dict | None:
+def train_lr(games: list, carddb, prior) -> dict | None:
     """全量拟合出服务模型(含留牌组合特征); 指标来自时序留出(不泄漏)。"""
     if len(games) < LR_MIN_GAMES:
         return None
@@ -223,19 +263,57 @@ def train_lr(games: list) -> dict | None:
     except ImportError:
         return None
     vocab, pairs = _vocab_pairs(games)
-    metrics = _fit_eval(games, vocab, pairs)
+    metrics = _fit_eval(games, vocab, pairs, carddb, prior)
     classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
-    xof = lambda g: lr_features(vocab, classes, pairs, g.cards, g.kept,
-                                g.coin, g.opp_class)
+    tails = [deck_features(g.decklist, carddb, prior)[0] for g in games]
+    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.kept,
+                                   g.coin, g.opp_class) + t
     try:
         model = LogisticRegression(C=0.3, max_iter=2000).fit(
-            [xof(g) for g in games], [g.result for g in games])
+            [xof(g, tails[i]) for i, g in enumerate(games)],
+            [g.result for g in games])
     except ValueError:
         return None
+    from collections import Counter as _C
+    deck_vec = _C(tuple(t) for t in tails).most_common(1)[0][0]
     return {"vocab": vocab, "classes": classes, "pairs": pairs,
+            "layout": LAYOUT, "deck_vec": list(deck_vec),
             "coef": model.coef_[0].tolist(),
             "intercept": float(model.intercept_[0]),
             "metrics": metrics or {}}
+
+
+def train_tabpfn(games: list, data_dir, carddb, prior) -> dict | None:
+    """TabPFN 基座(上下文学习)产物: 全量行做上下文 + 时序留出 AUC。
+    需已安装 tabpfn(+torch); 未安装返回 None(留牌评分权自动回退)。"""
+    try:
+        import numpy as np
+        from tabpfn import TabPFNClassifier
+    except ImportError:
+        return None
+    tabpfn_env(data_dir)                         # 权重缓存钉项目目录(不落 C 盘)
+    vocab, pairs = _vocab_pairs(games)
+    classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
+    tails = [deck_features(g.decklist, carddb, prior)[0] for g in games]
+    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.kept,
+                                   g.coin, g.opp_class) + t
+    X = np.array([xof(g, tails[i]) for i, g in enumerate(games)],
+                 dtype=np.float32)
+    y = np.array([g.result for g in games], dtype=int)
+    n_test = max(1, int(len(games) * LR_TEST_FRAC))
+    metrics: dict = {}
+    if len(set(y[:-n_test])) == 2 and len(set(y[-n_test:])) == 2:
+        clf = TabPFNClassifier(device="cpu",
+                               ignore_pretraining_limits=True
+                               ).fit(X[:-n_test], y[:-n_test])
+        auc = _auc(y[-n_test:], list(clf.predict_proba(X[-n_test:])[:, 1]))
+        metrics = {"n_train": len(games) - n_test, "n_test": n_test,
+                   "test_auc": round(auc, 3) if auc is not None else None}
+    from collections import Counter as _C
+    deck_vec = _C(tuple(t) for t in tails).most_common(1)[0][0]
+    return {"vocab": vocab, "classes": classes, "pairs": pairs,
+            "layout": LAYOUT, "deck_vec": list(deck_vec),
+            "X": X.tolist(), "y": y.tolist(), "metrics": metrics}
 
 
 # ════════════════════ 3. 模型库(版本目录 + LATEST) ════════════════════
@@ -253,7 +331,8 @@ def _load_latest(root: Path) -> tuple[str | None, dict]:
 
 
 def _save_version(root: Path, deck: str, stats: dict, lr: dict | None,
-                  games: list, n_new: int, skip: Counter) -> str:
+                  tab: dict | None, games: list, n_new: int,
+                  skip: Counter) -> str:
     versions = [d.name for d in root.glob("v*") if d.is_dir()]
     ver = f"v{max((int(v[1:]) for v in versions), default=0) + 1:03d}"
     out = root / ver
@@ -271,6 +350,9 @@ def _save_version(root: Path, deck: str, stats: dict, lr: dict | None,
     (out / "games_seen.json").write_text(
         json.dumps({g.path: [g.mtime, g.size] for g in games},
                    ensure_ascii=False), encoding="utf-8")
+    if tab is not None:
+        (out / "tabpfn.json").write_text(
+            json.dumps(tab, ensure_ascii=False), encoding="utf-8")
     (out / "games_digest.json").write_text(
         json.dumps([{"c": g.opp_class, "o": int(g.coin),
                      "f": sorted(set(g.cards)), "k": sorted(set(g.kept)),
@@ -282,6 +364,7 @@ def _save_version(root: Path, deck: str, stats: dict, lr: dict | None,
                     "trained_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "n_games": len(games), "n_new": n_new, "wins": wins,
                     "skipped": dict(skip), "lr_metrics": metrics,
+                    "tabpfn_metrics": (tab or {}).get("metrics") or {},
                     "class_counts": dict(Counter(g.opp_class for g in games)),
                     "coin_games": sum(g.coin for g in games)},
                    ensure_ascii=False, indent=1), encoding="utf-8")
@@ -312,10 +395,11 @@ def print_table_report(stats: dict, deck_wr: float, carddb: CardDB,
         n_offer = adv["keep_n"] + adv["drop_n"]
         kept_rate = adv["keep_n"] / n_offer if n_offer else None
         name = (carddb.name(cid) or cid)[:12]
-        note = "" if adv["prior"] else f"(n={adv['n']})"
-        print(f"{name:<14} {adv['src']:<6} {n_offer:>4} {_pct(kept_rate):>7} "
-              f"{_pct(adv['keep_wr']):>7} {_pct(adv['drop_wr']):>7} "
-              f"{adv['gain'] * 100:>+7.1f}%  {adv['label']}{note}")
+        note = "" if adv["src"] in ("prior", "none") else f"(n={adv['n']})"
+        print(f"{name:<14} {mulligan_src_zh(adv['src']):<6} {n_offer:>4} "
+              f"{_pct(kept_rate):>7} {_pct(adv['keep_wr']):>7} "
+              f"{_pct(adv['drop_wr']):>7} {adv['gain'] * 100:>+7.1f}%  "
+              f"{mulligan_verdict(adv)}{note}")
 
 
 # ════════════════════ 5. 子命令 ════════════════════
@@ -332,16 +416,19 @@ def cmd_train(cfg: Config, deck: str) -> int:
     n_new = sum(1 for g in games
                 if prev_seen.get(g.path) != [g.mtime, g.size]) \
         if prev_seen else len(games)
-    if n_new == 0 and prev_ver is not None:
-        print(f"无新增对局, 沿用 {prev_ver}: {root / prev_ver}")
-        return 0
-
     stats: dict = {}
     for g in games:
         table_update(stats, g)
     deck_wr = sum(g.result for g in games) / len(games)
     prior = load_prior(prior_path(cfg), deck, carddb, set(stats))
-    lr = train_lr(games)
+    lr = train_lr(games, carddb, prior)
+    tab = train_tabpfn(games, cfg.data_dir, carddb, prior)
+    # 无新增且模型层级没变 → 不空转版本; 层级变了(如刚装上 tabpfn)则重训
+    def same_layout(art):                # 双方都无此层 → 上面的存在性比对已保证一致
+        return art is None or art.get("layout") == LAYOUT
+    if n_new == 0 and prev_ver is not None             and (prev.get("lr") is not None) == (lr is not None)             and (prev.get("tabpfn") is not None) == (tab is not None)             and same_layout(prev.get("lr")) and same_layout(prev.get("tabpfn")):
+        print(f"无新增对局, 沿用 {prev_ver}: {root / prev_ver}")
+        return 0
 
     print(f"── 留牌模型训练 ({deck}) ──")
     print(f"语料 {len(games)} 局(较上一版新增 {n_new}) │ 我方胜率 {_pct(deck_wr)} "
@@ -362,9 +449,15 @@ def cmd_train(cfg: Config, deck: str) -> int:
               f"LogLoss {m.get('test_logloss', '—')} │ 组合特征 {len(lr['pairs'])} ──")
     else:
         print(f"── 逻辑回归: 未启用(需 sklearn 且语料 ≥ {LR_MIN_GAMES} 局; 仅统计表) ──")
+    if tab is not None:
+        m = tab["metrics"]
+        print(f"── TabPFN 基座(上下文学习): {m.get('n_train', '?')}/{m.get('n_test', '?')} "
+              f"时序留出 │ AUC {m.get('test_auc', '—')} │ 权重缓存 data/cache/tabpfn ──")
+    else:
+        print("── TabPFN 基座: 未启用(需 pip install tabpfn; 缺失时评分权回退) ──")
     print(f"置信度: {len(games)} 局样本"
           + ("尚少, 结论仅供对照(≥200 局后更可靠)" if len(games) < 200 else "。"))
-    ver = _save_version(root, deck, stats, lr, games, n_new, skip)
+    ver = _save_version(root, deck, stats, lr, tab, games, n_new, skip)
     print(f"模型已保存: {root / ver}" + (f"(上一版 {prev_ver})" if prev_ver else "(首版)"))
     return 0
 
@@ -442,15 +535,125 @@ def cmd_advise(cfg: Config, deck: str, hand: list, opp_class: str,
     if explore and not r["deviations"]:
         print("(本次抽样与均值建议一致, 无探索偏差)")
     nm = lambda c: carddb.name(c) or c
+    if r["scorer"] == "tabpfn":
+        basis = f"TabPFN 基座上下文学习(AUC {r['auc']:.2f}) + 专家先验"
+    elif r["scorer"] == "lr":
+        basis = f"LR 集合枚举(AUC {r['auc']:.2f}) + 专家先验"
+    else:
+        basis = "统计表+专家先验, 集合枚举" + \
+            (f"(LR AUC {r['auc']:.2f} 过低, 仅参考)" if r["auc"] is not None else "")
     print(f"建议: 留 ── {'、'.join(nm(c) for c in r['keep']) or '(无)'} │ "
           f"换 ── {'、'.join(nm(c) for c in r['drop']) or '(无)'}"
-          f"   [依据: {r['basis']}]")
+          f"   [依据: {basis}]")
     print("逐卡(留→胜率 vs 换→胜率, 平滑增益 │ 同情境匹配证据):")
     for cid, a in r["per_card"].items():
-        ev_txt = f"│ {a['ev']}" if a["ev"] else "│ 无可比对局"
-        print(f"  {a['name']:<14} {a['label']:<5} 留→{_pct(a['keep_wr'])} "
+        print(f"  {a['name']:<14} {mulligan_verdict(a):<5} 留→{_pct(a['keep_wr'])} "
               f"换→{_pct(a['drop_wr'])} 增益{a['gain'] * 100:+.1f}% "
-              f"({a['src']}) {ev_txt}")
+              f"({mulligan_src_zh(a['src'])}) │ {mulligan_matched_zh(a['matched'])}")
+    return 0
+
+
+def _loo_table_backtest(games: list, carddb, prior: dict) -> dict:
+    """留一局回测表模型(单卡粒度): 其余局训表 → 对本局每张卡独立给 留/换 建议,
+    与实际决定交叉计数。返回 {(建议, 实际): [卡次, 胜次]}。
+    描述性统计(有选择偏差): 遵从与违背的"局面"不可比, 只看方向不看因果。"""
+    cells: dict = defaultdict(lambda: [0, 0])
+    for i, g in enumerate(games):
+        others = games[:i] + games[i + 1:]
+        stats: dict = {}
+        for og in others:
+            table_update(stats, og)
+        wr = sum(o.result for o in others) / len(others)
+        coin_i = 1 if g.coin else 0
+        kept_c = Counter(g.kept)
+        for cid, n in Counter(g.cards).items():
+            adv = card_advice(stats, cid, g.opp_class, coin_i, wr, carddb, prior)
+            label = mulligan_verdict(adv)
+            if label not in ("建议留", "建议换"):
+                continue                      # 中性/样本不足: 无建议可遵从
+            for j in range(n):                # 双张逐张: 靠前的算留下的那份
+                actual = "留" if j < kept_c.get(cid, 0) else "换"
+                cell = cells[(label, actual)]
+                cell[0] += 1
+                cell[1] += g.result
+    return cells
+
+
+def cmd_backtest(cfg: Config, deck: str) -> int:
+    carddb = CardDB(cfg.cache_dir / "cards.zh.json")
+    games, skip = build_dataset(Path(cfg.training_dir), deck, cfg.battletag)
+    if len(games) < 30:
+        print(f"语料不足({len(games)} 局 < 30): 回测无意义, 先攒语料")
+        return 1
+    prior_ids = {c for g in games for c in g.cards}
+    prior = load_prior(prior_path(cfg), deck, carddb, prior_ids)
+
+    vocab, pairs = _vocab_pairs(games)
+    classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
+    v_cls_pr = (vocab, classes, pairs)
+
+    def lr_fit(Xtr, ytr):
+        from sklearn.linear_model import LogisticRegression
+        m = LogisticRegression(C=0.3, max_iter=2000).fit(Xtr, ytr)
+        return lambda X: m.predict_proba(X)[:, 1]
+
+    def dummy_fit(Xtr, ytr):
+        p = sum(ytr) / len(ytr)
+        return lambda X: [p] * len(X)
+
+    def tab_fit(Xtr, ytr):
+        try:
+            tabpfn_env(cfg.data_dir)
+            from tabpfn import TabPFNClassifier
+        except ImportError:
+            return None
+        clf = TabPFNClassifier(device="cpu",
+                               ignore_pretraining_limits=True).fit(Xtr, ytr)
+        return lambda X: clf.predict_proba(X)[:, 1]
+
+    tails = [deck_features(g.decklist, carddb, prior)[0] for g in games]
+    X = [lr_features(*v_cls_pr, g.cards, g.kept, g.coin, g.opp_class) + t
+         for g, t in zip(games, tails)]
+    y = [g.result for g in games]
+    sess = [g.path.split("_g")[0] for g in games]           # 组 = 会话
+    print(f"── 留牌模型回测 ({deck}) ──")
+    print(f"语料 {len(games)} 局 │ 会话分组 {len(set(sess))} 组(同会话绝不跨组)")
+    report = cv_auc({"逻辑回归": lr_fit, "TabPFN基座": tab_fit,
+                     "恒猜多数": dummy_fit}, X, y, sess)
+    print_cv_report("会话分组 CV — 预测对局胜负", report)
+
+    # 时序走前验证: 前 80% 训 → 后 20% 验(重复 5 个切点取均值)
+    chrono = defaultdict(list)
+    n = len(games)
+    for cut in (int(n * f) for f in (0.5, 0.6, 0.7, 0.75, 0.8)):
+        tr, va = games[:cut], games[cut:]
+        if len(set(g.result for g in va)) < 2:
+            continue
+        Xtr = [lr_features(*v_cls_pr, g.cards, g.kept, g.coin, g.opp_class)
+               + deck_features(g.decklist, carddb, prior)[0] for g in tr]
+        Xva = [lr_features(*v_cls_pr, g.cards, g.kept, g.coin, g.opp_class)
+               + deck_features(g.decklist, carddb, prior)[0] for g in va]
+        ytr = [g.result for g in tr]
+        yva = [g.result for g in va]
+        for name, fit in (("逻辑回归", lr_fit), ("TabPFN基座", tab_fit)):
+            predict = fit(Xtr, ytr)
+            if predict is not None:
+                a = _auc(yva, list(predict(Xva)))
+                if a is not None:
+                    chrono[name].append(a)
+    for name, aucs in chrono.items():
+        m = sum(aucs) / len(aucs)
+        print(f"时序走前({len(aucs)} 切点): {name} AUC 均值 {m:.3f} "
+              f"{[round(a, 3) for a in aucs]}")
+
+    loo = _loo_table_backtest(games, carddb, prior)
+    print("── 表模型留一局回测(单卡粒度, 描述性: 有选择偏差) ──")
+    wr = lambda cell: ("—" if not cell[0] else
+                       f"{cell[1] / cell[0] * 100:.1f}%({cell[0]}卡次)")
+    print(f"建议留·实际留 {wr(loo[('建议留', '留')])} │ "
+          f"建议留·实际换 {wr(loo[('建议留', '换')])}")
+    print(f"建议换·实际换 {wr(loo[('建议换', '换')])} │ "
+          f"建议换·实际留 {wr(loo[('建议换', '留')])}")
     return 0
 
 
@@ -475,6 +678,8 @@ def main(argv=None) -> int:
     add_common(p_train)
     p_rep = sub.add_parser("report", help="查看已保存模型")
     add_common(p_rep)
+    p_bt = sub.add_parser("backtest", help="分组交叉验证: 同会话绝不跨训练/验证组")
+    add_common(p_bt)
     p_adv = sub.add_parser("advise", help="给一个起手场景出建议")
     add_common(p_adv)
     p_adv.add_argument("--hand", required=True,
@@ -487,7 +692,7 @@ def main(argv=None) -> int:
     p_adv.add_argument("--seed", type=int, default=None, help="探索采样种子(复现用)")
 
     argv = list(argv) if argv is not None else sys.argv[1:]
-    if argv and argv[0] not in ("train", "report", "advise") \
+    if argv and argv[0] not in sub.choices \
             and not argv[0].startswith("-"):
         argv = ["train"] + argv              # 裸调用 → 等价 train
     args = ap.parse_args(argv)               # 严格解析: 配置参数须在子命令前
@@ -500,6 +705,8 @@ def main(argv=None) -> int:
         return cmd_train(cfg, deck)
     if args.cmd == "report":
         return cmd_report(cfg, deck)
+    if args.cmd == "backtest":
+        return cmd_backtest(cfg, deck)
     hand = [t.strip() for t in re.split(r"[,，、]", args.hand) if t.strip()]
     coin = 1 if args.coin else (0 if args.first else None)
     return cmd_advise(cfg, deck, hand, args.vs, coin, args.explore, args.seed)

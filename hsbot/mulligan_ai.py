@@ -1,10 +1,13 @@
 """留牌推理层 —— 模型产物的加载与同步推理(训练器与实时军师共用)。
 
 纯 stdlib: 不依赖 sklearn/hearthstone(架构铁律: 只有 adapter 可 import 实体类;
-幸运币判定为此本地实现, 与 store.is_coin 同语义)。三层分工:
-  训练器 scripts/train_mulligan.py  产出模型产物(依赖 sklearn);
-  本层 MulliganAdvisor              读 LATEST 模型 + 专家先验, 同步出建议;
-  render                            只格式化本层给的结论字段。
+幸运币判定/职业名/英雄兜底表复用 consts)。三层分工:
+  训练器 python -m trainer mulligan  产出模型产物(依赖 sklearn);
+  本层 MulliganAdvisor              读 LATEST 模型 + 专家先验, 同步出事实;
+  render(输出层)                    事实 → 中文结论/建议行(阈值也在这层)。
+
+本层只产机读事实: 增益/双侧胜率/样本量/出处键(src: coin|class|all|prior|none)/
+匹配对照。不产任何中文结论词 —— "建议留/样本不足"等属输出层政策(render)。
 
 结论三层来源(设计见 docs/MULLIGAN_AI.md):
   平滑统计表(级联: 同先手→本职业→全体) > 专家先验(data/mulligan_prior.yaml)
@@ -15,49 +18,41 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import random
 from itertools import combinations
 from pathlib import Path
 
-# ── 职业名 ──
-CLASS_ZH = {"WARRIOR": "战士", "SHAMAN": "萨满", "ROGUE": "潜行者",
-            "PALADIN": "圣骑士", "HUNTER": "猎人", "DRUID": "德鲁伊",
-            "WARLOCK": "术士", "MAGE": "法师", "PRIEST": "牧师",
-            "DEMONHUNTER": "恶魔猎手", "DEATHKNIGHT": "死亡骑士"}
-HERO_ID_CLASS = {"HERO_01": "WARRIOR", "HERO_02": "SHAMAN", "HERO_03": "ROGUE",
-                 "HERO_04": "PALADIN", "HERO_05": "HUNTER", "HERO_06": "DRUID",
-                 "HERO_07": "WARLOCK", "HERO_08": "MAGE", "HERO_09": "PRIEST",
-                 "HERO_10": "DEMONHUNTER", "HERO_11": "DEATHKNIGHT"}
-UNKNOWN = "UNKNOWN"
+from .consts import HERO_ID_CLASS, is_coin
 
-# ── 平滑/阈值参数(集中一处, 调参改这里) ──
+# ── 统计机制参数(数据的读法, 非展示; 结论阈值在 render 输出层) ──
 BETA_PRIOR_N = 2.0     # Beta 平滑虚拟样本数(以全局胜率/先验为均值)
 SHRINK_N = 4.0         # 数据向先验收缩: 权重 n/(n+SHRINK_N)
 N_COIN_CELL = 3        # (职业×先手) 格子最少样本, 否则级联回本职业行
 N_CLASS_CELL = 5       # 本职业格最少样本, 否则级联回全体
-N_ADVICE_MIN = 6       # 低于此样本只报"样本不足"(有专家先验的卡除外)
-GAIN_KEEP = 0.03       # 增益 ≥ +3% → 建议留
-GAIN_DROP = -0.03      # 增益 ≤ -3% → 建议换
-LR_AUC_GATE = 0.55     # LR 时序留出 AUC 低于此值时, 建议权归统计表
+LR_AUC_GATE = 0.55     # LR 时序留出 AUC 低于此值时, 集合评分权归统计表
 ENUM_MAX_CARDS = 10    # 起手去重卡数超过此值退回贪心(理论最多 4)
 MATCHED_MIN = 3        # 同情境匹配证据最少局数
-PRIOR_TXT = "专家先验"
+
+UNKNOWN = "UNKNOWN"    # 提取不到职业时的哨兵(本层专用)
 
 
-def class_zh(en: str) -> str:
-    if en == UNKNOWN:
-        return "未知职业"
-    return CLASS_ZH.get(en, "不限职业" if en == "*" else en)
+def tabpfn_env(data_dir) -> None:
+    """TabPFN 权重/HF 缓存固定落项目数据目录, 绝不写 C 盘用户缓存。
+    必须在首次 import tabpfn 之前调用。"""
+    d = Path(data_dir)
+    os.environ.setdefault("TABPFN_MODEL_CACHE_DIR", str(d / "cache" / "tabpfn"))
+    os.environ.setdefault("HF_HOME", str(d / "cache" / "hf"))
 
 
-def is_coin(cid: str | None) -> bool:
-    return bool(cid) and ("COIN" in cid.upper() or cid.upper() == "GAME_005")
-
-
-def hero_class(cid: str | None) -> str | None:
-    """英雄卡 card_id → CLASS 英文标签(HERO_09av → PRIEST)。"""
+def hero_class(cid: str | None, carddb=None) -> str | None:
+    """英雄卡 card_id → CLASS 英文标签。权威 = 卡表 cardClass(含英雄皮肤);
+    卡表缓存过旧无此字段时降级 consts.HERO_ID_CLASS 前缀表。"""
     if not cid:
         return None
+    cls = carddb.card_class(cid) if carddb else None
+    if cls:
+        return cls
     for prefix, cls in HERO_ID_CLASS.items():
         if str(cid).startswith(prefix):
             return cls
@@ -147,17 +142,18 @@ def table_update(stats: dict, opp_class: str, coin: bool, result: int,
 
 def pick_cell(stats: dict, cid: str, opp_class: str,
               coin: int | None) -> tuple[dict | None, str | None]:
-    """级联取样本最足的格子: 同先手(n≥3) → 本职业(n≥5) → 全体。"""
-    cascade = [("*|*", 0, "全体")]
+    """级联取样本最足的格子: 同先手(n≥3) → 本职业(n≥5) → 全体。
+    返回 (cell, 出处键 coin|class|all)。"""
+    cascade = [("all", "*|*", 0)]
     if opp_class != "*":
-        cascade.insert(0, (f"{opp_class}|*", N_CLASS_CELL, "本职业"))
+        cascade.insert(0, ("class", f"{opp_class}|*", N_CLASS_CELL))
         if coin is not None:
-            cascade.insert(0, (f"{opp_class}|{coin}", N_COIN_CELL, "同先手"))
+            cascade.insert(0, ("coin", f"{opp_class}|{coin}", N_COIN_CELL))
     ent = stats.get(cid) or {}
-    for key, min_n, label in cascade:
+    for src, key, min_n in cascade:
         c = ent.get(key)
         if c and cell_n(c) >= max(min_n, 1):
-            return c, label
+            return c, src
     return None, None
 
 
@@ -180,38 +176,23 @@ def _wr(side: dict, mean: float) -> float:
 
 def card_advice(stats: dict, cid: str, opp_class: str, coin: int | None,
                 deck_wr: float, carddb, prior: dict | None = None) -> dict:
-    """逐卡留牌增益 = P(胜|留) − P(胜|换); 级联取样本最足的格子。
-    无数据的卡: 专家先验兜底(出处"专家先验"), 否则费用启发("样本不足")。"""
+    """逐卡留牌增益事实 = P(胜|留) − P(胜|换); 级联取样本最足的格子。
+    只回机读事实(src 键: coin|class|all|prior|none), 结论词在 render 输出层。"""
     prior = prior or {"cards": {}, "pairs": {}, "engine": []}
     pg = prior_gain(prior, cid, coin)
     fill = pg if pg is not None else cost_prior(cid, carddb)
     cell, src = pick_cell(stats, cid, opp_class, coin)
     if cell is None:
-        if pg is not None:
-            label = "建议留" if pg >= GAIN_KEEP else \
-                "建议换" if pg <= GAIN_DROP else "先验中性"
-            return {"n": 0, "gain": pg, "prior": True, "src": PRIOR_TXT,
-                    "label": label, "keep_wr": None, "drop_wr": None,
-                    "keep_n": 0, "drop_n": 0}
-        return {"n": 0, "gain": fill, "prior": True, "src": "无数据",
-                "label": "样本不足", "keep_wr": None, "drop_wr": None,
-                "keep_n": 0, "drop_n": 0}
+        return {"n": 0, "gain": pg if pg is not None else fill,
+                "keep_wr": None, "drop_wr": None, "keep_n": 0, "drop_n": 0,
+                "src": "prior" if pg is not None else "none", "prior": pg is not None}
     nk, nd = sum(cell["keep"].values()), sum(cell["drop"].values())
     keep_wr = _wr(cell["keep"], deck_wr + (pg or 0) / 2)
     drop_wr = _wr(cell["drop"], deck_wr - (pg or 0) / 2)
     w = min(nk, nd) / (min(nk, nd) + SHRINK_N)
-    gain = w * (keep_wr - drop_wr) + (1 - w) * fill
-    if nk + nd < N_ADVICE_MIN and pg is None:   # 有专家先验的卡不受样本门槛限制
-        label = "样本不足"
-    elif gain >= GAIN_KEEP:
-        label = "建议留"
-    elif gain <= GAIN_DROP:
-        label = "建议换"
-    else:
-        label = "中性"
-    return {"n": nk + nd, "gain": gain, "prior": False, "src": src,
-            "label": label, "keep_wr": keep_wr, "drop_wr": drop_wr,
-            "keep_n": nk, "drop_n": nd}
+    return {"n": nk + nd, "gain": w * (keep_wr - drop_wr) + (1 - w) * fill,
+            "keep_wr": keep_wr, "drop_wr": drop_wr, "keep_n": nk, "drop_n": nd,
+            "src": src, "prior": pg is not None}
 
 
 # ════════════════════ 集合枚举 + Thompson 探索 ════════════════════
@@ -275,7 +256,7 @@ def lr_features(vocab: list, classes: list, pairs: list, cards: list, kept: list
 
 def lr_p(model: dict, cards: list, kept: list, coin: bool, opp_class: str) -> float:
     x = lr_features(model["vocab"], model["classes"], model.get("pairs", []),
-                    cards, kept, coin, opp_class)
+                    cards, kept, coin, opp_class) + list(model.get("deck_vec") or [])
     z = model["intercept"] + sum(w * v for w, v in zip(model["coef"], x))
     return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, z))))
 
@@ -299,8 +280,8 @@ def lr_best_set(model: dict, cards: list, coin: bool, opp_class: str) -> list:
 
 def matched_evidence(digest: list, cid: str, hand: list, opp_class: str,
                      coin: int | None) -> dict:
-    """在近似相同起手里找"留/换都发生过"的对局: 近似手牌(共享≥2张) → 同职业同手。
-    这是唯一能让"该不该换一种留法"获得数据对照的途径。"""
+    """在近似相同起手里找"留/换都发生过"的对局(机读事实, 中文在 render):
+    level: near=近似手牌(共享≥2张) / same=同职业同手 / none=样本不足。"""
     def split(pool):
         keep = [g for g in pool if cid in g["k"]]
         drop = [g for g in pool if cid not in g["k"]]
@@ -314,12 +295,12 @@ def matched_evidence(digest: list, cid: str, hand: list, opp_class: str,
     near = [g for g in pool if len(set(g["f"]) & hand_set) >= 2]
     if len(near) >= MATCHED_MIN:
         out = split(near)
-        out.update({"level": "近似手牌", "n": len(near)})
+        out.update({"level": "near", "n": len(near)})
     elif len(pool) >= MATCHED_MIN:
         out = split(pool)
-        out.update({"level": "同职业同手", "n": len(pool)})
+        out.update({"level": "same", "n": len(pool)})
     else:
-        out = {"level": "无可比对局", "n": max(len(near), len(pool)),
+        out = {"level": "none", "n": max(len(near), len(pool)),
                "keep": (0, 0), "drop": (0, 0)}
     return out
 
@@ -342,7 +323,8 @@ def read_latest(root: Path | str) -> tuple[str | None, dict]:
         art = {"meta": json.loads((vdir / "meta.json").read_text(encoding="utf-8")),
                "seen": json.loads((vdir / "games_seen.json").read_text(encoding="utf-8")),
                "stats": json.loads((vdir / "stats.json").read_text(encoding="utf-8"))}
-        for name, key in (("model.json", "lr"), ("games_digest.json", "digest")):
+        for name, key in (("model.json", "lr"), ("games_digest.json", "digest"),
+                          ("tabpfn.json", "tabpfn")):
             p = vdir / name
             art[key] = json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
         return ver, art
@@ -350,10 +332,75 @@ def read_latest(root: Path | str) -> tuple[str | None, dict]:
         return None, {}
 
 
-class MulliganAdvisor:
-    """实时留牌建议: 读 LATEST 模型 + 专家先验(改动即生效), 同步出结论。
+class TabPFNWrap:
+    """TabPFN 开源表格基座(上下文学习)评分器 —— 可选依赖, 缺包即不可用。
 
-    用法: advisor.advise(offered_cids, opp_hero_cid, coin) → 结论 dict | None(无模型)。
+    fit = 存上下文(我们的全局对局行); 打分 = 对候选留牌集合批量出 P(胜)。
+    权重文件由 tabpfn_env 钉在项目数据目录, 不落 C 盘。"""
+
+    def __init__(self, payload: dict, data_dir) -> None:
+        self.payload = payload
+        self.data_dir = data_dir
+        self._learner = None
+
+    @classmethod
+    def usable(cls, payload: dict | None, data_dir) -> bool:
+        """产物存在 + 时序留出过 AUC 门控 + tabpfn 包可导入。"""
+        if not payload or not payload.get("X"):
+            return False
+        auc = (payload.get("metrics") or {}).get("test_auc")
+        if auc is None or auc < LR_AUC_GATE:
+            return False
+        tabpfn_env(data_dir)
+        try:
+            import tabpfn  # noqa: F401
+        except ImportError:
+            return False
+        return True
+
+    def _fit_learner(self):
+        if self._learner is None:
+            import numpy as np
+            tabpfn_env(self.data_dir)
+            from tabpfn import TabPFNClassifier
+            clf = TabPFNClassifier(device="cpu", ignore_pretraining_limits=True)
+            clf.fit(np.array(self.payload["X"], dtype=np.float32),
+                    np.array(self.payload["y"], dtype=int))
+            self._learner = clf
+        return self._learner
+
+    def _p(self, kept: list, cards: list, coin: bool, opp_class: str) -> float:
+        import numpy as np
+        x = np.array([lr_features(self.payload["vocab"], self.payload["classes"],
+                                  self.payload.get("pairs", []), cards, kept,
+                                  coin, opp_class)], dtype=np.float32)
+        return float(self._fit_learner().predict_proba(x)[0, 1])
+
+    def best_set(self, cards: list, coin: bool, opp_class: str) -> list:
+        """在 2^n 候选集合上取 P(胜) 最高者(空集为基线; 平分取最小集)。"""
+        import numpy as np
+        payload = self.payload
+        vocab, classes = payload["vocab"], payload["classes"]
+        pairs = payload.get("pairs", [])
+        uniq = sorted(set(cards), key=cards.index)
+        cand = [list(combo) for size in range(len(uniq) + 1)
+                for combo in combinations(uniq, size)]
+        tail = list(payload.get("deck_vec") or [])
+        X = np.array([lr_features(vocab, classes, pairs, cards, kept,
+                                  coin, opp_class) + tail for kept in cand],
+                     dtype=np.float32)
+        probs = self._fit_learner().predict_proba(X)[:, 1]
+        best, best_p = [], float(probs[0])       # cand[0] = 空集基线
+        for kept, p in zip(cand[1:], probs[1:]):
+            if p > best_p + 1e-12:
+                best, best_p = kept, float(p)
+        return best
+
+
+class MulliganAdvisor:
+    """实时留牌建议: 读 LATEST 模型 + 专家先验(改动即生效), 同步出事实。
+
+    用法: advisor.advise(offered_cids, opp_class, coin) → 事实 dict | None(无模型)。
     每次调用检查 LATEST/先验文件的 mtime, 训练器产出新版本后自动切换。"""
 
     def __init__(self, root: Path | str, deck: str, carddb,
@@ -366,6 +413,7 @@ class MulliganAdvisor:
         self._stamp = None                  # (LATEST mtime, prior mtime) 失配即重读
         self._ver, self._art = None, {}
         self._prior = {"cards": {}, "pairs": {}, "engine": []}
+        self._tab = None                    # TabPFNWrap(懒加载; 缺包/未过门控=不可用)
 
     def _refresh(self) -> None:
         latest = self.root / "LATEST.json"
@@ -383,10 +431,9 @@ class MulliganAdvisor:
             set((self._art.get("lr") or {}).get("vocab", []))
         self._prior = load_prior(prior_path, self.deck, self.carddb, known)
 
-    # ---------- 建议 ----------
     def advise(self, offered: list, opp_class: str, coin: bool,
                explore: bool = False, seed: int | None = None) -> dict | None:
-        """起手 card_id 列表 + 对手 CLASS → 结论 dict; 无模型返回 None。
+        """起手 card_id 列表 + 对手 CLASS → 事实 dict; 无模型返回 None。
         explore=True 时用 Thompson 采样出探索局(偏离均值的卡列入 deviations)。"""
         self._refresh()
         if self._ver is None or not offered:
@@ -406,14 +453,18 @@ class MulliganAdvisor:
         mean_gains = {c: a["gain"] for c, a in advs.items()}
         pair_bonus = {p: b for p, b in self._prior["pairs"].items()
                       if set(p) <= set(uniq)}
-        if lr_ok:
+        tab_payload = self._art.get("tabpfn")
+        if TabPFNWrap.usable(tab_payload, self.prior_path.parent):
+            if self._tab is None:
+                self._tab = TabPFNWrap(tab_payload, self.prior_path.parent)
+            mean_keep = self._tab.best_set(uniq, bool(coin_i), cls)
+            scorer = "tabpfn"
+        elif lr_ok:
             mean_keep = lr_best_set(lr, uniq, bool(coin_i), cls)
-            basis = f"LR 集合枚举(AUC {auc:.2f}) + 专家先验"
+            scorer = "lr"
         else:
             mean_keep = best_keep_set(uniq, mean_gains, pair_bonus)
-            basis = "统计表+专家先验, 集合枚举" + \
-                (f"(LR AUC {auc:.2f} 过低, 仅参考)"
-                 if lr is not None and auc is not None else "")
+            scorer = "table"
         keep, deviations = mean_keep, []
         if explore:                                # Thompson 探索局
             rng = random.Random(seed) if seed is not None else random.Random()
@@ -428,17 +479,13 @@ class MulliganAdvisor:
         per_card = {}
         for c in uniq:
             a = advs[c]
-            ev = matched_evidence(digest, c, uniq, cls, coin_i) if digest else None
-            ev_txt = ""
-            if ev and ev["level"] != "无可比对局":
-                kw, kl = ev["keep"]
-                dw, dl = ev["drop"]
-                ev_txt = (f"{ev['level']}{ev['n']}局: "
-                          f"留{kw + kl}({kw}胜{kl}负) 换{dw + dl}({dw}胜{dl}负)")
-            per_card[c] = {"name": self.carddb.name(c) or c, "label": a["label"],
-                           "gain": a["gain"], "keep_wr": a["keep_wr"],
-                           "drop_wr": a["drop_wr"], "src": a["src"], "ev": ev_txt}
+            per_card[c] = {"name": self.carddb.name(c) or c, "gain": a["gain"],
+                           "keep_wr": a["keep_wr"], "drop_wr": a["drop_wr"],
+                           "src": a["src"], "n": a["n"], "prior": a["prior"],
+                           "matched": matched_evidence(digest, c, uniq, cls, coin_i)
+                           if digest else None}
         return {"version": self._ver, "opp_class": cls, "coin": coin,
                 "deck_wr": deck_wr, "keep": keep,
                 "drop": [c for c in uniq if c not in keep],
-                "per_card": per_card, "basis": basis, "deviations": deviations}
+                "per_card": per_card, "scorer": scorer, "auc": auc,
+                "deviations": deviations}

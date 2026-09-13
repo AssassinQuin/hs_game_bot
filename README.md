@@ -34,8 +34,8 @@ pip install -r requirements.txt        # Python 3.10+（开发环境 3.11）
 python -m hsbot                                  # 实时监控：自动定位最新会话目录，控制台 + 悬浮窗
 python -m hsbot replay examples/Power.log        # 重放静态日志（开发/验收用，自动关悬浮窗）
 python -m hsbot import-all                       # 批量解析 logs_dir 全部历史会话 → 训练语料
-python scripts/train_mulligan.py                 # 留牌AI: 训练+报告(见 docs/MULLIGAN_AI.md)
-python scripts/train_mulligan.py advise --vs 圣骑士 --coin --hand 水栖形态,黑市拍卖师
+python -m trainer mulligan                        # 留牌AI: 训练+报告(见 docs/MULLIGAN_AI.md)
+python -m trainer mulligan advise --vs 圣骑士 --coin --hand 水栖形态,黑市拍卖师
 python -m hsbot --config my.yaml replay x.log    # 任意子命令均可 --config 指定配置文件
 ```
 
@@ -74,7 +74,7 @@ python -m hsbot --config my.yaml replay x.log    # 任意子命令均可 --confi
 
 ## 留牌 AI（离线）
 
-`scripts/train_mulligan.py` 从训练语料学习「按对手职业 × 先/后手」的起手留牌：
+`python -m trainer mulligan`(独立训练包 trainer/)从训练语料学习「按对手职业 × 先/后手」的起手留牌：
 平滑统计表给逐卡留/换增益，专家先验文件（`data/mulligan_prior.yaml`，人工维护）
 兜底无数据卡，可选逻辑回归（sklearn）做组合修正与时序验证；建议在 2^n 个候选
 留牌集合上枚举取最优，`advise --explore` 用 Thompson 采样生成探索局，逐卡附
@@ -92,7 +92,7 @@ python -m hsbot --config my.yaml replay x.log    # 任意子命令均可 --confi
 | `poll_interval` / `session_check_interval` | 0.5 / 10 秒 | 日志轮询与新会话检查间隔 |
 | `overlay_enabled` / `alpha` / `geometry` / `font_size` / `borderless` | 见 config.yaml | 悬浮窗开关与外观；`borderless: true` 后不可拖动，只能改配置还原 |
 | `console_echo` | true | 悬浮窗之外是否同步打印控制台 |
-| `mulligan_advice` | true | 留牌环节高亮建议（留X换Y+增益；模型来自 `scripts/train_mulligan.py`） |
+| `mulligan_advice` | true | 留牌环节高亮建议（留X换Y+增益；模型来自 `python -m trainer mulligan`） |
 | `auto_training` / `training_dir` | true / data/training | 每局结束自动导出训练语料（`import-all` 可批量回填，增量去重） |
 
 完整注释版见 [config.yaml](config.yaml)；字段语义与运行细节见 [docs/M1_MONITOR.md](docs/M1_MONITOR.md) §1。

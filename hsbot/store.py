@@ -30,7 +30,7 @@ from hearthstone.enums import (BlockType, CardType, ChoiceType, GameTag,
 from .adapter import is_play_block, new_store_exporter, packet_payload
 from .carddb import CardDB
 from .consts import (PET_CARD_PREFIX, UNKNOWN_HUMAN_PLAYER,
-                     TAG_START_OF_GAME_KEYWORD)
+                     TAG_START_OF_GAME_KEYWORD, is_coin)
 
 PlayerKey = int  # PLAYER_ID: 1=先手, 2=后手(硬币); CONTROLLER 标签值同域
 
@@ -78,10 +78,6 @@ def is_hero_power(e) -> bool:
     return e.tags.get(GameTag.CARDTYPE) == CardType.HERO_POWER
 
 
-def is_coin(cid: str | None) -> bool:
-    return bool(cid) and ("COIN" in cid.upper() or cid.upper() == "GAME_005")
-
-
 @dataclass
 class MulliganState:
     offered: list = field(default_factory=list)
@@ -110,8 +106,10 @@ class GameStore:
         self._mulligan_emitted: set[int] = set()
         self._discover: dict[int, dict] = {}
         self._discover_emitted: set[int] = set()
+        self.last_discover: dict | None = None   # 我方最近一次发现 {source/picked/unpicked}
         self._pending_play: tuple[int, object] | None = None
         self._pending_cost: int | None = None   # 打出块开始时的真实手牌价
+        self._deferred: list[dict] = []         # 挂起 PLAY 期间的事件(块尾跟在 play 之后冲出)
         self._ctx_trigger: tuple[int, int] | None = None   # 所在触发块 (depth, 实体号)
         self.hero_power: dict[PlayerKey, int] = {}      # pid → 当前技能实体号
         self.hero_power_cid: dict[PlayerKey, str] = {}  # pid → 当前技能 card_id
@@ -221,6 +219,10 @@ class GameStore:
         minions.sort(key=zone_pos)
         return minions
 
+    def board_attack(self, key: PlayerKey) -> int:
+        """场面总攻击力(快照行"对面场攻"/杀伤预估用)。"""
+        return sum(atk(e) for e in self.board(key))
+
     def deck_entities(self, key: PlayerKey) -> list:
         return [e for e in self._of(key) if e.zone == Zone.DECK]
 
@@ -314,6 +316,12 @@ class GameStore:
         self._subs.append(cb)
 
     def _emit_event(self, evt: dict) -> None:
+        if self._pending_play is not None:
+            # 挂起 PLAY 块内衍生的事件(抉择抽牌/减费/触发/阵亡…)先扣留,
+            # 块尾 flush 时跟在 play 事件之后按原序冲出 —— 因果顺序:
+            # 先"打出 X(抉择N)", 再"抽到 Y"(2026-09-13 实测曾倒置)
+            self._deferred.append(evt)
+            return
         evt.setdefault("turn", self.turn)
         evt.setdefault("friendly", self.friendly_key)
         for cb in list(self._subs):
@@ -406,6 +414,7 @@ class GameStore:
             if self.friendly_key is not None:   # 调度阶段的洗牌是噪音
                 self._emit_event({"kind": "shuffle",
                                   "actor": getattr(p, "player_id", None)})
+            self.last_discover = None           # 洗牌后牌底构成作废
         elif name == "Block":
             self._on_block(p, depth)
         else:
@@ -663,16 +672,35 @@ class GameStore:
         # 疲劳行由块内的 FATIGUE 标签变更发出(玩家+次数), 掉血由 _on_hero_attr 衔接
         elif btype == BlockType.PLAY:
             pass                            # 延迟发由 apply 的挂起机制处理
+        elif btype == BlockType.DECK_ACTION and isinstance(p.entity, int):
+            # 预备完成动作: 块开始即发"预备完成", 块内的费用变化等后果随后
+            # 按原序跟上 —— 2026-09-13 实测"手牌费用变动 9→4费"曾排在预备
+            # 信息之前。PREPARE=1 的手牌才认定(防其他 DECK_ACTION 误报);
+            # 尾随的"正在预备"触发块在日志里晚约1秒, 保持其原位不动
+            e = self.get(p.entity)
+            if (e is not None and e.zone == Zone.HAND
+                    and e.tags.get(GameTag.PREPARE) and self.cid_of(p.entity)):
+                self._emit_event({"kind": "prepare", "card_id": self.cid_of(p.entity),
+                                  "actor": (self.ctrl_key(e)
+                                            or self._hint_ctrl.get(p.entity)),
+                                  "eid": p.entity})
         else:
             # POWER/DEATHS/JOUST/MOVE_MINION/SUB_SPELL 等块: 全量收录, 记 raw
             self._record_raw(f"Block:{getattr(btype, 'name', btype)}", p)
 
     def _flush_play(self) -> None:
-        """PLAY 块子树结束时发出 —— 块内 SHOW_ENTITY 此时已揭示身份。"""
+        """PLAY 块子树结束时发出 —— 块内 SHOW_ENTITY 此时已揭示身份。
+        扣留的块内事件在 play 之后立即冲出(见 _emit_event)。"""
         _depth, p = self._pending_play
         self._pending_play = None
         cost_tag = self._pending_cost      # 块开始时锁定的真实手牌价
         self._pending_cost = None
+        try:
+            self._emit_play(p, cost_tag)
+        finally:
+            self._drain_deferred()
+
+    def _emit_play(self, p, cost_tag: int | None) -> None:
         eid = p.entity
         if not isinstance(eid, int):
             return
@@ -687,6 +715,7 @@ class GameStore:
         mana_left = max(0, f["res"] + f["temp"] - f["used"])
         sub = getattr(p, "suboption", None)
         self._emit_event({"kind": "play", "card_id": cid, "actor": actor,
+                          "eid": eid,
                           "cost_base": self.carddb.cost(cid),
                           "cost_tag": cost_tag,
                           "mana_left": mana_left,
@@ -697,6 +726,21 @@ class GameStore:
             # 通用模式判定只看"来自卡组"的牌: 衍生牌/硬币不算卡组不匹配
             if not is_generated(e) and not is_coin(cid):
                 self.played_cids.add(cid)
+
+    def choose_one_buttons(self, eid: int | None) -> list:
+        """抉择按钮实体(PARENT_CARD=主卡), 按实体号排序 —— 实体号序即抉择顺序。
+        纯状态查询: 下标→所选子卡的解析在 analysis 层(与 via/牌名推断同模式)。"""
+        if eid is None:
+            return []
+        return sorted((e for e in self.entities()
+                       if e.tags.get(GameTag.PARENT_CARD) == eid),
+                      key=lambda e: e.id)
+
+    def _drain_deferred(self) -> None:
+        while self._deferred:
+            batch, self._deferred = self._deferred, []
+            for evt in batch:
+                self._emit_event(evt)
 
     def mana_text(self, key: PlayerKey) -> str:
         """回合开始时的水晶投影: 上限+1−过载(RESOURCES 标签在切换之后才跳)。"""
@@ -758,6 +802,16 @@ class GameStore:
                                   "src_name": self.carddb.name(src_cid),
                                   "picked": [self.cid_of(c) or c for c in picked],
                                   "bottom": [self.cid_of(c) or c for c in bottom]})
+                # 牌底构成事实(浅→深): 置底机制/探底的未选项即当前牌库底;
+                # 选项实体是隐藏真身的替身, 台账从实体状态看不见 —— 记下供
+                # 知识层并入(是否采信由知识层按来源卡机制判定)
+                if (info.get("pid") == self.friendly_key and src_cid
+                        and picked and bottom):
+                    bottoms = [self.cid_of(c) for c in bottom]
+                    if all(bottoms):
+                        self.last_discover = {"source": src_cid,
+                                              "picked": [self.cid_of(c) for c in picked],
+                                              "unpicked": bottoms}
         elif ctype == ChoiceType.MULLIGAN:
             self._mulligan_decide(p.id,
                                   [c for c in (p.choices or []) if isinstance(c, int)])

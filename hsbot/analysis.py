@@ -17,7 +17,7 @@ from typing import Optional
 
 from .carddb import CardDB
 from .consts import RENATHAL_CARD_ID, RENATHAL_MIN_DECK_COUNT, SPELLPOWER_TYPES
-from .effects import Damage, Heal, EffectCache
+from .effects import Damage, Heal, EffectCache, Mechanic
 from .mulligan_ai import UNKNOWN, hero_class, is_coin
 
 _CID_SCAN_RE = re.compile(r"cardId=([A-Za-z0-9_]+)")
@@ -70,6 +70,34 @@ class EffectAnalyzer:
             return RENATHAL_CARD_ID
         return None
 
+    # ---------- 机制查询(IR 标记驱动, 不逐卡写死) ----------
+    def has_mechanic(self, card_id: str | None, kind: str) -> bool:
+        """卡牌是否带某机制标记。标记来源两条通道, 在 effects 编译器统一:
+        数据级(HsJson mechanics[] 标签, 如 DREDGE) + 文本级(语法表措辞)。"""
+        ir = self._compiled(card_id)
+        return ir is not None and any(
+            isinstance(e, Mechanic) and e.kind == kind for e in ir.effects)
+
+    def discover_bottom_mechanic(self, card_id: str | None) -> bool:
+        """发现类机制: 未选项即当前牌库底(置于牌库底/探底)。"""
+        return self.has_mechanic(card_id, "deck_bottom")
+
+    def _chosen_sub_cid(self, evt: dict, store) -> str | None:
+        """抉择所选子卡: store 查 PARENT_CARD 按钮实体(实体号序=抉择顺序),
+        suboption 下标取所选(实测 SubOption=0/1)。按钮未揭示时按 a/b 命名
+        惯例兜底 —— 卡表可证才采用, 不给事件流编造 id。"""
+        sub = evt.get("suboption")
+        if not isinstance(sub, int) or sub < 0:
+            return None
+        buttons = store.choose_one_buttons(evt.get("eid"))
+        if sub < len(buttons):
+            known = getattr(buttons[sub], "card_id", None)
+            if known:
+                return known
+        cid = evt.get("card_id")
+        guess = f"{cid}{'ab'[sub]}" if cid and sub in (0, 1) else None
+        return guess if guess and self.carddb.raw(guess) else None
+
     # ---------- 事件实时富化 ----------
     def enrich(self, evt: dict, store) -> dict:
         """按事件类型补充派生字段(不改 store 状态, 不改 store 的事件事实)。"""
@@ -79,6 +107,9 @@ class EffectAnalyzer:
                                        store.spellpower(evt.get("actor")) or 0)
             if pred:
                 evt = {**evt, "pred_dmg": pred}
+            sub_cid = self._chosen_sub_cid(evt, store)
+            if sub_cid:
+                evt = {**evt, "suboption_card_id": sub_cid}
         elif kind == "trigger":
             if evt.get("card_id") is None:
                 inferred = self.infer_trigger_card(
@@ -96,7 +127,7 @@ class EffectAnalyzer:
                                 (store.heroes_facts() or {}).items()
                                 if pid != evt.get("actor")), None)
                 advice = self.mulligan.advise(
-                    offered, hero_class(opp_cid) or UNKNOWN,
+                    offered, hero_class(opp_cid, self.carddb) or UNKNOWN,
                     coin=any(is_coin(c) for c in evt.get("offered") or []))
                 if advice:
                     evt = {**evt, "advice": advice}
