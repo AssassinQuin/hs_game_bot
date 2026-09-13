@@ -17,12 +17,12 @@ def ensure_display():
         pytest.skip(f"无可用显示: {exc}")
 
 
-def _run_with_auto_close(monkeypatch, q, after_ms=800):
+def _run_with_auto_close(monkeypatch, q, after_ms=800, data_dir="."):
     """mainloop 注入定时 destroy: 刷新链若断, 定时器仍会收窗, 测试不悬挂。"""
     from hsbot.config import Config
     from hsbot.overlay import OverlayWindow
 
-    cfg = Config.load({"overlay_enabled": True, "data_dir": "."})
+    cfg = Config.load({"overlay_enabled": True, "data_dir": data_dir})
     orig = tk.Tk.mainloop
 
     def mainloop_with_close(self, n=0):
