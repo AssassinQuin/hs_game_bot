@@ -15,6 +15,8 @@ from .carddb import CardDB
 from .config import Config
 from .watcher import Watcher
 
+log = logging.getLogger("hsbot.main")
+
 
 def _setup_logging(data_dir) -> None:
     """诊断日志双通道: 文件 DEBUG 完整(含时间/模块/堆栈), 控制台只出 WARNING+。"""
@@ -39,6 +41,32 @@ def run_import_all(cfg, carddb) -> None:
     CorpusExporter(cfg, carddb).import_all()
 
 
+def run_parse_cards(cfg, carddb) -> None:
+    """批量增量编译"出现过的卡牌" → 效果 IR 缓存(第一版卡牌信息解析)。"""
+    import json
+    from .analysis import EffectAnalyzer, collect_card_ids
+    from .effects import EffectCache
+
+    root = Path(cfg.logs_dir)
+    logs = sorted(root.glob("Hearthstone_*/Power.log")) if root.exists() else []
+    ids = collect_card_ids(logs)
+    decklist = Path(cfg.data_dir) / "decks" / "decklist.json"
+    if decklist.exists():
+        try:
+            data = json.loads(decklist.read_text(encoding="utf-8"))
+            ids.update(data.get("cards", {}))
+        except Exception:  # noqa: BLE001
+            pass
+    cache = EffectCache(Path(cfg.cache_dir) / "effects.json")
+    stats = EffectAnalyzer(carddb, cache).compile_seen_cards(cache, ids)
+    print("── 卡牌解析(parse-cards) ──")
+    print(f"  出现卡牌: {stats['total']} | 新编译 {stats['compiled']} | "
+          f"复用 {stats['reused']} | 卡表缺失 {stats['missing']}")
+    print(f"  效果分类: 伤害 {stats['damage']} / 治疗 {stats['heal']} / "
+          f"未覆盖 {stats['unknown']}")
+    print(f"  IR 缓存: {Path(cfg.cache_dir) / 'effects.json'}")
+
+
 def build_config(argv: list[str] | None) -> tuple[Config, argparse.Namespace]:
     ap = argparse.ArgumentParser(prog="hsbot",
                                  description="奇迹德实时军师 (配置见 config.yaml)")
@@ -47,6 +75,7 @@ def build_config(argv: list[str] | None) -> tuple[Config, argparse.Namespace]:
     p_replay = sub.add_parser("replay", help="重放静态日志(开发/验收用, 自动关悬浮窗)")
     p_replay.add_argument("log", help="Power.log 路径")
     sub.add_parser("import-all", help="批量解析 logs_dir 下所有会话日志 -> 训练语料")
+    sub.add_parser("parse-cards", help="批量增量编译出现过的卡牌 -> 效果 IR 缓存")
     args = ap.parse_args(argv)
 
     overrides: dict = {"config": args.config}
@@ -67,10 +96,13 @@ def main(argv=None) -> None:
     if args.cmd == "import-all":
         run_import_all(cfg, carddb)
         return
+    if args.cmd == "parse-cards":
+        run_parse_cards(cfg, carddb)
+        return
 
     # ---- 输出枢纽: 控制台 + 会话记录文件 + 悬浮窗(永远存在, 无悬浮窗时 console-only) ----
-    from .overlay import OutputHub          # 不依赖 tkinter, 顶层 import 安全
-    OverlayWindow = None                    # 悬浮窗类: tkinter 不可用时保持 None(降级)
+    from .overlay import Msg, OutputHub    # 不依赖 tkinter, 顶层 import 安全
+    OverlayWindow = None                   # 悬浮窗类: tkinter 不可用时保持 None(降级)
     if cfg.overlay_enabled:
         try:
             import tkinter  # noqa: F401  探测 tkinter 可用性
@@ -84,10 +116,14 @@ def main(argv=None) -> None:
     watcher = Watcher(cfg, carddb, out=hub, hub=hub)
 
     def run_bot() -> None:
-        if cfg.replay:
-            watcher.run_replay(cfg.replay)
-        else:
-            watcher.run_live()
+        try:
+            if cfg.replay:
+                watcher.run_replay(cfg.replay)
+            else:
+                watcher.run_live()
+        except Exception:  # noqa: BLE001  监控线程死亡必须可见(曾静默假死一下午)
+            log.exception("监控线程终止")
+            hub(Msg("error", ui="! 监控线程已退出, 请重启 hsbot(详见 data/logs/hsbot.log)"))
 
     if hub.q is not None:        # 悬浮窗模式: tkinter 占主线程
         t = threading.Thread(target=run_bot, daemon=True, name="hsbot-watcher")

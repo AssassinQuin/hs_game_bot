@@ -65,15 +65,16 @@ class DeckKnowledge:
             hand: Counter = Counter()
             used: Counter = Counter()
             for e in st.entities():
-                if (st.ctrl_key(e) != me or not e.card_id
-                        or e.card_id not in self.decklist
+                cid = getattr(e, "card_id", None)   # Player/GameEntity 无 card_id
+                if (st.ctrl_key(e) != me or not cid
+                        or cid not in self.decklist
                         or is_generated(e)
                         or e.tags.get(GameTag.CARDTYPE) not in _LEDGER_TYPES):
                     continue
                 if e.zone == Zone.HAND:
-                    hand[e.card_id] += 1
+                    hand[cid] += 1
                 elif e.zone in (Zone.PLAY, Zone.GRAVEYARD, Zone.SECRET):
-                    used[e.card_id] += 1
+                    used[cid] += 1
             led.in_hand = hand
             led.used = used
             led.remaining = Counter(self.decklist) - hand - used

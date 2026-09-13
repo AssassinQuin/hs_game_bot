@@ -57,6 +57,22 @@ def test_mana_cap_event_only_friendly():
     assert msgs == ["水晶上限 1→2"]
 
 
+def test_spellpower_events():
+    """场上法强: 引擎在玩家实体上维护 CURRENT_SPELLPOWER_BASE, 变更即发事件。"""
+    st, log = _store()
+    _heroes(st)
+    st.apply(mk_full(10, "BT_724", CARDTYPE=CardType.MINION.value,
+                     ZONE=Zone.PLAY.value, CONTROLLER=1, SPELLPOWER=1))
+    st.apply(mk_tag(2, GameTag.CURRENT_SPELLPOWER_BASE, 1))    # 首次点亮
+    st.apply(mk_tag(2, GameTag.CURRENT_SPELLPOWER_BASE, 3))    # 增长
+    st.apply(mk_tag(2, GameTag.CURRENT_SPELLPOWER_BASE, 3))    # 重算同值: 不发
+    st.apply(mk_tag(3, GameTag.CURRENT_SPELLPOWER_BASE, 2))    # 对手
+    evs = log.by_kind("spellpower")
+    assert [(e["actor"], e["prev"], e["total"]) for e in evs] == [
+        (1, None, 1), (1, 1, 3), (2, None, 2)]
+    assert st.spellpower(1) == 3 and st.spellpower(2) == 2
+
+
 def test_hero_damage_event():
     st, log = _store()
     _heroes(st)

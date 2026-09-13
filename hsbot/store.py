@@ -1,5 +1,8 @@
 """状态层 —— 每局一个 GameStore: 唯一可变状态权威(spec 2026-09-07 §3)。
 
+纯状态职责: 只维护实体/区域/标签与游戏快照查询, 不做卡牌文本/效果解释
+(那属于 analysis 解析层), 更不做输出格式化(那属于 render 层)。
+
 实体/标签/区域由 adapter.StoreExporter(hslog EntityTreeExporter 容错子类)维护在
 hearthstone.entities 上(不造轮子); store 只追踪库没有的部分(留牌/发现/PLAY延迟/
 回合计数/括号线索), 并从状态迁移衍生链路事件。
@@ -11,7 +14,10 @@ hearthstone.entities 上(不造轮子); store 只追踪库没有的部分(留牌
 """
 from __future__ import annotations
 
+import logging
 import time
+
+log = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from typing import Callable, Iterator
 
@@ -21,6 +27,8 @@ from hearthstone.enums import (BlockType, CardType, ChoiceType, GameTag,
 
 from .adapter import is_play_block, new_store_exporter, packet_payload
 from .carddb import CardDB
+from .consts import (PET_CARD_PREFIX, UNKNOWN_HUMAN_PLAYER,
+                     TAG_START_OF_GAME_KEYWORD)
 
 PlayerKey = int  # PLAYER_ID: 1=先手, 2=后手(硬币); CONTROLLER 标签值同域
 
@@ -76,6 +84,7 @@ def is_coin(cid: str | None) -> bool:
 class MulliganState:
     offered: list = field(default_factory=list)
     kept: list = field(default_factory=list)
+    decided: bool = False               # 对手不广播决定 → kept 有值即 decided
 
 
 class GameStore:
@@ -99,6 +108,11 @@ class GameStore:
         self._discover: dict[int, dict] = {}
         self._discover_emitted: set[int] = set()
         self._pending_play: tuple[int, object] | None = None
+        self._pending_cost: int | None = None   # 打出块开始时的真实手牌价
+        self._ctx_trigger: tuple[int, int] | None = None   # 所在触发块 (depth, 实体号)
+        self.hero_power: dict[PlayerKey, int] = {}      # pid → 当前技能实体号
+        self.hero_power_cid: dict[PlayerKey, str] = {}  # pid → 当前技能 card_id
+        self.player_names: dict[PlayerKey, str] = {}   # 行级采集的真名(覆盖 manager)
         self._hint_cid: dict[int, str] = {}
         self._hint_ctrl: dict[int, PlayerKey] = {}
         self._draw_ts: dict[int, float] = {}
@@ -149,12 +163,23 @@ class GameStore:
     def name(self, key: PlayerKey | None) -> str:
         if key is None:
             return "?"
+        nm = self.player_names.get(key)
+        if nm:
+            return nm
         g = self.game
         if g is not None:
             p = g.get_player(key)
-            if p is not None and getattr(p, "name", None):
-                return p.name
-        return f"Player{key}"   # 与旧 adapter 的无名兜底一致(基线终局行 Player1=...)
+            if p is not None:
+                pname = getattr(p, "name", None)
+                if pname and pname != UNKNOWN_HUMAN_PLAYER:
+                    return pname
+        return f"Player{key}"
+
+    def note_player_name(self, key: PlayerKey, name: str) -> None:
+        """watcher 行级采集的真名(开局时对手常是 UNKNOWN HUMAN PLAYER,
+        真名在后续行才出现, manager 不一定收录)。"""
+        if key is not None and name:
+            self.player_names[key] = name   # 与旧 adapter 的无名兜底一致(基线终局行 Player1=...)
 
     # ================= 查询(活引用, 只读) =================
     def _of(self, key: PlayerKey | None) -> list:
@@ -222,6 +247,35 @@ class GameStore:
         f = self.mana_fields(key)
         return max(0, f["res"] + f["temp"] - f["used"])
 
+    def spellpower(self, key: PlayerKey) -> int:
+        """当前场上法强总和(引擎在玩家实体上维护的 CURRENT_SPELLPOWER_BASE)。"""
+        e = self._player_entity(key)
+        return (e.tags.get(GameTag.CURRENT_SPELLPOWER_BASE, 0)
+                if e is not None else 0)
+
+    def is_cosmetic_entity(self, e) -> bool:
+        """装饰性实体(宠物等): 非对局内容 —— COSMETIC 区 / PET 类型 / PET_ 卡牌号。"""
+        cid = getattr(e, "card_id", None)
+        return (e.zone == Zone.COSMETIC
+                or e.tags.get(GameTag.CARDTYPE) == CardType.PET
+                or (isinstance(cid, str) and cid.startswith(PET_CARD_PREFIX)))
+
+    def enchantments_on(self, eid: int) -> list[str]:
+        """连锁关联: 挂在实体 eid 上的附魔 card_id(去重保序)。
+
+        附魔实体特征: CARDTYPE=ENCHANTMENT + ATTACHED=宿主 + zone=SETASIDE。
+        用途: 解释手牌费用变动的原因(谁减了费)、触发属于哪张牌、快照手牌
+        的在身效果 —— 训练样本/快照 JSONL 随之持久化。"""
+        out: list[str] = []
+        for e in self.entities():
+            if (e.zone == Zone.SETASIDE
+                    and e.tags.get(GameTag.CARDTYPE) == CardType.ENCHANTMENT
+                    and e.tags.get(GameTag.ATTACHED) == eid):
+                cid = getattr(e, "card_id", None)
+                if cid and cid not in out:
+                    out.append(cid)
+        return out
+
     def mana_next_turn(self, key: PlayerKey) -> int:
         f = self.mana_fields(key)
         return max(0, min(10, f["res"] + 1 - f["overload"]))
@@ -258,19 +312,29 @@ class GameStore:
     def _emit_event(self, evt: dict) -> None:
         evt.setdefault("turn", self.turn)
         evt.setdefault("friendly", self.friendly_key)
-        for cb in self._subs:
-            cb(evt)
+        for cb in list(self._subs):
+            try:
+                cb(evt)
+            except Exception:  # noqa: BLE001  单订阅者异常不拖垮其他订阅者
+                log.exception("事件订阅者异常(已隔离): kind=%s", evt.get("kind"))
 
     # ================= 变更入口(spec §3.2 细化) =================
     def apply(self, p, depth: int = 0) -> None:
         """游标逐包调用: 先刷挂起 PLAY → 取旧标签 → 库应用 → 衍生。"""
         if self._pending_play is not None and depth <= self._pending_play[0]:
             self._flush_play()
+        if self._ctx_trigger and depth <= self._ctx_trigger[0]:
+            self._ctx_trigger = None       # 离开该触发块: 上下文作废
         old = self._pre_tags(p)
         self.exporter.export_packet(p)
-        self._derive(p, old)
+        self._derive(p, old, depth)
         if is_play_block(p):
             self._pending_play = (depth, p)
+            # 真实手牌价必须在块开始时锁定: 手牌费减益的回退(0→2)常写在打出块
+            # 内部(实测光子炮台), 块尾 flush 时读标签拿到的是回退后的原费
+            pe = self.get(p.entity) if isinstance(p.entity, int) else None
+            self._pending_cost = (pe.tags.get(GameTag.COST)
+                                  if pe is not None else None)
 
     def settle(self) -> None:
         """批尾: 块已收口(ended)的挂起 PLAY 立即发出。"""
@@ -292,15 +356,18 @@ class GameStore:
         self._emit_draw(eid, cid, actor)
 
     def _pre_tags(self, p) -> dict | None:
-        """受影响实体应用前的标签快照(推导 区域/费用/血甲 变化用)。"""
+        """受影响实体应用前的标签快照(推导 区域/费用/血甲/法强 变化用)。
+        玩家级标签变更常用名字形式(Entity=战网名), 也解析回玩家实体。"""
         eid = getattr(p, "entity", None)
-        if not isinstance(eid, int):
-            return None
-        e = self.get(eid)
+        if isinstance(eid, int):
+            e = self.get(eid)
+        else:
+            key = self._key_of(eid)
+            e = self._player_entity(key) if key is not None else None
         return dict(e.tags) if e is not None else None
 
     # ================= 状态迁移 → 事件/自有字段 =================
-    def _derive(self, p, old: dict | None) -> None:
+    def _derive(self, p, old: dict | None, depth: int = 0) -> None:
         # 按类型名分发(避免 store import hslog, 铁律)
         name = type(p).__name__
         if name == "TagChange":
@@ -326,7 +393,7 @@ class GameStore:
                 self._emit_event({"kind": "shuffle",
                                   "actor": getattr(p, "player_id", None)})
         elif name == "Block":
-            self._on_block(p)
+            self._on_block(p, depth)
         else:
             # 全量收录原则: 未解释的包记 raw(MetaData/Options/SubSpell/ChangeEntity...)
             self._record_raw(name, p)
@@ -364,6 +431,18 @@ class GameStore:
                     and not self._ended:
                 self._ended = True
                 self._emit_event({"kind": "game_end", "actor": key})
+            elif tag == GameTag.FATIGUE:
+                # 疲劳计数挂在玩家实体上(新版日志 FATIGUE 块的 Entity 是英雄,
+                # 块级解析不出主客; 计数标签自带玩家与次数, 即疲劳伤害值)
+                self._emit_event({"kind": "fatigue", "actor": key,
+                                  "count": int(value or 0)})
+            elif tag == GameTag.CURRENT_SPELLPOWER_BASE:
+                # 引擎维护的"当前场上法强总和": 打出/附魔/死亡/沉默都会重算
+                cur = int(value or 0)
+                prev = (old or {}).get(tag)
+                if prev is None or prev != cur:
+                    self._emit_event({"kind": "spellpower", "actor": key,
+                                      "total": cur, "prev": prev})
             elif tag == GameTag.TURN:
                 self.player_turn[key] = int(value or 0)
             elif tag in _MANA_TAGS:
@@ -393,7 +472,7 @@ class GameStore:
     def _on_zone_change(self, e, old, value) -> None:
         old_zone = (old or {}).get(GameTag.ZONE)
         ctrl = self.ctrl_key(e) or self._hint_ctrl.get(e.id)
-        cid = e.card_id or self._hint_cid.get(e.id)
+        cid = self.cid_of(e.id)
         if (value == Zone.DECK.value and old_zone == Zone.SETASIDE.value
                 and ctrl == self.friendly_key and cid):
             self._emit_event({"kind": "back_to_deck", "card_id": cid, "actor": ctrl})
@@ -404,18 +483,44 @@ class GameStore:
         elif (value == Zone.GRAVEYARD.value and old_zone == Zone.PLAY.value
               and e.tags.get(GameTag.CARDTYPE) == CardType.MINION and cid):
             self._emit_event({"kind": "death", "actor": ctrl, "card_id": cid})
+        self._note_hero_power(e)
+
+    # ---- 英雄技能(灌注/替换/升级) ----
+    def _note_hero_power(self, e) -> None:
+        """技能实体进 PLAY 或被揭示时登记; 实体更换或牌名变化即发事件。"""
+        if (e is None or e.zone != Zone.PLAY
+                or e.tags.get(GameTag.CARDTYPE) != CardType.HERO_POWER):
+            return
+        pid = self.ctrl_key(e)
+        if pid is None:
+            return
+        cid = getattr(e, "card_id", None) or None
+        prev_eid = self.hero_power.get(pid)
+        known = self.hero_power_cid.get(pid)
+        changed = ((prev_eid is not None and prev_eid != e.id)
+                   or (prev_eid == e.id and cid and cid != known))
+        if changed:
+            self._emit_event({"kind": "hero_power", "actor": pid,
+                              "card_id": cid, "eid": e.id})
+        if cid:
+            self.hero_power_cid[pid] = cid
+        self.hero_power[pid] = e.id
 
     def _on_cost_change(self, e, old, value) -> None:
         ctrl = self.ctrl_key(e) or self._hint_ctrl.get(e.id)
-        cid = e.card_id or self._hint_cid.get(e.id)
+        cid = self.cid_of(e.id)
         if ctrl != self.friendly_key or not cid:
             return
         old_cost = (old or {}).get(GameTag.COST)
         base = self.carddb.cost(cid)
         ref = old_cost if old_cost is not None else base   # 首次变动以面板费为基准
         if ref is not None and value != ref:
+            # 纯状态事实: via(归因)由解析层依据 eid/ctx_eid 在渲染前富化
             self._emit_event({"kind": "cost", "card_id": cid,
-                              "old": ref, "new": value, "actor": ctrl})
+                              "old": ref, "new": value, "actor": ctrl,
+                              "eid": e.id,
+                              "ctx_eid": (self._ctx_trigger[1]
+                                          if self._ctx_trigger else None)})
 
     def _on_hero_attr(self, e, old, tag) -> None:
         if not old:
@@ -458,6 +563,7 @@ class GameStore:
     # ---- 实体/揭示衍生(Task 4 实现块/选择; 这两个在本任务即有行为) ----
     def _on_full_entity(self, p) -> None:
         e = self.get(p.entity) if isinstance(p.entity, int) else None
+        self._note_hero_power(e)
         if (e is not None and e.zone == Zone.HAND and p.card_id
                 and self.ctrl_key(e) == self.friendly_key):
             creator = self.get(e.tags.get(GameTag.CREATOR, 0) or 0)
@@ -469,6 +575,7 @@ class GameStore:
         e = self.get(p.entity) if isinstance(p.entity, int) else None
         if e is None:
             return
+        self._note_hero_power(e)
         ctrl = self.ctrl_key(e) or self._hint_ctrl.get(p.entity)
         if e.zone == Zone.HAND and ctrl == self.friendly_key and p.card_id:
             self._emit_draw(p.entity, p.card_id, ctrl)
@@ -493,14 +600,15 @@ class GameStore:
         self._emit_event({"kind": "draw", "card_id": cid, "actor": actor})
 
     # ================= 块(spec §3.4 补全: TRIGGER/疲劳) =================
-    def _on_block(self, p) -> None:
+    def _on_block(self, p, depth: int = 0) -> None:
         btype = getattr(p, "type", None)
         if btype == BlockType.ATTACK and isinstance(p.entity, int):
             a = self.get(p.entity)
             t = self.get(p.target) if isinstance(p.target, int) else None
             self._emit_event({
                 "kind": "attack",
-                "actor": (self.ctrl_key(a) if a is not None else None),
+                "actor": (self.ctrl_key(a) if a is not None else None)
+                         or self._hint_ctrl.get(p.entity),
                 "attacker_card_id": self.cid_of(p.entity),
                 "attacker_is_hero": a is not None and is_hero(a),
                 "target_card_id": (self.cid_of(p.target)
@@ -512,10 +620,34 @@ class GameStore:
             if (e is None or isinstance(e, Player)
                     or (self.game is not None and e is self.game)):
                 return          # 玩家/游戏实体上的触发不单独报卡牌事件
-            self._emit_event({"kind": "trigger", "actor": self.ctrl_key(e),
-                              "card_id": e.card_id or self._hint_cid.get(e.id)})
-        elif btype == BlockType.FATIGUE:
-            self._emit_event({"kind": "fatigue", "actor": self._key_of(p.entity)})
+            if self.is_cosmetic_entity(e):
+                return          # 宠物等装饰实体: 非对局内容, 不报事件
+            tk = getattr(p, "trigger_keyword", None)
+            kw_name = getattr(tk, "name", None) or ""
+            if not kw_name and tk == TAG_START_OF_GAME_KEYWORD:
+                # 旧版 hearthstone 枚举缺名, 日志写数字 —— 常量在 consts.py
+                kw_name = "START_OF_GAME_KEYWORD"
+            actor = (self.ctrl_key(e) or self._hint_ctrl.get(p.entity))
+            host_eid = e.tags.get(GameTag.ATTACHED)
+            try:
+                ei = int(getattr(p, "effectindex", None))
+            except (TypeError, ValueError):
+                ei = None
+            # 纯状态事实: 是否推断出牌名, 由解析层按指纹在渲染前富化
+            self._emit_event({"kind": "trigger", "eid": p.entity,
+                              "actor": actor,
+                              "card_id": self.cid_of(p.entity),
+                              "keyword": kw_name,
+                              "effect_index": ei,
+                              "actor_deck_count": (self.deck_count(actor)
+                                                   if actor is not None else None),
+                              "host_eid": host_eid if isinstance(host_eid, int) else None,
+                              "host": (self.cid_of(host_eid)
+                                       if isinstance(host_eid, int) else None)})
+            # 块级位置上下文: 供解析层做费用归因
+            self._ctx_trigger = (depth, p.entity)
+        # FATIGUE 块不在此报事件: 新版日志块 Entity 是英雄实体(主客解析不出),
+        # 疲劳行由块内的 FATIGUE 标签变更发出(玩家+次数), 掉血由 _on_hero_attr 衔接
         elif btype == BlockType.PLAY:
             pass                            # 延迟发由 apply 的挂起机制处理
         else:
@@ -526,6 +658,8 @@ class GameStore:
         """PLAY 块子树结束时发出 —— 块内 SHOW_ENTITY 此时已揭示身份。"""
         _depth, p = self._pending_play
         self._pending_play = None
+        cost_tag = self._pending_cost      # 块开始时锁定的真实手牌价
+        self._pending_cost = None
         eid = p.entity
         if not isinstance(eid, int):
             return
@@ -541,10 +675,11 @@ class GameStore:
         sub = getattr(p, "suboption", None)
         self._emit_event({"kind": "play", "card_id": cid, "actor": actor,
                           "cost_base": self.carddb.cost(cid),
-                          "cost_tag": (e.tags.get(GameTag.COST) if e is not None else None),
+                          "cost_tag": cost_tag,
                           "mana_left": mana_left,
                           "is_power": e is not None and is_hero_power(e),
-                          "suboption": sub if isinstance(sub, int) and sub >= 0 else None})
+                          "suboption": sub if isinstance(sub, int) and sub >= 0 else None,
+                          "spellpower": self.spellpower(actor)})
         if actor == self.friendly_key and e is not None:
             # 通用模式判定只看"来自卡组"的牌: 衍生牌/硬币不算卡组不匹配
             if not is_generated(e) and not is_coin(cid):
@@ -622,10 +757,36 @@ class GameStore:
             return
         m = self.mulligan.setdefault(key, MulliganState())
         m.kept = kept
+        m.decided = True
         if key not in self._mulligan_emitted:
             self._mulligan_emitted.add(key)
             self._emit_event({"kind": "mulligan", "actor": key,
                               "msg": self.mulligan_text(key)})
+
+    def mulligan_facts(self) -> dict:
+        """留牌事实(唯一推导): {pid: {offered/kept/replaced/decided}}。"""
+        out = {}
+        for pid, m in self.mulligan.items():
+            def names(eids):
+                return [self.cid_of(e) or f"#{e}" for e in eids]
+            offered, kept = names(m.offered), names(m.kept)
+            coin = [c for c in offered if is_coin(c)]
+            # decided=False(对手不广播决定)时不推算 replaced, 避免污染训练数据
+            replaced = [c for c in offered if c not in kept and c not in coin]                 if m.decided else []
+            out[pid] = {"offered": offered, "kept": kept,
+                        "replaced": replaced, "decided": m.decided}
+        return out
+
+    def heroes_facts(self) -> dict:
+        out = {}
+        for pid in self.player_keys():
+            h = self.hero(pid)
+            if h is not None and h.card_id:
+                out[pid] = h.card_id
+        return out
+
+    def playstate_facts(self) -> dict:
+        return {pid: self.playstate(pid) for pid in self.player_keys()}
 
     def mulligan_text(self, key: PlayerKey) -> str:
         m = self.mulligan.get(key) or MulliganState()
@@ -644,15 +805,18 @@ class GameStore:
     # ================= 导出(spec §3.5, JSONL 字段级兼容) =================
     def to_dict(self, reason: str = "") -> dict:
         me, opp = self.friendly_key, self.opponent_key()
-        hand = [{"id": e.card_id, "name": None, "pos": zone_pos(e),
-                 "cost": e.tags.get(GameTag.COST), "generated": is_generated(e)}
+        hand = [{"id": e.card_id, "pos": zone_pos(e),
+                 "cost": e.tags.get(GameTag.COST), "generated": is_generated(e),
+                 "effects": self.enchantments_on(e.id)}
                 for e in (self.hand(me) if me is not None else [])]
         return {
             "reason": reason,
             "turn": self.turn,
             "friendly_turn": self.friendly_turn_number(),
             "my_turn": self.is_my_turn(),
-            "players": {k: {"name": self.name(k)} for k in self.player_keys()},
+            "players": {k: {"name": self.name(k),
+                            "hero_power": self.hero_power_cid.get(k)}
+                        for k in self.player_keys()},
             "me": {
                 "hp": self.hero_total_hp(me) if me is not None else 0,
                 "armor": self.hero_armor(me) if me is not None else 0,

@@ -20,9 +20,20 @@ session_check_interval: 10  # 新会话目录检查间隔(秒)
 console_echo: true        # 悬浮窗之外是否同步打印到控制台
 overlay_enabled: true     # 半透明置顶日志窗(炉石需用"无边框/窗口化"显示模式)
 overlay_alpha: 0.72
-overlay_geometry: 460x780+8+120   # 宽x高+左边距+上边距(贴屏幕左侧)
+overlay_geometry: 460x780+8+120   # 默认宽x高+左边距+上边距; 实际位置/大小自动
+                                  # 记忆到 data/overlay_state.json 并优先生效
 overlay_font_size: 10
 overlay_borderless: false # true=无边框(不可拖动/关闭, 需改配置还原)
+# 信息分色(按人物与事件类型; 需自定义时取消注释整块并改色值):
+# overlay_colors:
+#   my: "#b8e6a0"         # 我方动作
+#   opp: "#ffa477"        # 对面动作
+#   unknown: "#9aa4ad"    # 未知方([T·?])
+#   header: "#7ec8ff"     # 回合标题
+#   snapshot: "#ffd479"   # 快照
+#   game_end: "#7ec8ff"   # 终局
+#   notice: "#8fb7d4"     # 系统通知(新对局/监控会话)
+#   error: "#ff6b6b"      # 错误
 
 # ── 训练语料 ──
 training_dir: data/training

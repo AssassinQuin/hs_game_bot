@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 import json
+import secrets
 import time
 from pathlib import Path
 
 
 class SessionStore:
     def __init__(self, sessions_dir: str | Path) -> None:
-        self.root = Path(sessions_dir) / time.strftime("%Y%m%d_%H%M%S")
+        # 目录名带随机后缀: 同秒双开两个 bot 不再交错写同一批文件
+        self.root = (Path(sessions_dir) /
+                     f"{time.strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(2)}")
         self.root.mkdir(parents=True, exist_ok=True)
         self.game_no = 0
         self.path: Path | None = None

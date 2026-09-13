@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import sys
@@ -24,9 +25,20 @@ DEFAULTS = {
     "console_echo": True,       # 除悬浮窗外是否同步打印到控制台
     "overlay_enabled": True,    # 半透明置顶日志窗(游戏需无边框/窗口化模式)
     "overlay_alpha": 0.72,
-    "overlay_geometry": "460x780+8+120",  # 宽x高+左边距+上边距(贴屏幕左侧)
+    "overlay_geometry": "460x780+8+120",  # 默认宽x高+左边距+上边距; 实际位置/大小
+                                          # 会自动记忆到 data/overlay_state.json 并优先
     "overlay_font_size": 10,
     "overlay_borderless": False,
+    "overlay_colors": {         # 信息分色: 按人物(我/对面)与事件类型
+        "my": "#b8e6a0",        # 我方动作
+        "opp": "#ffa477",       # 对面动作
+        "unknown": "#9aa4ad",   # 未知方([T·?])
+        "header": "#7ec8ff",    # 回合标题
+        "snapshot": "#ffd479",  # 快照
+        "game_end": "#7ec8ff",  # 终局
+        "notice": "#8fb7d4",    # 系统通知(新对局/监控会话)
+        "error": "#ff6b6b",     # 错误
+    },
     # 训练语料
     "training_dir": "data/training",
     "auto_training": True,      # 每局结束自动导出训练样本
@@ -78,7 +90,7 @@ class Config:
     _PATH = ("logs_dir", "data_dir", "training_dir")
 
     def __init__(self, **values) -> None:
-        merged = dict(DEFAULTS)
+        merged = copy.deepcopy(dict(DEFAULTS))   # 可变默认(overlay_colors)防跨实例共享
         merged.update({k: v for k, v in values.items() if k in _FIELDS})
         for k, v in merged.items():
             if k in self._INT:

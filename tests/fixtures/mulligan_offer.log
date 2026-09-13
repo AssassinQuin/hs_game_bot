@@ -1,0 +1,28 @@
+D 09:55:31.7568067 GameState.DebugPrintPower() - CREATE_GAME
+D 09:55:31.7568067 GameState.DebugPrintPower() -     GameEntity EntityID=1
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=CARDTYPE value=GAME
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=ENTITY_ID value=1
+D 09:55:31.7568067 GameState.DebugPrintPower() -     Player EntityID=2 PlayerID=1 GameAccountId=[hi=144115211015832391 lo=185890464]
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 09:55:31.7568067 GameState.DebugPrintPower() -     Player EntityID=3 PlayerID=2 GameAccountId=[hi=144115211015832392 lo=185890465]
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=CONTROLLER value=2
+D 09:55:31.7568067 GameState.DebugPrintPower() -     FULL_ENTITY - Creating ID=4 CardID=HERO_06
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=CARDTYPE value=10
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=ZONE value=1
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=HEALTH value=30
+D 09:55:31.7568067 GameState.DebugPrintPower() -     FULL_ENTITY - Creating ID=5 CardID=HERO_07
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=CONTROLLER value=2
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=CARDTYPE value=10
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=ZONE value=1
+D 09:55:31.7568067 GameState.DebugPrintPower() -         tag=HEALTH value=30
+D 09:55:31.7568067 GameState.DebugPrintPower() - BLOCK_END
+D 09:55:31.7568067 GameState.DebugPrintGame() - BuildNumber=250339
+D 09:55:31.7568067 GameState.DebugPrintGame() - PlayerID=1, PlayerName=UNKNOWN HUMAN PLAYER
+D 09:55:31.7568067 GameState.DebugPrintGame() - PlayerID=2, PlayerName=湫然#51704
+D 09:55:31.7568067 GameState.DebugPrintEntityChoices() - id=1 Player=湫然#51704 TaskList=6 ChoiceType=MULLIGAN CountMin=0 CountMax=3
+D 09:55:31.7568067 GameState.DebugPrintEntityChoices() -   Source=GameEntity
+D 09:55:31.7568067 GameState.DebugPrintEntityChoices() -   Entities[0]=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=DECK zonePos=0 cardId= player=2]
+D 09:55:31.7568067 GameState.DebugPrintEntityChoices() -   Entities[1]=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=78 zone=DECK zonePos=0 cardId= player=2]
+D 09:55:31.7568067 GameState.DebugPrintEntityChoices() -   Entities[2]=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=61 zone=DECK zonePos=0 cardId= player=2]
+D 09:55:31.7568067 GameState.DebugPrintPowerList() - Count=3

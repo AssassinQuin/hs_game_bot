@@ -25,7 +25,7 @@ logs_dir: E:\battle\Hearthstone\Logs
 | `<logs_dir>\<最新会话>\Power.log` | 全部游戏事件 | 轮询大小，增量读 |
 | `<logs_dir>\<最新会话>\Decks.log` | 每局实际使用的卡组 | 每次开局前客户端写入 `Finding Game With Deck: ### 卡组名` + deck code |
 | `data/decks/decklist.json` | 用户所选卡组的 30 张多重集 | 首次从 Decks.log 解码生成并缓存 |
-| `data/cache/cards.zh.json` | card_id → 中文名/费用 | hearthstonejson，下载一次 |
+| `data/cache/cards.zh.json` | card_id → 中文名/费用 | hearthstonejson 全量卡表，`python scripts/fetch_cards.py` 下载 |
 
 **会话发现（实测修正，已实现）**：最新会话目录按**目录名排序**（`Hearthstone_YYYY_MM_DD_HH_MM_SS` 字典序=时间序），不用目录 mtime——NTFS 目录 mtime 不随 Power.log 追加更新，按 mtime 选会选错。**bot 先于游戏启动**时，直接挂上最新会话目录等待 Power.log 出现，文件一创建即接管；每 10 秒检查一次新会话目录并自动切换。
 

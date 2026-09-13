@@ -32,7 +32,7 @@ flowchart LR
     subgraph 源头["外部数据(只读)"]
         P[Power.log]
         D[Decks.log]
-        H[hearthstonejson cards.collectible.json]
+        H[hearthstonejson zhCN cards.json(全量)]
     end
 
     subgraph 核心["程序五层"]
@@ -215,7 +215,7 @@ flowchart TD
     S2 -- 有 --> S3[deckstrings 解码 → decklist.json]
     S2 -- 无 --> S4[用上次缓存的 decklist.json<br/>并提示'未发现新卡组']
     S3 --> S5{cards 缓存存在?}
-    S5 -- 否 --> S6[下载 zhCN cards.collectible.json<br/>存 cache/]
+    S5 -- 否 --> S6[scripts/fetch_cards.py 下载 zhCN cards.json 全量<br/>精简后存 cache/]
     S5 -- 是 --> S7[加载 CardDB + burn_overlay]
     S6 --> S7
     S7 --> S8[Watcher 开始 tail 最新 Power.log]

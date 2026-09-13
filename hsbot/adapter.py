@@ -80,6 +80,13 @@ def is_block(p) -> bool:
     return isinstance(p, packets.Block)
 
 
+def is_container(p) -> bool:
+    """需要平铺下钻的容器包(子包由游标逐包驱动)。SubSpell 与 Block 同构
+    (.packets/.ended), 内部会创建实体(如 SUB_SPELL 衍生 token), 漏下钻则
+    实体永远注册不上(2026-09-13 实测: JAIL_877t 攻击方解析为 ?)。"""
+    return isinstance(p, (packets.Block, packets.SubSpell))
+
+
 def is_play_block(p) -> bool:
     return isinstance(p, packets.Block) and p.type == BlockType.PLAY
 
@@ -92,6 +99,25 @@ def game_meta(parser) -> dict[str, str]:
 
 def new_parser() -> LogParser:
     return LogParser()
+
+
+def new_player_manager():
+    """hslog PlayerManager 按局重建(每局 CREATE_GAME 前调用)。
+
+    manager 跨局复用会带旧局的 名字→player_id 映射: 下一局换边后
+    create_or_update_player 撞 InconsistentPlayerIdError(被 feed_line 吞掉),
+    之后整局 CURRENT_PLAYER 的 PlayerReference 都解析到同一 key,
+    turn_start 的 prev==key 早退吞掉所有回合切换(2026-09-13 第2/5/7局实测)。
+    """
+    from hslog.player import PlayerManager
+    return PlayerManager()
+
+
+def reset_player_manager(parser: LogParser) -> None:
+    # LogParser.player_manager 是只读 property, 真身在 _parsing_state.manager
+    ps = getattr(parser, "_parsing_state", None)
+    if ps is not None:
+        ps.manager = new_player_manager()
 
 
 def feed_line(parser: LogParser, line: str) -> None:
@@ -156,7 +182,7 @@ def walk_packets(tree):
     def rec(node, depth):
         for p in node.packets:
             yield p, depth
-            if isinstance(p, packets.Block):
+            if is_container(p):
                 yield from rec(p, depth + 1)
     yield from rec(tree, 0)
 

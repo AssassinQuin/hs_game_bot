@@ -1,5 +1,6 @@
 """渲染与知识层换源: snapshot_block/game_end_line/rebuild 吃 GameStore。"""
 from collections import Counter
+from pathlib import Path
 
 from hearthstone.enums import CardType, GameTag, Zone
 
@@ -59,6 +60,14 @@ def test_game_end_line_and_chain_line_new_kinds():
         {"kind": "trigger", "card_id": "CS2_029", "turn": 3, "friendly": 1}, carddb)
     assert "疲劳" in chain_line(
         {"kind": "fatigue", "actor": 2, "turn": 9, "friendly": 1}, carddb)
+    assert "疲劳 第2抽(-2血)" in chain_line(
+        {"kind": "fatigue", "actor": 2, "count": 2, "turn": 9, "friendly": 1}, carddb)
+    assert "场上法强 2→3" in chain_line(
+        {"kind": "spellpower", "actor": 2, "prev": 2, "total": 3,
+         "turn": 9, "friendly": 1}, carddb)
+    assert "场上法强 3" in chain_line(
+        {"kind": "spellpower", "actor": 2, "total": 3,
+         "turn": 9, "friendly": 1}, carddb)
     assert "阵亡" in chain_line(
         {"kind": "death", "card_id": "CS2_120", "turn": 5, "friendly": 1}, carddb)
 
@@ -71,6 +80,47 @@ def test_knowledge_rebuild_from_store():
     assert led.in_hand == Counter({"CS2_029": 1})
     assert led.remaining == Counter({"CS2_029": 1})
     assert led.deck_actual == 0
+
+
+def test_knowledge_rebuild_survives_player_entity():
+    """2026-09-13 实测回归: 我方 Player 实体带 CONTROLLER 标签(真实日志 CREATE_GAME
+    就写)后, rebuild 对它取 card_id 直接 AttributeError —— 每次回合末快照全灭。"""
+    st, _ = _store()
+    _board(st)
+    st.apply(mk_tag(2, GameTag.CONTROLLER, 1))    # 实体2 = 我方 Player 实体
+    k = DeckKnowledge({"CS2_029": 2}, CardDB("/nonexistent/cards.json"), "测试")
+    led = k.rebuild(st)
+    assert led.in_hand == Counter({"CS2_029": 1})   # 台账不受玩家实体影响
+
+
+def test_trigger_line_eid_fallback_for_unrevealed():
+    """未揭示实体(对面暗牌附魔)触发: card_id 未知时报实体号而非裸 '?'。"""
+    st, carddb = _store()
+    assert "触发 #113" in chain_line(
+        {"kind": "trigger", "eid": 113, "card_id": None,
+         "turn": 3, "friendly": 1}, carddb)
+    assert "触发 CS2_029" in chain_line(
+        {"kind": "trigger", "eid": 10, "card_id": "CS2_029",
+         "turn": 3, "friendly": 1}, carddb)
+    assert "触发 #84(开局)" in chain_line(
+        {"kind": "trigger", "eid": 84, "card_id": None,
+         "keyword": "START_OF_GAME_KEYWORD", "turn": 1, "friendly": 1}, carddb)
+
+
+def test_play_render_formats_prediction():
+    """渲染层只格式化解析层产物 pred_dmg, 不做任何游戏计算。"""
+    db = CardDB("/nonexistent/cards.json")
+    line = chain_line({"kind": "play", "card_id": "CS2_008", "actor": 1, "friendly": 1,
+                       "cost_base": 0, "mana_left": 4,
+                       "pred_dmg": {"total": 5, "hits": 1}, "turn": 9}, db)
+    assert "打出 CS2_008 (0费) 剩4费 → 预计5伤" in line
+    line2 = chain_line({"kind": "play", "card_id": "TID_001", "actor": 1, "friendly": 1,
+                        "cost_base": 1, "mana_left": 3,
+                        "pred_dmg": {"total": 5, "hits": 2}, "turn": 9}, db)
+    assert "预计5伤(2段)" in line2
+    line3 = chain_line({"kind": "play", "card_id": "CS2_008", "actor": 1, "friendly": 1,
+                        "cost_base": 0, "mana_left": 4, "turn": 9}, db)
+    assert "预计" not in line3
 
 
 def test_snapshot_line_compact_single_line():
