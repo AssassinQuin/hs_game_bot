@@ -1,3 +1,4 @@
 hslog>=1.20
 hearthstone>=9.20
 pyyaml>=6.0
+scikit-learn>=1.4   # 留牌AI(scripts/train_mulligan.py)逻辑回归; 未装则仅统计表

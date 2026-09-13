@@ -34,6 +34,8 @@ pip install -r requirements.txt        # Python 3.10+（开发环境 3.11）
 python -m hsbot                                  # 实时监控：自动定位最新会话目录，控制台 + 悬浮窗
 python -m hsbot replay examples/Power.log        # 重放静态日志（开发/验收用，自动关悬浮窗）
 python -m hsbot import-all                       # 批量解析 logs_dir 全部历史会话 → 训练语料
+python scripts/train_mulligan.py                 # 留牌AI: 训练+报告(见 docs/MULLIGAN_AI.md)
+python scripts/train_mulligan.py advise --vs 圣骑士 --coin --hand 水栖形态,黑市拍卖师
 python -m hsbot --config my.yaml replay x.log    # 任意子命令均可 --config 指定配置文件
 ```
 
@@ -67,6 +69,14 @@ python -m hsbot --config my.yaml replay x.log    # 任意子命令均可 --confi
 - **单行快照**：回合结束刷一行节奏信息（悬浮窗默认视图）；
 - **完整快照**：回合结束与终局输出完整块（双方手牌/场面/牌库/台账），同步落盘 `data/sessions/<会话>/game_NNN.jsonl`；
 - **悬浮窗**：tkinter 半透明置顶日志窗（炉石需用无边框/窗口化显示模式），关闭窗口即退出监控。
+
+## 留牌 AI（离线）
+
+`scripts/train_mulligan.py` 从训练语料学习「按对手职业 × 先/后手」的起手留牌：
+平滑统计表给逐卡留/换增益，可选的逻辑回归（sklearn）做组合修正与时序验证，
+产物按版本落 `data/models/mulligan/<卡组>/`。打几局 → 重跑一次 `train` 即增量吸收
+新对局；`advise` 子命令给任意起手场景出建议。设计、偏差说明与参数见
+[docs/MULLIGAN_AI.md](docs/MULLIGAN_AI.md)。
 
 ## 配置项（config.yaml）
 
@@ -119,4 +129,5 @@ python -m pytest
 
 - [docs/DESIGN.md](docs/DESIGN.md) —— 总设计：目标/非目标、分层架构、假设表
 - [docs/M1_MONITOR.md](docs/M1_MONITOR.md) —— 监控层施工图：日志模式清单、主循环、验收标准
+- [docs/MULLIGAN_AI.md](docs/MULLIGAN_AI.md) —— 留牌 AI：样本提取、双模型设计、偏差与增量策略
 - [docs/PROJECT.md](docs/PROJECT.md) —— 项目蓝图：目录规划、里程碑 M1~M5、Git 策略
