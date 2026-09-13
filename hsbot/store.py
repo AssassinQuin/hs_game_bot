@@ -83,6 +83,8 @@ class MulliganState:
     offered: list = field(default_factory=list)
     kept: list = field(default_factory=list)
     decided: bool = False               # 对手不广播决定 → kept 有值即 decided
+    replaced_in: list = field(default_factory=list)  # 换入的牌(决定后、首回合前抽到)
+    closed: bool = False                # 该玩家首回合开始: 换入窗口关闭
 
 
 class GameStore:
@@ -111,12 +113,18 @@ class GameStore:
         self._pending_cost: int | None = None   # 打出块开始时的真实手牌价
         self._deferred: list[dict] = []         # 挂起 PLAY 期间的事件(块尾跟在 play 之后冲出)
         self._ctx_trigger: tuple[int, int] | None = None   # 所在触发块 (depth, 实体号)
+        self._pending_prepare: tuple[int, object, dict, int] | None = None
+        # 预备块内暂存的"预备完成" (depth, 块包, 事件, 宿主实体号), 等 PREPARING
+        # 翻转时随"触发 正在预备"按因果序一起发(见 _on_preparing_start)
+        self._prepare_trigger_eid: int | None = None
+        # 已按块结构提前报过的"正在预备"触发实体号: 尾随约1秒的真身 TRIGGER 块去重
         self.hero_power: dict[PlayerKey, int] = {}      # pid → 当前技能实体号
         self.hero_power_cid: dict[PlayerKey, str] = {}  # pid → 当前技能 card_id
         self.player_names: dict[PlayerKey, str] = {}   # 行级采集的真名(覆盖 manager)
         self._hint_cid: dict[int, str] = {}
         self._hint_ctrl: dict[int, PlayerKey] = {}
         self._draw_ts: dict[int, float] = {}
+        self.stolen_eids: set[int] = set()   # 本体被夺(我方→对手)的实体号
         self._draw_dedup = draw_dedup       # 同实体多重揭示路径的去重窗口(秒)
         self._ent2pid: dict[int, PlayerKey] = {}
         self._ended = False
@@ -266,20 +274,55 @@ class GameStore:
                 or e.tags.get(GameTag.CARDTYPE) == CardType.PET
                 or (isinstance(cid, str) and cid.startswith(PET_CARD_PREFIX)))
 
+    def enchantment_entities_on(self, eid: int) -> list:
+        """挂在实体 eid 上的附魔实体(实体号序≈创建序)。
+
+        附魔实体特征: CARDTYPE=ENCHANTMENT + ATTACHED=宿主; 区=SETASIDE 或
+        PLAY(2026-09-13 实测: 手牌减费附魔 TTN_955Be 创建后 TAG_CHANGE
+        ZONE→PLAY, 只查 SETASIDE 全漏 → 减费/连锁归因变 ?)。"""
+        return [e for e in self.entities()
+                if (e.zone in (Zone.SETASIDE, Zone.PLAY)
+                    and e.tags.get(GameTag.CARDTYPE) == CardType.ENCHANTMENT
+                    and e.tags.get(GameTag.ATTACHED) == eid)]
+
     def enchantments_on(self, eid: int) -> list[str]:
         """连锁关联: 挂在实体 eid 上的附魔 card_id(去重保序)。
 
-        附魔实体特征: CARDTYPE=ENCHANTMENT + ATTACHED=宿主 + zone=SETASIDE。
         用途: 解释手牌费用变动的原因(谁减了费)、触发属于哪张牌、快照手牌
-        的在身效果 —— 训练样本/快照 JSONL 随之持久化。"""
+        的在身效果、信息区减费来源 —— 训练样本/快照 JSONL 随之持久化。"""
         out: list[str] = []
+        for e in self.enchantment_entities_on(eid):
+            cid = getattr(e, "card_id", None)
+            if cid and cid not in out:
+                out.append(cid)
+        return out
+
+    def linked_effects(self) -> list[dict]:
+        """联动卡效果台账: 全部在身附魔 → 宿主 + 来源卡(对局存档持久化)。
+
+        一条联动 = 附魔实体(CARDTYPE=ENCHANTMENT + ATTACHED=宿主, 区=SETASIDE
+        或 PLAY, 见 enchantments_on 的实测) + CREATOR 归因(打出的那张牌,
+        实体未揭示时只留实体号)。手牌减费、光环、游客类全局附魔
+        (ATTACHED=玩家实体)都在其中 —— 随快照 JSONL 与训练 meta 落盘,
+        供训练视图与回放复现, 不再只散落在 packet 流里。"""
+        out = []
         for e in self.entities():
-            if (e.zone == Zone.SETASIDE
-                    and e.tags.get(GameTag.CARDTYPE) == CardType.ENCHANTMENT
-                    and e.tags.get(GameTag.ATTACHED) == eid):
-                cid = getattr(e, "card_id", None)
-                if cid and cid not in out:
-                    out.append(cid)
+            if (e.zone not in (Zone.SETASIDE, Zone.PLAY)
+                    or e.tags.get(GameTag.CARDTYPE) != CardType.ENCHANTMENT):
+                continue
+            host = e.tags.get(GameTag.ATTACHED)
+            if not host:
+                continue
+            creator_eid = e.tags.get(GameTag.CREATOR) or None
+            host_e = self.get(host)
+            out.append({
+                "cid": getattr(e, "card_id", None),
+                "host": host,
+                "host_cid": getattr(host_e, "card_id", None),
+                "creator": self.cid_of(creator_eid) if creator_eid else None,
+                "creator_eid": creator_eid,
+                "zone": Zone(e.zone).name,     # enum/int 混存: 统一归一为枚举名
+            })
         return out
 
     def mana_next_turn(self, key: PlayerKey) -> int:
@@ -335,6 +378,8 @@ class GameStore:
         """游标逐包调用: 先刷挂起 PLAY → 取旧标签 → 库应用 → 衍生。"""
         if self._pending_play is not None and depth <= self._pending_play[0]:
             self._flush_play()
+        if self._pending_prepare is not None and depth <= self._pending_prepare[0]:
+            self._flush_prepare()
         if self._ctx_trigger and depth <= self._ctx_trigger[0]:
             self._ctx_trigger = None       # 离开该触发块: 上下文作废
         old = self._pre_tags(p)
@@ -349,9 +394,12 @@ class GameStore:
                                   if pe is not None else None)
 
     def settle(self) -> None:
-        """批尾: 块已收口(ended)的挂起 PLAY 立即发出。"""
+        """批尾: 块已收口(ended)的挂起 PLAY / 预备 立即发出。"""
         if self._pending_play is not None and getattr(self._pending_play[1], "ended", False):
             self._flush_play()
+        if (self._pending_prepare is not None
+                and getattr(self._pending_prepare[1], "ended", False)):
+            self._flush_prepare()
 
     def note_friendly(self, pid: PlayerKey | None) -> None:
         if pid is not None:
@@ -485,8 +533,12 @@ class GameStore:
             return
         if tag == GameTag.ZONE:
             self._on_zone_change(e, old, value)
+        elif tag == GameTag.CONTROLLER:
+            self._on_controller_change(e, old, value)
         elif tag == GameTag.COST:
             self._on_cost_change(e, old, value)
+        elif tag == GameTag.PREPARING and value == 1:
+            self._on_preparing_start(entity)
         elif tag in (GameTag.DAMAGE, GameTag.ARMOR, GameTag.HEALTH) and is_hero(e):
             self._on_hero_attr(e, old, tag)
 
@@ -528,6 +580,19 @@ class GameStore:
             self.hero_power_cid[pid] = cid
         self.hero_power[pid] = e.id
 
+    def _on_controller_change(self, e, old, value) -> None:
+        """本体被夺(嫉妒收割者"使用对手卡的复制后偷取本体"等): 我方实体控制权
+        转归对手 —— 记实体号, 知识层台账按其揭示的卡号扣除(被偷后相关数据
+        要减少, 2026-09-13 用户要求)。实体此刻多半未揭示(牌库暗牌), 卡号
+        延迟到揭示后由 knowledge.rebuild 解析。"""
+        try:
+            prev = (old or {}).get(GameTag.CONTROLLER)
+            new = int(value)
+        except (TypeError, ValueError):
+            return
+        if prev is not None and prev == self.friendly_key and new != prev:
+            self.stolen_eids.add(e.id)
+
     def _on_cost_change(self, e, old, value) -> None:
         ctrl = self.ctrl_key(e) or self._hint_ctrl.get(e.id)
         cid = self.cid_of(e.id)
@@ -543,6 +608,34 @@ class GameStore:
                               "eid": e.id,
                               "ctx_eid": (self._ctx_trigger[1]
                                           if self._ctx_trigger else None)})
+
+    def _on_preparing_start(self, eid: int) -> None:
+        """预备块内宿主翻 PREPARING=1 —— 此刻"正在预备"附魔已挂上(SHOW_ENTITY
+        先于翻转, 实测 20_48_57_g03), 触发行按因果序提前到块内发出:
+        触发 正在预备 → 预备完成 → 块内费用变化。尾随约1秒的真身 TRIGGER 块
+        按 _prepare_trigger_eid 去重(允许按块结构提前发事件, 见 hslog 坑 29)。"""
+        if self._pending_prepare is None or eid != self._pending_prepare[3]:
+            return
+        _depth, _block, evt, host = self._pending_prepare
+        self._pending_prepare = None
+        ench = next(iter(self.enchantment_entities_on(host)), None)
+        if ench is not None and getattr(ench, "card_id", None):
+            self._prepare_trigger_eid = ench.id
+            actor = (self.ctrl_key(ench) or self._hint_ctrl.get(ench.id))
+            self._emit_event({"kind": "trigger", "eid": ench.id,
+                              "actor": actor,
+                              "card_id": ench.card_id,
+                              "keyword": "", "effect_index": None,
+                              "actor_deck_count": (self.deck_count(actor)
+                                                   if actor is not None else None),
+                              "host_eid": host, "host": self.cid_of(host)})
+        self._emit_event(evt)
+
+    def _flush_prepare(self) -> None:
+        """预备块收口仍未见 PREPARING 翻转(变体形态): 按原行为补发预备完成。"""
+        _depth, _block, evt, _host = self._pending_prepare
+        self._pending_prepare = None
+        self._emit_event(evt)
 
     def _on_hero_attr(self, e, old, tag) -> None:
         if not old:
@@ -566,6 +659,10 @@ class GameStore:
 
     def _on_turn_start(self, key: PlayerKey) -> None:
         prev, self.current = self.current, key
+        self._prepare_trigger_eid = None   # 提前报过的"正在预备"触发只在当回合内去重
+        m = self.mulligan.get(key)
+        if m is not None and m.decided:
+            m.closed = True                # 决定后的首回合开始: 换牌换入窗口关闭
         if prev is None:
             # 首个行动方(先手的留牌回合)
             self._emit_event({"kind": "turn_start", "actor": key, "prev": None,
@@ -619,7 +716,17 @@ class GameStore:
         if last is not None and now - last < self._draw_dedup:
             return   # 同一实体的多重揭示路径只报一次
         self._draw_ts[eid] = now
+        self._note_mulligan_replacement(cid, actor)
         self._emit_event({"kind": "draw", "card_id": cid, "actor": actor})
+
+    def _note_mulligan_replacement(self, cid: str, actor) -> None:
+        """换牌换入的牌: 该玩家留牌决定之后、其首回合开始之前的抽牌。
+        最终手牌事实, 随留牌训练样本落盘(2026-09-13 用户要求)。"""
+        if not cid or is_coin(cid):
+            return
+        m = self.mulligan.get(actor)
+        if m is not None and m.decided and not m.closed:
+            m.replaced_in.append(cid)
 
     # ================= 块(spec §3.4 补全: TRIGGER/疲劳) =================
     def _on_block(self, p, depth: int = 0) -> None:
@@ -655,35 +762,43 @@ class GameStore:
                 ei = int(getattr(p, "effectindex", None))
             except (TypeError, ValueError):
                 ei = None
-            # 纯状态事实: 是否推断出牌名, 由解析层按指纹在渲染前富化
-            self._emit_event({"kind": "trigger", "eid": p.entity,
-                              "actor": actor,
-                              "card_id": self.cid_of(p.entity),
-                              "keyword": kw_name,
-                              "effect_index": ei,
-                              "actor_deck_count": (self.deck_count(actor)
-                                                   if actor is not None else None),
-                              "host_eid": host_eid if isinstance(host_eid, int) else None,
-                              "host": (self.cid_of(host_eid)
-                                       if isinstance(host_eid, int) else None)})
-            # 块级位置上下文: 供解析层做费用归因
+            # 纯状态事实: card_id 只来自解析链内回填(实体揭示/行级括号线索),
+            # 不做任何猜测; 未命名的开局触发由渲染层判弃, 命名后自然以真名出
+            if p.entity != self._prepare_trigger_eid:
+                self._emit_event({"kind": "trigger", "eid": p.entity,
+                                  "actor": actor,
+                                  "card_id": self.cid_of(p.entity),
+                                  "keyword": kw_name,
+                                  "effect_index": ei,
+                                  "actor_deck_count": (self.deck_count(actor)
+                                                       if actor is not None else None),
+                                  "host_eid": host_eid if isinstance(host_eid, int) else None,
+                                  "host": (self.cid_of(host_eid)
+                                           if isinstance(host_eid, int) else None)})
+            # 预备块内已提前报过的"正在预备"真身(尾随约1秒)不再重复出链路行,
+            # 但块级位置上下文照设: 供后续费用归因
             self._ctx_trigger = (depth, p.entity)
         # FATIGUE 块不在此报事件: 新版日志块 Entity 是英雄实体(主客解析不出),
         # 疲劳行由块内的 FATIGUE 标签变更发出(玩家+次数), 掉血由 _on_hero_attr 衔接
         elif btype == BlockType.PLAY:
             pass                            # 延迟发由 apply 的挂起机制处理
         elif btype == BlockType.DECK_ACTION and isinstance(p.entity, int):
-            # 预备完成动作: 块开始即发"预备完成", 块内的费用变化等后果随后
-            # 按原序跟上 —— 2026-09-13 实测"手牌费用变动 9→4费"曾排在预备
-            # 信息之前。PREPARE=1 的手牌才认定(防其他 DECK_ACTION 误报);
-            # 尾随的"正在预备"触发块在日志里晚约1秒, 保持其原位不动
+            # 预备完成动作: "预备完成"先暂存, 等块内宿主 PREPARING=1 翻转时
+            # 随提前的"触发 正在预备"按因果序发出(触发→预备→块内费用变化);
+            # 变体形态无翻转则块尾补发(_flush_prepare)。PREPARE=1 的手牌才
+            # 认定(防其他 DECK_ACTION 误报)。
             e = self.get(p.entity)
             if (e is not None and e.zone == Zone.HAND
                     and e.tags.get(GameTag.PREPARE) and self.cid_of(p.entity)):
-                self._emit_event({"kind": "prepare", "card_id": self.cid_of(p.entity),
-                                  "actor": (self.ctrl_key(e)
-                                            or self._hint_ctrl.get(p.entity)),
-                                  "eid": p.entity})
+                if self._pending_prepare is not None:
+                    self._flush_prepare()   # 防御: 未决先补发(块不嵌套)
+                self._pending_prepare = (
+                    depth, p,
+                    {"kind": "prepare", "card_id": self.cid_of(p.entity),
+                     "actor": (self.ctrl_key(e)
+                               or self._hint_ctrl.get(p.entity)),
+                     "eid": p.entity},
+                    p.entity)
         else:
             # POWER/DEATHS/JOUST/MOVE_MINION/SUB_SPELL 等块: 全量收录, 记 raw
             self._record_raw(f"Block:{getattr(btype, 'name', btype)}", p)
@@ -834,7 +949,8 @@ class GameStore:
                               "msg": self.mulligan_text(key)})
 
     def mulligan_facts(self) -> dict:
-        """留牌事实(唯一推导): {pid: {offered/kept/replaced/decided}}。"""
+        """留牌事实(唯一推导): {pid: {offered/kept/replaced/replaced_in/decided}}。
+        replaced_in = 换牌换入(决定后、首回合前的抽牌), 即最终手牌的补充。"""
         out = {}
         for pid, m in self.mulligan.items():
             def names(eids):
@@ -843,8 +959,11 @@ class GameStore:
             coin = [c for c in offered if is_coin(c)]
             # decided=False(对手不广播决定)时不推算 replaced, 避免污染训练数据
             replaced = [c for c in offered if c not in kept and c not in coin]                 if m.decided else []
+            replaced_in = [c for c in m.replaced_in if not is_coin(c)] \
+                if m.decided else []          # 已是 card_id, 不过 cid_of
             out[pid] = {"offered": offered, "kept": kept,
-                        "replaced": replaced, "decided": m.decided}
+                        "replaced": replaced, "replaced_in": replaced_in,
+                        "decided": m.decided}
         return out
 
     def heroes_facts(self) -> dict:
@@ -884,6 +1003,7 @@ class GameStore:
             "turn": self.turn,
             "friendly_turn": self.friendly_turn_number(),
             "my_turn": self.is_my_turn(),
+            "linked_effects": self.linked_effects(),
             "players": {k: {"name": self.name(k),
                             "hero_power": self.hero_power_cid.get(k)}
                         for k in self.player_keys()},

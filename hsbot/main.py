@@ -42,14 +42,17 @@ def run_import_all(cfg, carddb) -> None:
 
 
 def run_parse_cards(cfg, carddb) -> None:
-    """批量增量编译"出现过的卡牌" → 效果 IR 缓存(第一版卡牌信息解析)。"""
+    """批量增量编译"出现过的卡牌" → 效果 IR 缓存。
+    扫描全集 = live 日志目录 + 训练语料切片(客户端会轮转删除老会话日志,
+    语料切片是历史对局的持久全集) + 登记卡表。"""
     import json
     from .analysis import EffectAnalyzer, collect_card_ids
     from .effects import EffectCache
 
     root = Path(cfg.logs_dir)
     logs = sorted(root.glob("Hearthstone_*/Power.log")) if root.exists() else []
-    ids = collect_card_ids(logs)
+    corpus = sorted((Path(cfg.data_dir) / "training").rglob("*.power.log"))
+    ids = collect_card_ids(logs + corpus)
     decklist = Path(cfg.data_dir) / "decks" / "decklist.json"
     if decklist.exists():
         try:
@@ -59,11 +62,16 @@ def run_parse_cards(cfg, carddb) -> None:
             pass
     cache = EffectCache(Path(cfg.cache_dir) / "effects.json")
     stats = EffectAnalyzer(carddb, cache).compile_seen_cards(cache, ids)
+    kinds = " / ".join(f"{k} {n}" for k, n in
+                       sorted(stats["kinds"].items(), key=lambda x: -x[1]))
     print("── 卡牌解析(parse-cards) ──")
     print(f"  出现卡牌: {stats['total']} | 新编译 {stats['compiled']} | "
           f"复用 {stats['reused']} | 卡表缺失 {stats['missing']}")
-    print(f"  效果分类: 伤害 {stats['damage']} / 治疗 {stats['heal']} / "
-          f"未覆盖 {stats['unknown']}")
+    in_db = stats["total"] - stats["missing"]
+    print(f"  覆盖: {stats['covered']}/{in_db} | 未覆盖 {stats['uncovered']} "
+          f"(无文本 {stats['notext']})")
+    if kinds:
+        print(f"  效果分布: {kinds}")
     print(f"  IR 缓存: {Path(cfg.cache_dir) / 'effects.json'}")
 
 

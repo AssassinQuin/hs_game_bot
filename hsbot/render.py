@@ -1,7 +1,7 @@
 """渲染层 —— 事件流 → 链路行 / 快照块 / 终局行(纯函数, 不持有状态)。
 
 链路行设计(注册制): 每种事件一个渲染函数, 用 @chain_renderer(kind) 注册;
-chain_line 只负责行首([T回合·阵营])与分发, 不含任何具体格式。
+chain_line 只负责行首([对局hash·T回合·阵营])与分发, 不含任何具体格式。
 新增一种事件的完整步骤:
   1. store 衍生出事件(dict, kind="xxx", 附带渲染所需字段);
   2. 本文件加一个 @chain_renderer("xxx") 函数, 返回行内容(不含行首);
@@ -42,15 +42,18 @@ def _side(actor, friendly) -> str:
 
 
 def _head(evt: dict) -> str:
-    return f"[T{evt.get('turn', 0)}·{_side(evt.get('actor'), evt.get('friendly'))}]"
+    gid = evt.get("game_id")
+    turn = f"{gid}·T{evt.get('turn', 0)}" if gid else f"T{evt.get('turn', 0)}"
+    return f"[{turn}·{_side(evt.get('actor'), evt.get('friendly'))}]"
 
 
-def chain_line(evt: dict, carddb: CardDB) -> str:
+def chain_line(evt: dict, carddb: CardDB) -> str | None:
     kind = evt.get("kind")
     renderer = _CHAIN_RENDERERS.get(kind)
     if renderer is None:                      # text/未知种类: msg 兜底
         return f"{_head(evt)} {evt.get('msg', '')}"
-    return f"{_head(evt)} {renderer(evt, carddb)}"
+    line = renderer(evt, carddb)
+    return None if line is None else f"{_head(evt)} {line}"  # None = 渲染层判弃
 
 
 @chain_renderer("mulligan_offer")
@@ -208,9 +211,14 @@ def _render_shuffle(evt: dict, carddb: CardDB) -> str:
 
 
 @chain_renderer("trigger")
-def _render_trigger(evt: dict, carddb: CardDB) -> str:
+def _render_trigger(evt: dict, carddb: CardDB) -> str | None:
     name = carddb.name(evt.get("card_id"))
-    if name == "?" and evt.get("eid") is not None:
+    if name == "?":
+        # 开局未揭示的触发不落行: 同一触发块常随后以已揭示形态重放, 届时自然
+        # 以真名出一次(2026-09-13 实测 开局"#NN"噪声/同牌两行); 对局中的暗牌
+        # 附魔等仍报实体号便于对日志。
+        if (evt.get("turn") or 0) <= 1 and not evt.get("host"):
+            return None
         name = f"#{evt['eid']}"     # 未揭示实体(对面暗牌附魔等): 报实体号便于对日志
     if "START_OF_GAME" in str(evt.get("keyword") or ""):
         name += "(开局)"            # 藏在牌库里的开局触发(引擎未揭示身份)
@@ -239,6 +247,159 @@ def _render_spellpower(evt: dict, carddb: CardDB) -> str:
     return f"场上法强 {total}"
 
 
+# ================= 上部信息区(悬浮窗两区布局的上区) =================
+
+def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
+                plan: dict | None = None) -> dict | None:
+    """信息区机读字段(唯一事实来源): 敌血甲/斩杀构成/法强/回费/费用。
+    文本版(stat_text)与悬浮窗分格面板(overlay)都从它渲染, 不做平行计算。
+    斩杀口径(2026-09-13 用户定版): 手牌伤害 + 牌库剩余伤害(台账期望组成,
+    均按当前实际法强加成: 法术/技能=(基础+法强)×段数, 其余按基础值×段数)
+    + 场面总攻
+    —— 理论上限粗估, 非出牌链搜索。友方或对手未解析 → None(信息区保持原样)。
+    plan: 斩杀线机读事实(analysis.lethal_plan 产物, None=未算/开关关闭),
+    原样透传入 dict(零变化铁律: None 时不改变任何现有输出)。"""
+    me, opp = st.friendly_key, st.opponent_key()
+    if me is None or opp is None:
+        return None
+    sp = st.spellpower(me)
+    burst_hand = ramp_hand = cost_hand = 0
+    disc_cards = disc_total = 0
+    disc_srcs: list[str] = []
+    for e in st.hand(me):
+        cid = getattr(e, "card_id", None)
+        if not cid:
+            continue
+        d = analyzer.burst_damage(cid, sp)
+        if d:
+            burst_hand += d
+        r = analyzer.mana_ramp_value(cid)      # 等效回费: 水晶 + 减费面值
+        if r:
+            ramp_hand += r
+        # 费用口径(2026-09-13 用户定版): 只计法术牌的费用总和(手/库/组同规则)
+        base = carddb.cost(cid)
+        tag = e.tags.get(GameTag.COST)
+        if carddb.cardtype(cid) == "SPELL":
+            c = tag if tag is not None else base
+            cost_hand += c if c is not None else 0
+        # 手牌减费在身事实(引擎 COST 标签 < 基础费): 归属=附魔名(解析层关联)
+        if tag is not None and base is not None and tag < base:
+            disc_cards += 1
+            disc_total += base - tag
+            for en in st.enchantments_on(e.id):
+                nm = carddb.name(en)
+                if nm not in disc_srcs:
+                    disc_srcs.append(nm)
+    burst_board = st.board_attack(me)
+    # 牌库侧(伤害潜力/回费/费用)按台账期望组成; 通用模式(无卡组)诚实降级为 ?
+    burst_deck = ramp_deck = deck_cost = list_cost = None
+    if knowledge is not None:
+        burst_deck = ramp_deck = deck_cost = list_cost = 0
+        for cid, n in knowledge.ledger.remaining.items():
+            d = analyzer.burst_damage(cid, sp)
+            if d:
+                burst_deck += d * n
+            if carddb.cardtype(cid) == "SPELL":
+                deck_cost += (carddb.cost(cid) or 0) * n
+            r = analyzer.mana_ramp_value(cid)
+            if r:
+                ramp_deck += r * n
+        for cid, n in knowledge.decklist.items():
+            if carddb.cardtype(cid) == "SPELL":
+                list_cost += (carddb.cost(cid) or 0) * n
+    lethal = burst_hand + (burst_deck or 0) + burst_board
+    hero = st.hero(opp)
+    enemy = st.hero_total_hp(opp) if hero is not None else None
+    return {
+        "enemy_total": enemy, "enemy_hp": st.hero_hp(opp),
+        "enemy_armor": st.hero_armor(opp),
+        "lethal": lethal, "lethal_hand": burst_hand, "lethal_deck": burst_deck,
+        "lethal_board": burst_board,
+        "can_kill": enemy is not None and lethal > 0 and lethal >= enemy,
+        "spellpower": sp,
+        "ramp": ramp_hand + (ramp_deck or 0), "ramp_hand": ramp_hand,
+        "ramp_deck": ramp_deck,
+        "cost_list": list_cost, "cost_deck": deck_cost, "cost_hand": cost_hand,
+        "discount": {"cards": disc_cards, "total": disc_total,
+                     "sources": disc_srcs or (["?"] if disc_total else [])},
+        # 斩杀线 plan 原样透传(契约 §3); _carddb 供 plan_line/stat_text 出名
+        # (stat_text 不得再收 carddb 形参 —— watcher 调用点签名不变)
+        "plan": plan, "_carddb": carddb,
+    }
+
+
+def _plan_name(carddb, cid) -> str:
+    """plan 动作卡名: carddb 查询失败/未收录 → 回退 card_id(诚实降级, 不抛)。"""
+    if carddb is not None:
+        try:
+            n = carddb.name(cid)
+        except Exception:                     # noqa: BLE001  假/半残卡表不拖垮渲染
+            n = None
+        if n and n != "?":
+            return n
+    return str(cid) if cid else "?"
+
+
+def _plan_act(carddb, action) -> str:
+    """单个 plan 动作 (card_id, cost) → `名(N费)`; 异形动作尽力降级不抛。"""
+    try:
+        cid, cost = action
+    except (TypeError, ValueError):
+        return _plan_name(carddb, action)
+    return f"{_plan_name(carddb, cid)}({cost if cost is not None else '?'}费)"
+
+
+def plan_line(f: dict) -> str | None:
+    """可斩线第三行(plan 事实 → 措辞, 结论词"可斩"归 render):
+    `可斩: 名A(N费)→名B(M费) 伤{face_det}+场{board_atk} ≥ {enemy_total}`。
+    无 plan / 非可斩 → None(调用方输出零变化); 缺失数值以 ? 诚实降级。"""
+    plan = f.get("plan") or {}
+    if not plan.get("lethal"):
+        return None
+    acts = plan.get("actions") or []
+    seq = "→".join(_plan_act(f.get("_carddb"), a) for a in acts) \
+        if acts else "(无动作)"               # 退化输入: 无可出动作仍报构成
+    q = lambda v: "?" if v is None else str(v)               # noqa: E731
+    return (f"可斩: {seq} 伤{q(plan.get('face_det'))}"
+            f"+场{q(plan.get('board_atk'))} ≥ {q(plan.get('enemy_total'))}")
+
+
+def stat_text(f: dict) -> str:
+    """信息区字段 → 两行文本(控制台/会话文件用; 悬浮窗走分格面板)。
+    手牌减费在身时行尾追加 减N(来源) 段; 无减费保持两段。
+    plan.lethal 时末尾追加第三行"可斩: 线 伤X+场Y ≥ Z"(措辞归 render);
+    无 plan/非可斩 → 与两行版逐字节一致(零变化铁律)。"""
+    q = lambda v: "?" if v is None else str(v)               # noqa: E731
+    if f["enemy_total"] is None:
+        enemy_txt = "?"
+    else:
+        enemy_txt = f"{f['enemy_total']}({f['enemy_hp']}血+{f['enemy_armor']}甲)"
+    kill_mark = ",可斩" if f["can_kill"] else ""
+    line2 = (f"回费 +{f['ramp']}(手{f['ramp_hand']}+库{q(f['ramp_deck'])})"
+             f" │ 费 组{q(f['cost_list'])}/库{q(f['cost_deck'])}/手{f['cost_hand']}")
+    disc = f.get("discount") or {}
+    if disc.get("total"):
+        srcs = "·".join(disc.get("sources") or [])
+        line2 += f" │ 减{disc['total']}" + (f"({srcs})" if srcs else "")
+    txt = (f"敌 {enemy_txt} │ 斩杀 {f['lethal']}"
+           f"(手{f['lethal_hand']}+库{q(f['lethal_deck'])}"
+           f"+场{f['lethal_board']}{kill_mark})"
+           f" │ 法强 {f['spellpower']}\n{line2}")
+    line3 = plan_line(f)
+    if line3:
+        txt += f"\n{line3}"
+    return txt
+
+
+def top_summary(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
+                plan: dict | None = None) -> str | None:
+    """两行信息区文本 = stat_fields(事实) + stat_text(措辞) 的组合入口。
+    plan 原样透传(stat_fields → stat_text)。"""
+    f = stat_fields(st, knowledge=knowledge, carddb=carddb, analyzer=analyzer,
+                    plan=plan)
+    return stat_text(f) if f is not None else None
+
+
 # ================= 快照块 / 终局行 =================
 
 def _fmt_counts(cnt: Counter, decklist: dict[str, int], carddb: CardDB,
@@ -261,17 +422,18 @@ def _board_txt(st: GameStore, key, carddb: CardDB) -> str:
 _REASON_CN = {"turn_end": "回合结束", "game_end": "终局", "flush": "日志截断"}
 
 
-def snapshot_line(st: GameStore, game_no: int, reason: str) -> str:
-    """单行精简快照(UI 用): 悬浮窗/控制台只看节奏, 完整版见 snapshot_block。"""
+def snapshot_line(st: GameStore, game_id: str, reason: str) -> str:
+    """单行精简快照(UI 用): 悬浮窗/控制台只看节奏, 完整版见 snapshot_block。
+    对局身份 = game_id hash(与链路行首/训练 jsonl meta 同源), 供跨文件对齐。"""
     reason_cn = _REASON_CN.get(reason, reason)
     me = st.friendly_key
-    if me is None:                          # 友方未解析: 只报局号与原因
-        return f"── 第{game_no}局快照({reason_cn}) ──"
+    if me is None:                          # 友方未解析: 只报对局hash与原因
+        return f"── {game_id} 快照({reason_cn}) ──"
     f = st.mana_fields(me)
     opp = st.opponent_key()
     opp_atk = st.board_attack(opp) if opp is not None else 0
     sp = st.spellpower(me)
-    return (f"── T{st.turn} 第{game_no}局({reason_cn})"
+    return (f"── T{st.turn} {game_id}({reason_cn})"
             f" 我:水晶{st.mana_now(me)}/{f['res']} │ 手牌{len(st.hand(me))}"
             f" │ 牌库{st.deck_count(me)} │ 场上{len(st.board(me))}"
             f" │ 对面场攻{opp_atk}"
@@ -279,7 +441,7 @@ def snapshot_line(st: GameStore, game_no: int, reason: str) -> str:
 
 
 def snapshot_block(st: GameStore, led: Ledger | None, *, knowledge: DeckKnowledge | None,
-                   deck_name: str, generic: bool, game_no: int,
+                   deck_name: str, generic: bool, game_id: str,
                    chain_lines: list[str], chain_summary: list[str],
                    carddb: CardDB, reason: str) -> str:
     me, opp = st.friendly_key, st.opponent_key()
@@ -292,7 +454,7 @@ def snapshot_block(st: GameStore, led: Ledger | None, *, knowledge: DeckKnowledg
     ft = st.friendly_turn_number() if me is not None else 0
     flag = " │ [通用模式: 非所选卡组]" if generic else ""
     lines.append(f"════════ 完整快照 ════════ 回合T{st.turn}(我的第{ft}回合·{reason_cn})"
-                 f" │ 第{game_no}局 │ {mode}·{fmt}{flag}")
+                 f" │ {game_id} │ {mode}·{fmt}{flag}")
 
     if me is not None:
         hero = st.hero(me)
@@ -343,6 +505,8 @@ def snapshot_block(st: GameStore, led: Ledger | None, *, knowledge: DeckKnowledg
             lines.append(f"── {deck_name or '卡组'}组件台账 ──")
             lines.append(f"  在手    : {_fmt_counts(led.in_hand, knowledge.decklist, carddb, True)}")
             lines.append(f"  已消耗  : {_fmt_counts(led.used, knowledge.decklist, carddb, True)}")
+            if led.lost:
+                lines.append(f"  被偷    : {_fmt_counts(led.lost, knowledge.decklist, carddb, True)}")
             lines.append(f"  牌库剩余: {_fmt_counts(led.remaining, knowledge.decklist, carddb, False)}"
                          f" (实际{led.deck_actual}张)")
 

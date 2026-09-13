@@ -1,5 +1,6 @@
 """端到端: fixture 日志 -> watcher 回放 -> 链路/快照/JSONL 输出。"""
 import json
+import re
 from pathlib import Path
 
 from hsbot.carddb import CardDB
@@ -21,7 +22,10 @@ def _run(tmp_path):
 
 def test_replay_produces_chain_snapshot_jsonl(tmp_path):
     text, sessions = _run(tmp_path)
-    assert "新对局 #1" in text
+    m = re.search(r"新对局 ([0-9a-f]{8})", text)
+    assert m, "新对局通知未带对局 hash"
+    gid = m.group(1)
+    assert f"[{gid}·T" in text                   # 链路行首同带对局 hash
     assert "完整快照" in text                      # 回合切换触发了快照
     assert "对局结束" in text                      # 终局行
     assert "1=WON" in text and "2=LOST" in text     # 终局行双方胜负完整(批尾快照)
@@ -34,6 +38,7 @@ def test_replay_produces_chain_snapshot_jsonl(tmp_path):
     assert jsonl, "JSONL 未落盘"
     payload = json.loads(jsonl[0].read_text(encoding="utf-8").splitlines()[0])
     assert payload["reason"] and payload["players"] and "me" in payload
+    assert payload["game_id"] == gid    # 快照持久化与控制台输出同一对局 hash(合并主键)
 
 
 def test_mulligan_offer_prints_when_group_closes(tmp_path):
@@ -56,6 +61,27 @@ def test_mulligan_offer_prints_when_group_closes(tmp_path):
     offer = [t for t in lines if "起手可留" in t]
     assert offer, "包组收口后起手可留仍未发出"
     assert "第1张、第2张、第3张" in offer[-1]   # 发牌时刻牌名日志里尚未揭示
+
+
+def test_stat_zone_emits_on_change_only(tmp_path):
+    """上部信息区: 对局中批尾发 KIND_STAT(敌血/斩杀/法强/回费/费用),
+    状态未变的后续批尾不重发(变化才发, 零冗余流量)。"""
+    from hsbot.overlay import KIND_STAT
+
+    cfg = Config.load({"overlay_enabled": False, "auto_training": False,
+                       "data_dir": str(tmp_path), "battletag": "湫然#51704"})
+    carddb = CardDB(cfg.cache_dir / "cards.zh.json")
+    msgs: list = []
+    w = Watcher(cfg, carddb, out=msgs.append)
+    src = FIXTURE.parent.joinpath("mulligan_offer.log").read_text(
+        encoding="utf-8").splitlines()
+    w._feed_many(src)
+    w._after_batch()
+    stats = [m for m in msgs if m.kind == KIND_STAT]
+    assert stats, "对局中信息区未发射"
+    assert "敌" in stats[-1].ui and "斩杀" in stats[-1].ui
+    w._after_batch()                     # 状态未变: 不再发
+    assert len([m for m in msgs if m.kind == KIND_STAT]) == len(stats)
 
 
 def test_tail_state_classification():
@@ -87,10 +113,10 @@ def test_second_game_with_swapped_sides_keeps_turn_flow(tmp_path):
     w.run_replay(FIXTURE.parent / "two_games_swap.log")
     ui = "\n".join(m.ui for m in msgs)
     full = "\n".join(m.full for m in msgs)
-    assert "第1局 · 我的第1回合开始" in ui
-    assert "第1局(回合结束)" in ui               # 第1局: 对手回合触发快照
-    assert "第2局 · 我的第1回合开始" in ui        # 第2局换边后仍能识别我的回合
-    assert "第2局(回合结束)" in ui               # 第2局对手回合快照不再被吞
+    gids = re.findall(r"──── ([0-9a-f]{8}) · 我的第1回合开始", ui)
+    assert len(gids) == 2 and gids[0] != gids[1]   # 两局 hash 各自唯一(合并主键)
+    assert re.search(rf"── T\d+ {gids[0]}\(回合结束\)", ui)   # 第1局: 对手回合触发快照
+    assert re.search(rf"── T\d+ {gids[1]}\(回合结束\)", ui)   # 第2局对手回合快照不再被吞
     # 主客归位: 两局快照里"我"都是湫然(名字可能因 manager 污染一致地错,
     # 强归位由真实日志回放验收; 这里至少锁定换边局的回合流程不被吞)
     assert "我  湫然#51704" in full
@@ -120,6 +146,27 @@ def test_training_includes_raw_log_slice(tmp_path):
     assert "CREATE_GAME" in text
     jsonl = logs[0].name.replace(".power.log", ".jsonl")
     assert (logs[0].parent / jsonl).exists(), "切片与样本不在同目录/不同名"
+
+
+def test_saved_decklist_fills_deck_side(tmp_path):
+    """回放/会话中途挂载没有 Decks.log: 用已落盘的 decklist.json 兜底 ——
+    信息区库侧(斩杀/回费/费用)照常计算, 不再降级为 ?。"""
+    cfg = Config.load({"overlay_enabled": False, "auto_training": False,
+                       "data_dir": str(tmp_path), "battletag": "湫然#51704"})
+    (tmp_path / "decks").mkdir()
+    (tmp_path / "decks" / "decklist.json").write_text(json.dumps(
+        {"name": "奇迹德",
+         "code": "AAEBAfHGBwL9jQaluwYO/gHTA4/2AuC+A/DUA7ClBK7ABNXSBIHUBIDKBpD0"
+                 "BpX0BqqvB4LaBwAA", "cards": {}}, ensure_ascii=False),
+        encoding="utf-8")
+    carddb = CardDB(cfg.cache_dir / "cards.zh.json")
+    msgs: list = []
+    w = Watcher(cfg, carddb, out=msgs.append)
+    w.run_replay(FIXTURE.parent / "mulligan_offer.log")
+    stats = [m.ui for m in msgs if m.ui.startswith("敌 ")]
+    assert stats, "信息区未发射"
+    assert all("库?" not in s for s in stats), "库侧未用已保存卡组计算"
+    assert any(re.search(r"库\d", s) for s in stats)
 
 
 def test_opponent_real_name_collected(tmp_path):
@@ -165,6 +212,7 @@ def test_live_training_export_dedup(tmp_path):
     """审计 2026-09-13 中#8: live 导出与 import-all 共用 _imported.json 索引,
     重复 attach 同一会话时已导过的 (session|局号) 不再重导。"""
     from .conftest import mk_create_game
+    from hsbot.consts import game_hash
     from hsbot.corpus import CorpusExporter
 
     cfg = Config.load({"overlay_enabled": False, "auto_training": True,
@@ -178,6 +226,9 @@ def test_live_training_export_dedup(tmp_path):
 
     path = ex.export_if_new(_T(), session="S", idx=1)
     assert path is not None and path.exists()
+    meta = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+    assert meta["game_id"] == game_hash("S", "20:00:00.0")   # meta 带对局 hash(可复算)
+    assert meta["linked_effects"] == []                       # 联动卡效果台账(终局态)
     assert ex.export_if_new(_T(), session="S", idx=1) is None    # 已收录: 跳过
     assert ex.export_if_new(_T(), session="S", idx=2) is not None  # 新局照常导
     done = json.loads(ex.index_path.read_text(encoding="utf-8"))

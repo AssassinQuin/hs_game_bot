@@ -9,6 +9,8 @@ venv/
 *.log
 !tests/fixtures/*.log
 !data/training/**/*.power.log
+# 切片命名双后缀坑的异常工件(gotchas 条34, 待修导出端), 不入库
+data/training/**/*.power.power.log
 logs/
 *.hsreplay.xml
 
@@ -33,3 +35,6 @@ tests/fixtures/cards_dmg_test.json
 # 离线训练系统(trainer)私有产物
 data/models/
 trainer/data/
+
+# SDD 施工工作区(审计快照/diff/台账, 会话产物不入库)
+.superpowers/

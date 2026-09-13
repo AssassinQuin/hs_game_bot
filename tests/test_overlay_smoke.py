@@ -54,9 +54,60 @@ def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch, tmp_path):
                        ("chain", "[T1·我] 起手可留: 黑市拍卖师、雷霆绽放、月火术"),
                        ("snapshot", "── T1 第1局(回合结束) 我:水晶1/1 ──"),
                        ("game_end", "──── 对局结束 ──── Player1=WON / Player2=LOST"),
-                       ("error", "! 监控线程已退出, 请重启 hsbot")]:
+                       ("error", "! 监控线程已退出, 请重启 hsbot"),
+                       ("stat", "敌 30(30血+0甲) │ 斩杀 0(手0+场0) │ 法强 0\n"
+                                "回费 +0(手0+库0) │ 费 组?/库?/手0")]:
         q.put((kind, text))
+    # 新形态: KIND_STAT 带机读字段(4 元组) → 上区走分格面板
+    q.put(("stat", "敌 40(40血+0甲) │ 斩杀 14(手0+库14+场0) │ 法强 0\n"
+                   "回费 +10(手2+库8) │ 费 组45/库33/手12 │ 减2(生命缚誓者的礼物)",
+           "stat",
+           {"enemy_total": 40, "enemy_hp": 40, "enemy_armor": 0,
+            "lethal": 14, "lethal_hand": 0, "lethal_deck": 14,
+            "lethal_board": 0, "can_kill": False, "spellpower": 0,
+            "ramp": 10, "ramp_hand": 2, "ramp_deck": 8,
+            "cost_list": 45, "cost_deck": 33, "cost_hand": 12,
+            "discount": {"cards": 1, "total": 2,
+                         "sources": ["生命缚誓者的礼物"]}}))
     _run_with_auto_close(monkeypatch, q, data_dir=str(tmp_path))
+
+
+def test_stat_panel_fields_and_kill_gold(ensure_display):
+    """上区五格面板: 机读字段驱动数值/细节三层字级; 可斩转金色;
+    无机读字段的旧形态走原文兜底行。"""
+    root = tk.Tk()
+    root.withdraw()                    # 测试不显示 UI
+    try:
+        from hsbot.overlay import _DEFAULT_COLORS, _StatPanel
+        p = _StatPanel(tk, root, dict(_DEFAULT_COLORS), 10)
+        base = {"enemy_total": 40, "enemy_hp": 40, "enemy_armor": 0,
+                "lethal": 14, "lethal_hand": 0, "lethal_deck": 14,
+                "lethal_board": 0, "can_kill": False, "spellpower": 0,
+                "ramp": 10, "ramp_hand": 2, "ramp_deck": 8,
+                "cost_list": 45, "cost_deck": 33, "cost_hand": 12,
+                "discount": {"cards": 1, "total": 2,
+                             "sources": ["生命缚誓者的礼物"]}}
+        p.update(base)
+        assert p.cells["enemy"][0].cget("text") == "40"
+        assert p.cells["enemy"][1].cget("text") == "40血+0甲"
+        assert p.cells["lethal"][0].cget("text") == "14"
+        assert p.cells["lethal"][1].cget("text") == "手0+库14+场0"
+        assert p.cells["ramp"][0].cget("text") == "+10"
+        assert p.cells["cost"][0].cget("text") == "12"
+        assert p.cells["cost"][1].cget("text") == "组45 库33"
+        assert p.cells["discount"][0].cget("text") == "−2"
+        assert p.cells["discount"][1].cget("text") == "生命缚誓者的礼物"
+        p.update({**base, "can_kill": True})
+        assert p.cells["lethal"][0].cget("foreground") == _DEFAULT_COLORS["advice"]
+        p.update({**base, "lethal_deck": None, "cost_list": None})
+        assert "库?" in p.cells["lethal"][1].cget("text")
+        p.update({**base, "discount": {"cards": 0, "total": 0, "sources": []}})
+        assert p.cells["discount"][0].cget("text") == "0"
+        assert p.cells["discount"][1].cget("text") == "—"
+        p.set_raw("兜底文本行")
+        assert p._raw.cget("text") == "兜底文本行"
+    finally:
+        root.destroy()
 
 
 def test_overlay_survives_bad_message(ensure_display, monkeypatch, tmp_path):
@@ -80,6 +131,7 @@ def test_overlay_classify_lines():
     assert C("notice", "──── 第1局 · 我的第1回合开始 (T1) ────") == "header"
     assert C("notice", "── 新对局 #1 ── 所选卡组: 奇迹德") == "notice"
     assert C("notice", "! 监控线程已退出") == "error"
+    assert C("stat", "敌 30 │ 斩杀 0") == "stat"
 
 
 def test_overlay_geometry_persisted(tmp_path, monkeypatch):

@@ -1,7 +1,7 @@
 # hs_game_bot 项目蓝图 —— 结构 · 流程 · 规划
 
 > 本文是全局视图：最终目录结构、运行入口、模块依赖、使用流程、里程碑排期。
-> 细节文档：[DESIGN.md](DESIGN.md)（总设计）· [M1_MONITOR.md](M1_MONITOR.md)（M1 施工图）。
+> 细节文档：[DESIGN.md](DESIGN.md)（总设计）· [M1_MONITOR.md](M1_MONITOR.md)（M1 施工图）· [MULLIGAN_AI.md](MULLIGAN_AI.md)（留牌 AI）· [PLAY_ADVICE.md](PLAY_ADVICE.md)（推荐打法施工图，下阶段）· [MCTS_RESEARCH.md](MCTS_RESEARCH.md)（MCTS 效果解析完善程度调研）。
 
 ---
 
@@ -132,6 +132,13 @@ flowchart TD
 
 依赖关系严格线性：M1 → M2 → M3 → M4 → M5（M3 的 DFS 需要 M2 的卡表费用/伤害数据）。
 每阶段交付即可运行、可验收的程序，不存在"全部做完才能跑"的集成风险。
+
+### 下阶段定版（2026-09-13）
+
+上表 M3（启动 DFS）/M4（MC+预备）并入"**推荐打法**"阶段，算法分层与任务拆解见
+[PLAY_ADVICE.md](PLAY_ADVICE.md)：斩杀 DFS（T1）立即开工、不依赖数据量；
+价值模型 × 浅层世界节点排序（T2）等 300+ 局语料放开口径；MCTS 暂缓（无模拟器 +
+IR 覆盖率不足，达 T5 门槛才议）。M2 知识层的缺件概率曲线随 T3 一并交付。
 
 ---
 

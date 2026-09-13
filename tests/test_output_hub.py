@@ -16,8 +16,8 @@ def test_hub_dispatch_console_queue_file(tmp_path, capsys):
     assert "链路行" in out and "── T1 单行 ──" in out
     assert "完整快照块" not in out                 # 控制台只见 ui
     assert hub.q is not None
-    assert hub.q.get_nowait() == ("chain", "链路行", "")
-    assert hub.q.get_nowait() == ("snapshot", "── T1 单行 ──", "")
+    assert hub.q.get_nowait() == ("chain", "链路行", "", None)
+    assert hub.q.get_nowait() == ("snapshot", "── T1 单行 ──", "", None)
     content = (tmp_path / "session.log").read_text(encoding="utf-8")
     assert "链路行" in content
     assert "完整快照块\n多行" in content            # 文件见 full

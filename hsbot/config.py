@@ -44,6 +44,9 @@ DEFAULTS = {
         "advice": "#ffd700",    # 留牌建议(开局高亮)
     },
     "mulligan_advice": True,    # 留牌环节高亮建议(需先跑 python -m trainer mulligan)
+    "lethal_plan": True,        # 斩杀线规划(信息区"可斩"行: DFS 手牌出牌线,
+                                # 见 docs/PLAY_ADVICE.md §6; planner 缺席/未解析
+                                # 时诚实降级, 不影响既有两行)
     # 训练语料
     "training_dir": "data/training",
     "auto_training": True,      # 每局结束自动导出训练样本
@@ -93,7 +96,8 @@ class Config:
     _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha",
               "draw_dedup_seconds")
     _BOOL = ("console_echo", "overlay_enabled", "overlay_topmost",
-             "overlay_borderless", "auto_training", "mulligan_advice")
+             "overlay_borderless", "auto_training", "mulligan_advice",
+             "lethal_plan")
     _PATH = ("logs_dir", "data_dir", "training_dir")
 
     def __init__(self, **values) -> None:

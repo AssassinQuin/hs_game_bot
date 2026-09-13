@@ -180,7 +180,7 @@ store   发结构化事件 mulligan_offer{actor, offered[cid], msg兜底文本}
         → overlay           KIND_ADVICE 金色高亮(config overlay_colors.advice 可调)
 ```
 
-输出形态: `[T1·我] 【留牌建议·vs牧师·后手】留 黑市拍卖师(+20.0%)、顺水漂流(+8.3%) │ 换 月火术(+4.0%)`。
+输出形态: `[3f9a12cd·T1·我] 【留牌建议·vs牧师·后手】留 黑市拍卖师(+20.0%)、顺水漂流(+8.3%) │ 换 月火术(+4.0%)`(行首含对局 hash)。
 开关 `mulligan_advice`(config.yaml, 默认开); 推理零 sklearn 依赖 ——
 `hsbot/mulligan_ai.py` 是纯 stdlib 推理层, 训练器(trainer/mulligan.py(`python -m trainer mulligan`))
 与实时军师共用同一份结论函数与先验文件, 训练出新版本即自动生效。

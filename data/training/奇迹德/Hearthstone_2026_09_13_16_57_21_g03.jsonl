@@ -1,0 +1,664 @@
+{"_meta": true, "source": "live", "session": "Hearthstone_2026_09_13_16_57_21", "game_index": 3, "start_ts": "17:09:06.998660", "turns": 8, "deck_name": "奇迹德", "deck_code": "AAEBAfHGBwL9jQaluwYO/gHTA4/2AuC+A/DUA7ClBK7ABNXSBIHUBIDKBpD0BpX0BqqvB4LaBwAA", "decklist": {"EX1_169": 2, "CS2_008": 2, "BOT_054": 2, "BT_724": 2, "SCH_427": 2, "AV_295": 2, "TSC_654": 2, "TID_001": 2, "CORE_AT_037": 2, "TTN_955": 1, "VAC_519": 1, "VAC_428": 2, "SC_753": 2, "SC_755": 2, "TIME_701": 2, "JAIL_718": 2}, "players": {"1": {"name": "湫然#51704", "player_id": 1, "hero_power": "HERO_06ebp"}, "2": {"name": "快看对面裂开了#5628", "player_id": 2, "hero_power": "HERO_09dbp"}}, "heroes": {"1": "HERO_06bi", "2": "HERO_09am_Anduin_hnv"}, "results": {"1": "LOST", "2": "WON"}, "mulligan": {"1": {"offered": ["SC_753", "CORE_AT_037", "TSC_654"], "kept": [], "replaced": ["SC_753", "CORE_AT_037", "TSC_654"], "decided": true}, "2": {"offered": ["SW_433", "CORE_CFM_790", "#52", "#68", "DINO_COIN1"], "kept": [], "replaced": [], "decided": false}}, "event_count": 663}
+{"t": "CreateGame", "d": 0, "ts": "17:09:06.998660", "entity": 1, "tags": [["CARDTYPE", "GAME"], ["ZONE", "PLAY"], ["ENTITY_ID", 1], [937, 2], ["SPAWN_TIME_COUNT", 1], ["GAME_SEED", 1834394471]], "players": [{"entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "player_id": 1, "hi": 144115211015832391, "lo": 83449896, "tags": [["CONTROLLER", 1], ["CARDTYPE", "PLAYER"], ["PLAYER_ID", 1], ["HERO_ENTITY", 70], ["MAXHANDSIZE", 10], ["STARTHANDSIZE", 4], ["TEAM_ID", 1], ["ZONE", "PLAY"], ["ENTITY_ID", 2], ["MAXRESOURCES", 10], ["SPAWN_TIME_COUNT", 1], ["MAX_EXCAVATE_TIER", 2]], "name": null, "packet_id": 2}, {"entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "player_id": 2, "hi": 144115211015832391, "lo": 1604741266, "tags": [["CONTROLLER", 2], ["CARDTYPE", "PLAYER"], ["PLAYER_ID", 2], ["HERO_ENTITY", 72], ["MAXHANDSIZE", 10], ["STARTHANDSIZE", 4], ["TEAM_ID", 2], ["ZONE", "PLAY"], ["ENTITY_ID", 3], ["MAXRESOURCES", 10], ["SPAWN_TIME_COUNT", 1], ["MAX_EXCAVATE_TIER", 2]], "name": null, "packet_id": 3}], "packet_id": 1}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 4, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 4]], "packet_id": 4}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 5, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 5]], "packet_id": 5}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 6, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 6]], "packet_id": 6}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 7, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 7]], "packet_id": 7}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 8, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 8]], "packet_id": 8}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 9, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 9]], "packet_id": 9}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 10, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 10]], "packet_id": 10}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 11, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 11]], "packet_id": 11}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 12, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 12]], "packet_id": 12}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 13, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 13]], "packet_id": 13}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 14, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 14]], "packet_id": 14}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 15, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 15]], "packet_id": 15}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 16, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 16]], "packet_id": 16}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 17, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 17]], "packet_id": 17}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 18, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 18]], "packet_id": 18}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 19, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 19]], "packet_id": 19}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 20, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 20]], "packet_id": 20}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 21, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 21]], "packet_id": 21}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 22, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 22]], "packet_id": 22}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 23, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 23]], "packet_id": 23}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 24, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 24]], "packet_id": 24}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 25, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 25]], "packet_id": 25}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 26, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 26]], "packet_id": 26}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 27, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 27]], "packet_id": 27}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 28, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 28]], "packet_id": 28}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 29, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 29]], "packet_id": 29}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 30, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 30]], "packet_id": 30}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 31, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 31]], "packet_id": 31}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 32, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 32]], "packet_id": 32}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 33, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 33]], "packet_id": 33}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 34, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 34]], "packet_id": 34}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 35, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 35]], "packet_id": 35}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 36, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 36]], "packet_id": 36}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 37, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 37]], "packet_id": 37}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 38, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 38]], "packet_id": 38}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 39, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 39]], "packet_id": 39}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 40, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 40]], "packet_id": 40}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 41, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 41]], "packet_id": 41}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 42, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 42]], "packet_id": 42}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 43, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 43]], "packet_id": 43}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 44, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 44]], "packet_id": 44}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 45, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 45]], "packet_id": 45}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 46, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 46]], "packet_id": 46}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 47, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 47]], "packet_id": 47}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 48, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 48]], "packet_id": 48}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 49, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 49]], "packet_id": 49}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 50, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 50]], "packet_id": 50}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 51, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 51]], "packet_id": 51}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 52, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 52]], "packet_id": 52}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 53, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 53]], "packet_id": 53}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 54, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 54]], "packet_id": 54}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 55, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 55]], "packet_id": 55}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 56, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 56]], "packet_id": 56}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 57, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 57]], "packet_id": 57}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 58, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 58]], "packet_id": 58}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 59, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 59]], "packet_id": 59}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 60, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 60]], "packet_id": 60}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 61, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 61]], "packet_id": 61}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 62, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 62]], "packet_id": 62}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 63, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 63]], "packet_id": 63}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 64, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 64]], "packet_id": 64}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 65, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 65]], "packet_id": 65}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 66, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 66]], "packet_id": 66}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 67, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 67]], "packet_id": 67}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 68, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 68]], "packet_id": 68}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 69, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 69]], "packet_id": 69}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 70, "card_id": "HERO_06bi", "tags": [["CONTROLLER", 1], ["CARDTYPE", "HERO"], ["HEALTH", 30], ["PREMIUM", 1], ["ZONE", "PLAY"], ["ENTITY_ID", 70], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], ["HERO_POWER", 66926], ["HIDE_WATERMARK", 1], ["SPAWN_TIME_COUNT", 1], ["EMOTECHARACTER", 20], ["HAS_ACTIVATE_POWER", 1], ["EMOTECLASS", 6], [3085, 30]], "packet_id": 70}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 71, "card_id": "HERO_06ebp", "tags": [["CONTROLLER", 1], ["CARDTYPE", "HERO_POWER"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "PLAY"], ["ENTITY_ID", 71], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], ["CREATOR", 70], [1037, 1], [1086, 66928], ["CREATOR_DBID", 123761], ["SPAWN_TIME_COUNT", 1], ["HAS_ACTIVATE_POWER", 1]], "packet_id": 71}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 72, "card_id": "HERO_09a", "tags": [["CONTROLLER", 2], ["CARDTYPE", "HERO"], ["HEALTH", 30], ["ZONE", "PLAY"], ["ENTITY_ID", 72], ["CLASS", "PRIEST"], ["FACTION", "NEUTRAL"], ["RARITY", "EPIC"], ["HERO_POWER", 41886], ["SPAWN_TIME_COUNT", 1], ["EMOTECHARACTER", 32], ["HAS_ACTIVATE_POWER", 1], ["EMOTECLASS", 9], [3085, 30]], "packet_id": 72}
+{"t": "FullEntity", "d": 0, "ts": "17:09:06.998660", "entity": 73, "card_id": "CS1h_001_H1", "tags": [["CONTROLLER", 2], ["CARDTYPE", "HERO_POWER"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["ZONE", "PLAY"], ["ENTITY_ID", 73], ["CLASS", "PRIEST"], ["FACTION", "NEUTRAL"], ["RARITY", "EPIC"], ["CREATOR", 72], [858, 479], [1037, 2], [1086, 41918], ["CREATOR_DBID", 41887], ["SPAWN_TIME_COUNT", 1], ["HAS_ACTIVATE_POWER", 1]], "packet_id": 73}
+{"t": "TagChange", "d": 0, "ts": "17:09:06.998660", "entity": 1, "tag": "STATE", "value": "RUNNING", "has_change_def": false, "packet_id": 74}
+{"t": "TagChange", "d": 0, "ts": "17:09:06.998660", "entity": 2, "tag": "PLAYSTATE", "value": "PLAYING", "has_change_def": false, "packet_id": 75}
+{"t": "TagChange", "d": 0, "ts": "17:09:06.998660", "entity": 3, "tag": "PLAYSTATE", "value": "PLAYING", "has_change_def": false, "packet_id": 76}
+{"t": "Block", "d": 0, "ts": "17:09:06.998660", "entity": 61, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 77}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:06.998660", "entity": 61, "card_id": "JAIL_430", "tags": [["CONTROLLER", 2], ["CARDTYPE", "MINION"], ["TAG_LAST_KNOWN_COST_IN_HAND", 7], [479, 7], ["COST", 7], ["ATK", 7], ["HEALTH", 7], ["ZONE", "DECK"], ["ENTITY_ID", 61], ["ELITE", 1], ["CLASS", "PRIEST"], ["CARDRACE", "UNDEAD"], ["RARITY", "LEGENDARY"], ["BATTLECRY", 1], ["REVEALED", 1], [478, 2], ["START_OF_GAME_KEYWORD", 1], ["DECK_RULE_MOD_DECK_SIZE", 20], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["HAS_SIGNATURE_QUALITY", 1], ["HAS_ACTIVATE_POWER", 1], [2936, 1], [3085, 7], [4472, 7], [4818, 1]], "packet_id": 78}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 74, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 74]], "packet_id": 79}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 74, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 80}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 75, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 75]], "packet_id": 81}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 75, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 82}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 76, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 76]], "packet_id": 83}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 76, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 84}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 77, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 77]], "packet_id": 85}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 77, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 86}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 78, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 78]], "packet_id": 87}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 79, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 79]], "packet_id": 88}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 80, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 80]], "packet_id": 89}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 78, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 90}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 81, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 81]], "packet_id": 91}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 82, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 82]], "packet_id": 92}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 83, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 83]], "packet_id": 93}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 81, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 94}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 84, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 84]], "packet_id": 95}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 84, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 96}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 85, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 85]], "packet_id": 97}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 85, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 98}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 86, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 86]], "packet_id": 99}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 86, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 100}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 87, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 87]], "packet_id": 101}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 88, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 88]], "packet_id": 102}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 89, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 89]], "packet_id": 103}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 87, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 104}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 90, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 90]], "packet_id": 105}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 90, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 106}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 91, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 91]], "packet_id": 107}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 91, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 108}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 92, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 92]], "packet_id": 109}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 92, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 110}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 93, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 93]], "packet_id": 111}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 93, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 112}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 94, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 94]], "packet_id": 113}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 94, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 114}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 95, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 95]], "packet_id": 115}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 95, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 116}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 96, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 96]], "packet_id": 117}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 96, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 118}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 97, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 97]], "packet_id": 119}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 97, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 120}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 98, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 98]], "packet_id": 121}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 98, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 122}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 99, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 99]], "packet_id": 123}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 99, "tag": "DISPLAYED_CREATOR", "value": 61, "has_change_def": false, "packet_id": 124}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 100, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 100]], "packet_id": 125}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:06.998660", "entity": 100, "card_id": "JAIL_430e1", "tags": [["CONTROLLER", 2], ["CARDTYPE", "ENCHANTMENT"], ["ATTACHED", 3], ["ZONE", "SETASIDE"], ["ENTITY_ID", 100], ["CLASS", "PRIEST"], ["CREATOR", 61], [1037, 2], [1068, 0], ["CREATOR_DBID", 126055], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 126}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 100, "tag": 1068, "value": 1, "has_change_def": false, "packet_id": 127}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 100, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 128}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 100, "tag": "ZONE", "value": "PLAY", "has_change_def": false, "packet_id": 129}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": 4741, "value": 1, "has_change_def": false, "packet_id": 130}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": "LAST_AFFECTED_BY", "value": 61, "has_change_def": false, "packet_id": 131}
+{"t": "MetaData", "d": 1, "ts": "17:09:06.998660", "meta": "TARGET", "data": "0", "count": 1, "info": [61], "packet_id": 132}
+{"t": "HideEntity", "d": 1, "ts": "17:09:06.998660", "entity": 61, "zone": "DECK", "packet_id": 133}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 61, "tag": "REVEALED", "value": 0, "has_change_def": false, "packet_id": 134}
+{"t": "MetaData", "d": 1, "ts": "17:09:06.998660", "meta": "OVERRIDE_HISTORY", "data": "0", "count": 1, "info": [61], "packet_id": 135}
+{"t": "Block", "d": 0, "ts": "17:09:06.998660", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "6", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 136}
+{"t": "Block", "d": 0, "ts": "17:09:06.998660", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 137}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": "CURRENT_PLAYER", "value": 1, "has_change_def": false, "packet_id": 138}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": "FIRST_PLAYER", "value": 1, "has_change_def": false, "packet_id": 139}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 1, "tag": "TURN", "value": 1, "has_change_def": false, "packet_id": 140}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 2166, "value": 23, "has_change_def": false, "packet_id": 141}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 467, "value": 4, "has_change_def": false, "packet_id": 142}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:06.998660", "entity": 23, "card_id": "TTN_955", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "HAND"], ["ENTITY_ID", 23], ["CLASS", "DRUID"], ["RARITY", "COMMON"], ["CHOOSE_ONE", 1], [478, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4]], "packet_id": 143}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:06.998660", "entity": 24, "card_id": "TTN_955A", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "SETASIDE"], ["ENTITY_ID", 24], ["CLASS", "DRUID"], ["CREATOR", 23], ["PARENT_CARD", 23], [1068, 0], ["CREATOR_DBID", 100093], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4], [4901, 0]], "packet_id": 144}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:06.998660", "entity": 25, "card_id": "TTN_955B", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "SETASIDE"], ["ENTITY_ID", 25], ["CLASS", "DRUID"], ["CREATOR", 23], ["PARENT_CARD", 23], [1068, 0], ["CREATOR_DBID", 100093], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4], [4901, 0]], "packet_id": 145}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 23, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 146}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 23, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 147}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 23, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 148}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 23, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 149}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 2166, "value": 36, "has_change_def": false, "packet_id": 150}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 467, "value": 3, "has_change_def": false, "packet_id": 151}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:06.998660", "entity": 36, "card_id": "SC_755", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["ZONE", "HAND"], ["ENTITY_ID", 36], ["CLASS", "DRUID"], ["RARITY", "COMMON"], [478, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], [1724, 1], ["MINI_SET", 1], ["PROTOSS", 1]], "packet_id": 152}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 36, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 153}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 36, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 154}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 36, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 155}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 36, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 156}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 2166, "value": 18, "has_change_def": false, "packet_id": 157}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 467, "value": 2, "has_change_def": false, "packet_id": 158}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:06.998660", "entity": 18, "card_id": "CS2_008", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["PREMIUM", 1], ["ZONE", "HAND"], ["ENTITY_ID", 18], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], [478, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 1]], "packet_id": 159}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 18, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 160}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 18, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 161}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 18, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 162}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 18, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 163}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 2166, "value": 35, "has_change_def": false, "packet_id": 164}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 165}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:06.998660", "entity": 35, "card_id": "SC_753", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "HAND"], ["ENTITY_ID", 35], ["RARITY", "COMMON"], ["MULTIPLE_CLASSES", 106], [478, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], [1724, 1], ["MINI_SET", 1], ["PROTOSS", 1]], "packet_id": 166}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 35, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 167}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 35, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 168}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 35, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 169}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 35, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 170}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 171}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": "NUM_TURNS_LEFT", "value": 1, "has_change_def": false, "packet_id": 172}
+{"t": "FullEntity", "d": 1, "ts": "17:09:06.998660", "entity": 101, "card_id": "MUDAN_COIN1", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["ZONE", "HAND"], ["ENTITY_ID", 101], ["CLASS", "NEUTRAL"], ["ZONE_POSITION", 5], ["NUM_TURNS_IN_HAND", 1], ["CREATOR", 1], ["SPAWN_TIME_COUNT", 1], ["COIN_CARD", 1], [4901, 1]], "packet_id": 173}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 101, "tag": 4901, "value": 0, "has_change_def": false, "packet_id": 174}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": 2166, "value": 95, "has_change_def": false, "packet_id": 175}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": 467, "value": 3, "has_change_def": false, "packet_id": 176}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 95, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 177}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 95, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 178}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 95, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 179}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 95, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 180}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": 2166, "value": 84, "has_change_def": false, "packet_id": 181}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": 467, "value": 2, "has_change_def": false, "packet_id": 182}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 84, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 183}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 84, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 184}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 84, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 185}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 84, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 186}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": 2166, "value": 91, "has_change_def": false, "packet_id": 187}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 188}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 91, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 189}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 91, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 190}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 91, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 191}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 91, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 192}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 193}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": "NUM_TURNS_LEFT", "value": 1, "has_change_def": false, "packet_id": 194}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 2, "tag": "TIMEOUT", "value": 45, "has_change_def": false, "packet_id": 195}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 3, "tag": "TIMEOUT", "value": 45, "has_change_def": false, "packet_id": 196}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 1, "tag": 10, "value": 85, "has_change_def": false, "packet_id": 197}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": 1, "tag": "NEXT_STEP", "value": "BEGIN_MULLIGAN", "has_change_def": false, "packet_id": 198}
+{"t": "Block", "d": 0, "ts": "17:09:06.998660", "entity": 35, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "1", "target": 0, "suboption": -1, "trigger_keyword": 1724, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 199}
+{"t": "Block", "d": 0, "ts": "17:09:06.998660", "entity": 36, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "1", "target": 0, "suboption": -1, "trigger_keyword": 1724, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 200}
+{"t": "Choices", "d": 0, "ts": "17:09:06.998660", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "id": 1, "tasklist": null, "type": "MULLIGAN", "min": 0, "max": 5, "source": 1, "choices": [23, 36, 18, 35, 101], "packet_id": 201}
+{"t": "TagChange", "d": 0, "ts": "17:09:06.998660", "entity": 1, "tag": "STEP", "value": "BEGIN_MULLIGAN", "has_change_def": false, "packet_id": 202}
+{"t": "Block", "d": 0, "ts": "17:09:06.998660", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 203}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "MULLIGAN_STATE", "value": "INPUT", "has_change_def": false, "packet_id": 204}
+{"t": "TagChange", "d": 1, "ts": "17:09:06.998660", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "MULLIGAN_STATE", "value": "INPUT", "has_change_def": false, "packet_id": 205}
+{"t": "Choices", "d": 1, "ts": "17:09:07.032816", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "id": 2, "tasklist": 9, "type": "MULLIGAN", "min": 0, "max": 3, "source": 1, "choices": [95, 84, 91], "packet_id": 206}
+{"t": "ChosenEntities", "d": 1, "ts": "17:09:29.363426", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "id": 2, "choices": [], "packet_id": 207}
+{"t": "SendChoices", "d": 1, "ts": "17:09:36.719332", "entity": null, "id": 1, "type": "MULLIGAN", "choices": [], "packet_id": 208}
+{"t": "ChosenEntities", "d": 1, "ts": "17:09:37.060410", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "id": 1, "choices": [], "packet_id": 209}
+{"t": "TagChange", "d": 0, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "MULLIGAN_STATE", "value": "DEALING", "has_change_def": false, "packet_id": 210}
+{"t": "Block", "d": 0, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 211}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 60, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 212}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 60, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 213}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 95, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 214}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 95, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 215}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 66, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 216}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 66, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 217}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 84, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 218}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 84, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 219}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 46, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 220}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 46, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 221}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 91, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 222}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 91, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 223}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "MULLIGAN_STATE", "value": "WAITING", "has_change_def": false, "packet_id": 224}
+{"t": "Block", "d": 0, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 225}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "MULLIGAN_STATE", "value": "DONE", "has_change_def": false, "packet_id": 226}
+{"t": "TagChange", "d": 0, "ts": "17:09:37.094411", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "MULLIGAN_STATE", "value": "DEALING", "has_change_def": false, "packet_id": 227}
+{"t": "Block", "d": 0, "ts": "17:09:37.094411", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 228}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:37.094411", "entity": 43, "card_id": "EX1_169", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["PREMIUM", 1], ["ZONE", "HAND"], ["ENTITY_ID", 43], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], [478, 1], [1037, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4], ["HAS_SIGNATURE_QUALITY", 1]], "packet_id": 229}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 43, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 230}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 43, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 231}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 23, "tag": 1068, "value": 2, "has_change_def": false, "packet_id": 232}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 23, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 233}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 23, "tag": 1037, "value": 1, "has_change_def": false, "packet_id": 234}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 23, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 235}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 23, "tag": 1043, "value": 0, "has_change_def": false, "packet_id": 236}
+{"t": "HideEntity", "d": 1, "ts": "17:09:37.094411", "entity": 23, "zone": "DECK", "packet_id": 237}
+{"t": "HideEntity", "d": 1, "ts": "17:09:37.094411", "entity": 24, "zone": "SETASIDE", "packet_id": 238}
+{"t": "HideEntity", "d": 1, "ts": "17:09:37.094411", "entity": 25, "zone": "SETASIDE", "packet_id": 239}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 23, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 240}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:37.094411", "entity": 41, "card_id": "VAC_428", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 1], ["COST", 1], ["ZONE", "HAND"], ["ENTITY_ID", 41], ["CLASS", "MAGE"], ["RARITY", "EPIC"], [478, 1], [1037, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1]], "packet_id": 241}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 41, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 242}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 41, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 243}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 36, "tag": 1068, "value": 2, "has_change_def": false, "packet_id": 244}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 36, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 245}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 36, "tag": 1037, "value": 1, "has_change_def": false, "packet_id": 246}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 36, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 247}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 36, "tag": 1043, "value": 0, "has_change_def": false, "packet_id": 248}
+{"t": "HideEntity", "d": 1, "ts": "17:09:37.094411", "entity": 36, "zone": "DECK", "packet_id": 249}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 36, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 250}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:37.094411", "entity": 21, "card_id": "EX1_169", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["PREMIUM", 1], ["ZONE", "HAND"], ["ENTITY_ID", 21], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], [478, 1], [1037, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4], ["HAS_SIGNATURE_QUALITY", 1]], "packet_id": 251}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 21, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 252}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 21, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 253}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 18, "tag": 1068, "value": 2, "has_change_def": false, "packet_id": 254}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 18, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 255}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 18, "tag": 1037, "value": 1, "has_change_def": false, "packet_id": 256}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 18, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 257}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 18, "tag": 1043, "value": 0, "has_change_def": false, "packet_id": 258}
+{"t": "HideEntity", "d": 1, "ts": "17:09:37.094411", "entity": 18, "zone": "DECK", "packet_id": 259}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 18, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 260}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:37.094411", "entity": 9, "card_id": "SCH_427", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["ZONE", "HAND"], ["ENTITY_ID", 9], ["CLASS", "DRUID"], ["RARITY", "COMMON"], ["OVERLOAD", 1], ["MULTIPLE_CLASSES", 130], [478, 1], [1037, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4], [3908, 1]], "packet_id": 261}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 9, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 262}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 9, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 263}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 35, "tag": 1068, "value": 2, "has_change_def": false, "packet_id": 264}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 35, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 265}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 35, "tag": 1037, "value": 1, "has_change_def": false, "packet_id": 266}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 35, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 267}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 35, "tag": 1043, "value": 0, "has_change_def": false, "packet_id": 268}
+{"t": "HideEntity", "d": 1, "ts": "17:09:37.094411", "entity": 35, "zone": "DECK", "packet_id": 269}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 35, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 270}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "MULLIGAN_STATE", "value": "WAITING", "has_change_def": false, "packet_id": 271}
+{"t": "Block", "d": 0, "ts": "17:09:37.094411", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 272}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "MULLIGAN_STATE", "value": "DONE", "has_change_def": false, "packet_id": 273}
+{"t": "ShuffleDeck", "d": 1, "ts": "17:09:37.094411", "player_id": 1, "packet_id": 274}
+{"t": "ShuffleDeck", "d": 1, "ts": "17:09:37.094411", "player_id": 2, "packet_id": 275}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "TURN", "value": 1, "has_change_def": false, "packet_id": 276}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 277}
+{"t": "Block", "d": 0, "ts": "17:09:37.094411", "entity": 61, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "2", "target": 0, "suboption": -1, "trigger_keyword": "START_OF_GAME_KEYWORD", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 278}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:37.094411", "entity": 61, "card_id": "JAIL_430", "tags": [["CONTROLLER", 2], ["CARDTYPE", "MINION"], ["TAG_LAST_KNOWN_COST_IN_HAND", 7], [479, 7], ["COST", 7], ["ATK", 7], ["HEALTH", 7], ["ZONE", "DECK"], ["ENTITY_ID", 61], ["ELITE", 1], ["CLASS", "PRIEST"], ["CARDRACE", "UNDEAD"], ["RARITY", "LEGENDARY"], ["BATTLECRY", 1], ["REVEALED", 1], [478, 2], ["START_OF_GAME_KEYWORD", 1], ["DECK_RULE_MOD_DECK_SIZE", 20], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["HAS_SIGNATURE_QUALITY", 1], ["HAS_ACTIVATE_POWER", 1], [2936, 1], [3085, 7], [4472, 7], [4818, 1]], "packet_id": 279}
+{"t": "SubSpell", "d": 1, "ts": "17:09:37.094411", "spell_prefab_guid": "JAIL_430_AzalinaSoulsever_FAB_StartOfGame_FX:347a09cdabd38b04c832ab44d9edc111", "source": 0, "target_count": 0, "ended": true, "targets": [], "parent": {"entity": 61, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "2", "target": 0, "suboption": -1, "trigger_keyword": "START_OF_GAME_KEYWORD", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 278}, "packet_id": 280}
+{"t": "MetaData", "d": 2, "ts": "17:09:37.094411", "meta": "TARGET", "data": "0", "count": 1, "info": [61], "packet_id": 281}
+{"t": "MetaData", "d": 2, "ts": "17:09:37.094411", "meta": "OVERRIDE_HISTORY", "data": "0", "count": 1, "info": [61], "packet_id": 282}
+{"t": "HideEntity", "d": 2, "ts": "17:09:37.094411", "entity": 61, "zone": "DECK", "packet_id": 283}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": 61, "tag": "REVEALED", "value": 0, "has_change_def": false, "packet_id": 284}
+{"t": "SubSpell", "d": 1, "ts": "17:09:37.094411", "spell_prefab_guid": "ReuseFX_Shadow_BuffImpact_Super:9267a3b2b8b76654e85107553d70a58d", "source": 0, "target_count": 1, "ended": true, "targets": [72], "parent": {"entity": 61, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "2", "target": 0, "suboption": -1, "trigger_keyword": "START_OF_GAME_KEYWORD", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 278}, "packet_id": 285}
+{"t": "MetaData", "d": 2, "ts": "17:09:37.094411", "meta": "TARGET", "data": "0", "count": 1, "info": [72], "packet_id": 286}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 1575, "value": 1, "has_change_def": false, "packet_id": 287}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 1573, "value": 1, "has_change_def": false, "packet_id": 288}
+{"t": "FullEntity", "d": 2, "ts": "17:09:37.094411", "entity": 102, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 102]], "packet_id": 289}
+{"t": "ShowEntity", "d": 2, "ts": "17:09:37.094411", "entity": 102, "card_id": "TLC_835e", "tags": [["CONTROLLER", 2], ["CARDTYPE", "ENCHANTMENT"], ["TAG_SCRIPT_DATA_NUM_1", 40], ["ATTACHED", 72], ["ZONE", "SETASIDE"], ["ENTITY_ID", 102], ["CLASS", "PRIEST"], ["CREATOR", 61], [1037, 2], [1068, 0], ["CREATOR_DBID", 126055], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 290}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": 102, "tag": 1068, "value": 1, "has_change_def": false, "packet_id": 291}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": 102, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 292}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": 102, "tag": "ZONE", "value": "PLAY", "has_change_def": false, "packet_id": 293}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": 72, "tag": 3085, "value": 40, "has_change_def": false, "packet_id": 294}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": 72, "tag": "HEALTH", "value": 40, "has_change_def": false, "packet_id": 295}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": 72, "tag": 4741, "value": 1, "has_change_def": false, "packet_id": 296}
+{"t": "TagChange", "d": 2, "ts": "17:09:37.094411", "entity": 72, "tag": "LAST_AFFECTED_BY", "value": 61, "has_change_def": false, "packet_id": 297}
+{"t": "Block", "d": 0, "ts": "17:09:37.094411", "entity": 42, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "1", "target": 0, "suboption": -1, "trigger_keyword": 1724, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 298}
+{"t": "FullEntity", "d": 1, "ts": "17:09:37.094411", "entity": 103, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 103]], "packet_id": 299}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:37.094411", "entity": 103, "card_id": "VAC_422e", "tags": [["CONTROLLER", 1], ["CARDTYPE", "ENCHANTMENT"], ["ATTACHED", 2], ["ZONE", "SETASIDE"], ["ENTITY_ID", 103], ["CLASS", "NEUTRAL"], ["CREATOR", 42], [1037, 1], [1068, 0], ["CREATOR_DBID", 105893], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 300}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 103, "tag": 1068, "value": 1, "has_change_def": false, "packet_id": 301}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 103, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 302}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 103, "tag": "ZONE", "value": "PLAY", "has_change_def": false, "packet_id": 303}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 4741, "value": 1, "has_change_def": false, "packet_id": 304}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "LAST_AFFECTED_BY", "value": 42, "has_change_def": false, "packet_id": 305}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 103, "tag": "TAG_SCRIPT_DATA_NUM_1", "value": 105893, "has_change_def": false, "packet_id": 306}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 103, "tag": "TAG_SCRIPT_DATA_NUM_2", "value": 4, "has_change_def": false, "packet_id": 307}
+{"t": "Block", "d": 0, "ts": "17:09:37.094411", "entity": 77, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "1", "target": 0, "suboption": -1, "trigger_keyword": 1724, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 308}
+{"t": "FullEntity", "d": 1, "ts": "17:09:37.094411", "entity": 104, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 104]], "packet_id": 309}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:37.094411", "entity": 104, "card_id": "VAC_422e", "tags": [["CONTROLLER", 2], ["CARDTYPE", "ENCHANTMENT"], ["ATTACHED", 3], ["ZONE", "SETASIDE"], ["ENTITY_ID", 104], ["CLASS", "NEUTRAL"], ["CREATOR", 77], [1037, 2], [1068, 0], ["CREATOR_DBID", 105893], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 310}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 104, "tag": 1068, "value": 1, "has_change_def": false, "packet_id": 311}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 104, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 312}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 104, "tag": "ZONE", "value": "PLAY", "has_change_def": false, "packet_id": 313}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 4741, "value": 2, "has_change_def": false, "packet_id": 314}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "LAST_AFFECTED_BY", "value": 77, "has_change_def": false, "packet_id": 315}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 104, "tag": "TAG_SCRIPT_DATA_NUM_1", "value": 105893, "has_change_def": false, "packet_id": 316}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.094411", "entity": 104, "tag": "TAG_SCRIPT_DATA_NUM_2", "value": 4, "has_change_def": false, "packet_id": 317}
+{"t": "Block", "d": 0, "ts": "17:09:37.094411", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "4", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 318}
+{"t": "TagChange", "d": 0, "ts": "17:09:37.455937", "entity": 1, "tag": "STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 319}
+{"t": "Block", "d": 0, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 320}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 1, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 321}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 322}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 323}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 70, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 324}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 71, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 325}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 72, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 326}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 73, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 327}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "RESOURCES", "value": 1, "has_change_def": false, "packet_id": 328}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 329}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 1575, "value": 0, "has_change_def": false, "packet_id": 330}
+{"t": "TagChange", "d": 0, "ts": "17:09:37.455937", "entity": 1, "tag": "STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 331}
+{"t": "Block", "d": 0, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 332}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 333}
+{"t": "TagChange", "d": 0, "ts": "17:09:37.455937", "entity": 1, "tag": "STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 334}
+{"t": "Block", "d": 0, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 335}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 2166, "value": 94, "has_change_def": false, "packet_id": 336}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 337}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 94, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 338}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 94, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 339}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 94, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 340}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 94, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 341}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 3242, "value": 1, "has_change_def": false, "packet_id": 342}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_CARDS_DRAWN_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 343}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 995, "value": 1, "has_change_def": false, "packet_id": 344}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 345}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 346}
+{"t": "TagChange", "d": 0, "ts": "17:09:37.455937", "entity": 1, "tag": "STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 347}
+{"t": "Block", "d": 0, "ts": "17:09:37.455937", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 348}
+{"t": "TagChange", "d": 1, "ts": "17:09:37.455937", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_END", "has_change_def": false, "packet_id": 349}
+{"t": "Block", "d": 0, "ts": "17:09:53.213697", "entity": 66, "type": "PLAY", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 350}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 2245, "value": 1, "has_change_def": false, "packet_id": 351}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "RESOURCES_USED", "value": 1, "has_change_def": false, "packet_id": 352}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_RESOURCES_SPENT_THIS_GAME", "value": 1, "has_change_def": false, "packet_id": 353}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_CARDS_PLAYED_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 354}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_MINIONS_PLAYED_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 355}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": 94, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 356}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": 46, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 357}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": 66, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 358}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:53.213697", "entity": 66, "card_id": "TSC_908", "tags": [["CONTROLLER", 2], ["CARDTYPE", "MINION"], ["TAG_LAST_KNOWN_COST_IN_HAND", 1], [479, 1], ["COST", 1], ["ATK", 1], ["HEALTH", 3], ["ZONE", "PLAY"], ["ENTITY_ID", 66], ["ELITE", 1], ["CLASS", "NEUTRAL"], ["CARDRACE", "MURLOC"], ["RARITY", "LEGENDARY"], ["BATTLECRY", 1], ["JUST_PLAYED", 1], ["ZONE_POSITION", 0], ["NUM_TURNS_IN_HAND", 1], [478, 2], [1037, 0], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["HAS_DIAMOND_QUALITY", 1], ["HAS_ACTIVATE_POWER", 1], [3085, 3], [3557, 2], [4472, 1]], "packet_id": 359}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": 66, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 360}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": 66, "tag": 1196, "value": 1, "has_change_def": false, "packet_id": 361}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": 66, "tag": "EXHAUSTED", "value": 1, "has_change_def": false, "packet_id": 362}
+{"t": "MetaData", "d": 1, "ts": "17:09:53.213697", "meta": "SLUSH_TIME", "data": "3000", "count": 1, "info": [66], "packet_id": 363}
+{"t": "Block", "d": 1, "ts": "17:09:53.213697", "entity": 66, "type": "POWER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"entity": 66, "type": "PLAY", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 350}, "packet_id": 364}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 94, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 365}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 46, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 366}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 60, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 367}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 60, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 368}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 94, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 369}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 46, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 370}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 46, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 371}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 94, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 372}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 94, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 373}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 51, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 374}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 51, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 375}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 90, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 376}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 90, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 377}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 50, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 378}
+{"t": "TagChange", "d": 2, "ts": "17:09:53.213697", "entity": 50, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 379}
+{"t": "MetaData", "d": 2, "ts": "17:09:53.213697", "meta": "SLUSH_TIME", "data": "6000", "count": 1, "info": [66], "packet_id": 380}
+{"t": "MetaData", "d": 2, "ts": "17:09:53.213697", "meta": "HISTORY_TARGET", "data": "0", "count": 3, "info": [51, 90, 50], "packet_id": 381}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "COMBO_ACTIVE", "value": 1, "has_change_def": false, "packet_id": 382}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": 1, "tag": 1323, "value": 1, "has_change_def": false, "packet_id": 383}
+{"t": "TagChange", "d": 1, "ts": "17:09:53.213697", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_OPTIONS_PLAYED_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 384}
+{"t": "MetaData", "d": 0, "ts": "17:09:53.213697", "meta": "SLUSH_TIME", "data": "1000", "count": 1, "info": [66], "packet_id": 385}
+{"t": "TagChange", "d": 0, "ts": "17:09:55.202498", "entity": 66, "tag": 1196, "value": 0, "has_change_def": false, "packet_id": 386}
+{"t": "TagChange", "d": 0, "ts": "17:09:55.202498", "entity": 1, "tag": "STEP", "value": "MAIN_END", "has_change_def": false, "packet_id": 387}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 388}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 389}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_CLEANUP", "has_change_def": false, "packet_id": 390}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 391}
+{"t": "TagChange", "d": 0, "ts": "17:09:55.202498", "entity": 1, "tag": "STEP", "value": "MAIN_CLEANUP", "has_change_def": false, "packet_id": 392}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 393}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 394}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 66, "tag": "JUST_PLAYED", "value": 0, "has_change_def": false, "packet_id": 395}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "COMBO_ACTIVE", "value": 0, "has_change_def": false, "packet_id": 396}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_NEXT", "has_change_def": false, "packet_id": 397}
+{"t": "TagChange", "d": 0, "ts": "17:09:55.202498", "entity": 1, "tag": "STEP", "value": "MAIN_NEXT", "has_change_def": false, "packet_id": 398}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 399}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 1292, "value": 1, "has_change_def": false, "packet_id": 400}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 1292, "value": 0, "has_change_def": false, "packet_id": 401}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 1292, "value": 1, "has_change_def": false, "packet_id": 402}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "TIMEOUT", "value": 55, "has_change_def": false, "packet_id": 403}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 101, "tag": "NUM_TURNS_IN_HAND", "value": 2, "has_change_def": false, "packet_id": 404}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 43, "tag": "NUM_TURNS_IN_HAND", "value": 2, "has_change_def": false, "packet_id": 405}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 41, "tag": "NUM_TURNS_IN_HAND", "value": 2, "has_change_def": false, "packet_id": 406}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 21, "tag": "NUM_TURNS_IN_HAND", "value": 2, "has_change_def": false, "packet_id": 407}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 9, "tag": "NUM_TURNS_IN_HAND", "value": 2, "has_change_def": false, "packet_id": 408}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "CURRENT_PLAYER", "value": 0, "has_change_def": false, "packet_id": 409}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "CURRENT_PLAYER", "value": 1, "has_change_def": false, "packet_id": 410}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "TURN", "value": 2, "has_change_def": false, "packet_id": 411}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": 1882, "value": 1, "has_change_def": false, "packet_id": 412}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "TURN", "value": 1, "has_change_def": false, "packet_id": 413}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 414}
+{"t": "TagChange", "d": 0, "ts": "17:09:55.202498", "entity": 1, "tag": "STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 415}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 416}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "NUM_TURNS_IN_PLAY", "value": 2, "has_change_def": false, "packet_id": 417}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_TURNS_IN_PLAY", "value": 2, "has_change_def": false, "packet_id": 418}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_TURNS_IN_PLAY", "value": 2, "has_change_def": false, "packet_id": 419}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 70, "tag": "NUM_TURNS_IN_PLAY", "value": 2, "has_change_def": false, "packet_id": 420}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 71, "tag": "NUM_TURNS_IN_PLAY", "value": 2, "has_change_def": false, "packet_id": 421}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 72, "tag": "NUM_TURNS_IN_PLAY", "value": 2, "has_change_def": false, "packet_id": 422}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 73, "tag": "NUM_TURNS_IN_PLAY", "value": 2, "has_change_def": false, "packet_id": 423}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 66, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 424}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "RESOURCES", "value": 1, "has_change_def": false, "packet_id": 425}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_CARDS_DRAWN_THIS_TURN", "value": 0, "has_change_def": false, "packet_id": 426}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 427}
+{"t": "TagChange", "d": 0, "ts": "17:09:55.202498", "entity": 1, "tag": "STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 428}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 429}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 430}
+{"t": "TagChange", "d": 0, "ts": "17:09:55.202498", "entity": 1, "tag": "STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 431}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 432}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 2166, "value": 17, "has_change_def": false, "packet_id": 433}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 434}
+{"t": "ShowEntity", "d": 1, "ts": "17:09:55.202498", "entity": 17, "card_id": "BOT_054", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 1], ["COST", 1], ["ZONE", "HAND"], ["ENTITY_ID", 17], ["CLASS", "DRUID"], ["RARITY", "COMMON"], [478, 1], [1037, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4]], "packet_id": 435}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 17, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 436}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 17, "tag": "ZONE_POSITION", "value": 6, "has_change_def": false, "packet_id": 437}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 17, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 438}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 17, "tag": "ZONE_POSITION", "value": 6, "has_change_def": false, "packet_id": 439}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 3242, "value": 1, "has_change_def": false, "packet_id": 440}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_CARDS_DRAWN_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 441}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 995, "value": 1, "has_change_def": false, "packet_id": 442}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 17, "tag": 1570, "value": 2, "has_change_def": false, "packet_id": 443}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 444}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 445}
+{"t": "TagChange", "d": 0, "ts": "17:09:55.202498", "entity": 1, "tag": "STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 446}
+{"t": "Block", "d": 0, "ts": "17:09:55.202498", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 447}
+{"t": "TagChange", "d": 1, "ts": "17:09:55.202498", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_END", "has_change_def": false, "packet_id": 448}
+{"t": "Options", "d": 0, "ts": "17:09:55.292824", "entity": null, "id": 3, "options": [{"entity": null, "id": 0, "type": "END_TURN", "optype": "option", "error": "INVALID", "error_param": null, "options": [], "packet_id": 449}, {"entity": 101, "id": 1, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 450}, {"entity": 43, "id": 2, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 451}, {"entity": 41, "id": 3, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [{"entity": 66, "id": 0, "type": null, "optype": "target", "error": null, "error_param": null, "options": [], "packet_id": 453}, {"entity": 70, "id": 1, "type": null, "optype": "target", "error": "REQ_MINION_TARGET", "error_param": null, "options": [], "packet_id": 454}, {"entity": 72, "id": 2, "type": null, "optype": "target", "error": "REQ_MINION_TARGET", "error_param": null, "options": [], "packet_id": 455}], "packet_id": 452}, {"entity": 21, "id": 4, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 456}, {"entity": 9, "id": 5, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 457}, {"entity": 17, "id": 6, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 458}, {"entity": 70, "id": 7, "type": "POWER", "optype": "option", "error": "REQ_ATTACK_GREATER_THAN_0", "error_param": null, "options": [], "packet_id": 459}, {"entity": 71, "id": 8, "type": "POWER", "optype": "option", "error": "REQ_ENOUGH_MANA", "error_param": null, "options": [], "packet_id": 460}, {"entity": 72, "id": 9, "type": "POWER", "optype": "option", "error": "REQ_YOUR_TURN", "error_param": null, "options": [], "packet_id": 461}, {"entity": 73, "id": 10, "type": "POWER", "optype": "option", "error": "REQ_YOUR_TURN", "error_param": null, "options": [], "packet_id": 462}, {"entity": 66, "id": 11, "type": "POWER", "optype": "option", "error": "REQ_YOUR_TURN", "error_param": null, "options": [], "packet_id": 463}]}
+{"t": "SendOption", "d": 0, "ts": "17:10:03.733386", "entity": null, "option": 0, "suboption": -1, "target": 0, "position": 0, "packet_id": 464}
+{"t": "TagChange", "d": 0, "ts": "17:10:04.568074", "entity": 1, "tag": "STEP", "value": "MAIN_END", "has_change_def": false, "packet_id": 465}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 466}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_CLEANUP", "has_change_def": false, "packet_id": 467}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 468}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 469}
+{"t": "TagChange", "d": 0, "ts": "17:10:04.568074", "entity": 1, "tag": "STEP", "value": "MAIN_CLEANUP", "has_change_def": false, "packet_id": 470}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 471}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 1854, "value": 1, "has_change_def": false, "packet_id": 472}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_NEXT", "has_change_def": false, "packet_id": 473}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 474}
+{"t": "TagChange", "d": 0, "ts": "17:10:04.568074", "entity": 1, "tag": "STEP", "value": "MAIN_NEXT", "has_change_def": false, "packet_id": 475}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 476}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 1292, "value": 0, "has_change_def": false, "packet_id": 477}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 1292, "value": 1, "has_change_def": false, "packet_id": 478}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "TIMEOUT", "value": 55, "has_change_def": false, "packet_id": 479}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 101, "tag": "NUM_TURNS_IN_HAND", "value": 3, "has_change_def": false, "packet_id": 480}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 43, "tag": "NUM_TURNS_IN_HAND", "value": 3, "has_change_def": false, "packet_id": 481}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 41, "tag": "NUM_TURNS_IN_HAND", "value": 3, "has_change_def": false, "packet_id": 482}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 21, "tag": "NUM_TURNS_IN_HAND", "value": 3, "has_change_def": false, "packet_id": 483}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 9, "tag": "NUM_TURNS_IN_HAND", "value": 3, "has_change_def": false, "packet_id": 484}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 17, "tag": "NUM_TURNS_IN_HAND", "value": 2, "has_change_def": false, "packet_id": 485}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "CURRENT_PLAYER", "value": 0, "has_change_def": false, "packet_id": 486}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "CURRENT_PLAYER", "value": 1, "has_change_def": false, "packet_id": 487}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "TURN", "value": 3, "has_change_def": false, "packet_id": 488}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": 1882, "value": 2, "has_change_def": false, "packet_id": 489}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "TURN", "value": 2, "has_change_def": false, "packet_id": 490}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 491}
+{"t": "TagChange", "d": 0, "ts": "17:10:04.568074", "entity": 1, "tag": "STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 492}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 493}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "NUM_TURNS_IN_PLAY", "value": 3, "has_change_def": false, "packet_id": 494}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_TURNS_IN_PLAY", "value": 3, "has_change_def": false, "packet_id": 495}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_TURNS_IN_PLAY", "value": 3, "has_change_def": false, "packet_id": 496}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 70, "tag": "NUM_TURNS_IN_PLAY", "value": 3, "has_change_def": false, "packet_id": 497}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 71, "tag": "NUM_TURNS_IN_PLAY", "value": 3, "has_change_def": false, "packet_id": 498}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 72, "tag": "NUM_TURNS_IN_PLAY", "value": 3, "has_change_def": false, "packet_id": 499}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 73, "tag": "NUM_TURNS_IN_PLAY", "value": 3, "has_change_def": false, "packet_id": 500}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 66, "tag": "NUM_TURNS_IN_PLAY", "value": 2, "has_change_def": false, "packet_id": 501}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "RESOURCES", "value": 2, "has_change_def": false, "packet_id": 502}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "RESOURCES_USED", "value": 0, "has_change_def": false, "packet_id": 503}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_CARDS_PLAYED_THIS_TURN", "value": 0, "has_change_def": false, "packet_id": 504}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_MINIONS_PLAYED_THIS_TURN", "value": 0, "has_change_def": false, "packet_id": 505}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_OPTIONS_PLAYED_THIS_TURN", "value": 0, "has_change_def": false, "packet_id": 506}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 3242, "value": 0, "has_change_def": false, "packet_id": 507}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 66, "tag": "EXHAUSTED", "value": 0, "has_change_def": false, "packet_id": 508}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_CARDS_DRAWN_THIS_TURN", "value": 0, "has_change_def": false, "packet_id": 509}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 510}
+{"t": "TagChange", "d": 0, "ts": "17:10:04.568074", "entity": 1, "tag": "STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 511}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 512}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 513}
+{"t": "TagChange", "d": 0, "ts": "17:10:04.568074", "entity": 1, "tag": "STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 514}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 515}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 2166, "value": 78, "has_change_def": false, "packet_id": 516}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 517}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 78, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 518}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 78, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 519}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 78, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 520}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 78, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 521}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 3242, "value": 1, "has_change_def": false, "packet_id": 522}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_CARDS_DRAWN_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 523}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 995, "value": 2, "has_change_def": false, "packet_id": 524}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 525}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 526}
+{"t": "TagChange", "d": 0, "ts": "17:10:04.568074", "entity": 1, "tag": "STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 527}
+{"t": "Block", "d": 0, "ts": "17:10:04.568074", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 528}
+{"t": "TagChange", "d": 1, "ts": "17:10:04.568074", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_END", "has_change_def": false, "packet_id": 529}
+{"t": "Block", "d": 0, "ts": "17:10:08.333929", "entity": 50, "type": "DECK_ACTION", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 530}
+{"t": "TagChange", "d": 1, "ts": "17:10:08.333929", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 2245, "value": 3, "has_change_def": false, "packet_id": 531}
+{"t": "TagChange", "d": 1, "ts": "17:10:08.333929", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "RESOURCES_USED", "value": 2, "has_change_def": false, "packet_id": 532}
+{"t": "TagChange", "d": 1, "ts": "17:10:08.333929", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_RESOURCES_SPENT_THIS_GAME", "value": 3, "has_change_def": false, "packet_id": 533}
+{"t": "TagChange", "d": 1, "ts": "17:10:08.333929", "entity": 50, "tag": "FORGE_REVEALED", "value": 1, "has_change_def": false, "packet_id": 534}
+{"t": "MetaData", "d": 1, "ts": "17:10:08.333929", "meta": "SLUSH_TIME", "data": "3000", "count": 1, "info": [50], "packet_id": 535}
+{"t": "Block", "d": 1, "ts": "17:10:08.333929", "entity": 50, "type": "POWER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"entity": 50, "type": "DECK_ACTION", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 530}, "packet_id": 536}
+{"t": "MetaData", "d": 2, "ts": "17:10:08.333929", "meta": "TARGET", "data": "0", "count": 1, "info": [50], "packet_id": 537}
+{"t": "TagChange", "d": 1, "ts": "17:10:08.333929", "entity": 50, "tag": "FORGE_REVEALED", "value": 0, "has_change_def": false, "packet_id": 538}
+{"t": "TagChange", "d": 1, "ts": "17:10:08.333929", "entity": 1, "tag": 1323, "value": 2, "has_change_def": false, "packet_id": 539}
+{"t": "TagChange", "d": 1, "ts": "17:10:08.333929", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_OPTIONS_PLAYED_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 540}
+{"t": "MetaData", "d": 0, "ts": "17:10:08.333929", "meta": "SLUSH_TIME", "data": "1000", "count": 1, "info": [50], "packet_id": 541}
+{"t": "TagChange", "d": 0, "ts": "17:10:09.922581", "entity": 66, "tag": "CARD_TARGET", "value": 70, "has_change_def": false, "packet_id": 542}
+{"t": "Block", "d": 0, "ts": "17:10:09.922581", "entity": 66, "type": "ATTACK", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 70, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 543}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 66, "tag": 1715, "value": 66, "has_change_def": false, "packet_id": 544}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": 1715, "value": 66, "has_change_def": false, "packet_id": 545}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_FRIENDLY_MINIONS_THAT_ATTACKED_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 546}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 1, "tag": "PROPOSED_ATTACKER", "value": 66, "has_change_def": false, "packet_id": 547}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 1, "tag": "PROPOSED_DEFENDER", "value": 70, "has_change_def": false, "packet_id": 548}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 66, "tag": "ATTACKING", "value": 1, "has_change_def": false, "packet_id": 549}
+{"t": "MetaData", "d": 1, "ts": "17:10:09.922581", "meta": "SLUSH_TIME", "data": "1200", "count": 1, "info": [66], "packet_id": 550}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": "DEFENDING", "value": 1, "has_change_def": false, "packet_id": 551}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 66, "tag": "NUM_ATTACKS_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 552}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 66, "tag": 4163, "value": 1, "has_change_def": false, "packet_id": 553}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 66, "tag": "EXHAUSTED", "value": 1, "has_change_def": false, "packet_id": 554}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": 2187, "value": 66, "has_change_def": false, "packet_id": 555}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": "PREDAMAGE", "value": 1, "has_change_def": false, "packet_id": 556}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": 1173, "value": 70, "has_change_def": false, "packet_id": 557}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": 2187, "value": 0, "has_change_def": false, "packet_id": 558}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": "PREDAMAGE", "value": 0, "has_change_def": false, "packet_id": 559}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": 1173, "value": 0, "has_change_def": false, "packet_id": 560}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": "PREDAMAGE", "value": 1, "has_change_def": false, "packet_id": 561}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": "PREDAMAGE", "value": 0, "has_change_def": false, "packet_id": 562}
+{"t": "MetaData", "d": 1, "ts": "17:10:09.922581", "meta": "DAMAGE", "data": "1", "count": 1, "info": [70], "packet_id": 563}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": 4741, "value": 1, "has_change_def": false, "packet_id": 564}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": "LAST_AFFECTED_BY", "value": 66, "has_change_def": false, "packet_id": 565}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": "DAMAGE", "value": 1, "has_change_def": false, "packet_id": 566}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 464, "value": 1, "has_change_def": false, "packet_id": 567}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 1853, "value": 1, "has_change_def": false, "packet_id": 568}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 4453, "value": 1, "has_change_def": false, "packet_id": 569}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "DAMAGE_DEALT_TO_HERO_LAST_TURN", "value": 1, "has_change_def": false, "packet_id": 570}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 1575, "value": 1, "has_change_def": false, "packet_id": 571}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 1, "tag": 1710, "value": 1, "has_change_def": false, "packet_id": 572}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 1, "tag": 1710, "value": 0, "has_change_def": false, "packet_id": 573}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 1, "tag": "PROPOSED_ATTACKER", "value": 0, "has_change_def": false, "packet_id": 574}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 1, "tag": "PROPOSED_DEFENDER", "value": 0, "has_change_def": false, "packet_id": 575}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 66, "tag": "ATTACKING", "value": 0, "has_change_def": false, "packet_id": 576}
+{"t": "TagChange", "d": 1, "ts": "17:10:09.922581", "entity": 70, "tag": "DEFENDING", "value": 0, "has_change_def": false, "packet_id": 577}
+{"t": "TagChange", "d": 0, "ts": "17:10:09.922581", "entity": 1, "tag": 1323, "value": 3, "has_change_def": false, "packet_id": 578}
+{"t": "TagChange", "d": 0, "ts": "17:10:09.922581", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_OPTIONS_PLAYED_THIS_TURN", "value": 2, "has_change_def": false, "packet_id": 579}
+{"t": "MetaData", "d": 0, "ts": "17:10:09.922581", "meta": "SLUSH_TIME", "data": "1000", "count": 1, "info": [66], "packet_id": 580}
+{"t": "TagChange", "d": 0, "ts": "17:10:11.040748", "entity": 1, "tag": "STEP", "value": "MAIN_END", "has_change_def": false, "packet_id": 581}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 582}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 583}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_CLEANUP", "has_change_def": false, "packet_id": 584}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 585}
+{"t": "TagChange", "d": 0, "ts": "17:10:11.040748", "entity": 1, "tag": "STEP", "value": "MAIN_CLEANUP", "has_change_def": false, "packet_id": 586}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 587}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 588}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_NEXT", "has_change_def": false, "packet_id": 589}
+{"t": "TagChange", "d": 0, "ts": "17:10:11.040748", "entity": 1, "tag": "STEP", "value": "MAIN_NEXT", "has_change_def": false, "packet_id": 590}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 591}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": 1292, "value": 0, "has_change_def": false, "packet_id": 592}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 1292, "value": 1, "has_change_def": false, "packet_id": 593}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "TIMEOUT", "value": 75, "has_change_def": false, "packet_id": 594}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 101, "tag": "NUM_TURNS_IN_HAND", "value": 4, "has_change_def": false, "packet_id": 595}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 43, "tag": "NUM_TURNS_IN_HAND", "value": 4, "has_change_def": false, "packet_id": 596}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 41, "tag": "NUM_TURNS_IN_HAND", "value": 4, "has_change_def": false, "packet_id": 597}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 21, "tag": "NUM_TURNS_IN_HAND", "value": 4, "has_change_def": false, "packet_id": 598}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 9, "tag": "NUM_TURNS_IN_HAND", "value": 4, "has_change_def": false, "packet_id": 599}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 17, "tag": "NUM_TURNS_IN_HAND", "value": 3, "has_change_def": false, "packet_id": 600}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "CURRENT_PLAYER", "value": 0, "has_change_def": false, "packet_id": 601}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "CURRENT_PLAYER", "value": 1, "has_change_def": false, "packet_id": 602}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "TURN", "value": 4, "has_change_def": false, "packet_id": 603}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": 1882, "value": 3, "has_change_def": false, "packet_id": 604}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "TURN", "value": 2, "has_change_def": false, "packet_id": 605}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 606}
+{"t": "TagChange", "d": 0, "ts": "17:10:11.040748", "entity": 1, "tag": "STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 607}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 608}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "NUM_TURNS_IN_PLAY", "value": 4, "has_change_def": false, "packet_id": 609}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_TURNS_IN_PLAY", "value": 4, "has_change_def": false, "packet_id": 610}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_TURNS_IN_PLAY", "value": 4, "has_change_def": false, "packet_id": 611}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 70, "tag": "NUM_TURNS_IN_PLAY", "value": 4, "has_change_def": false, "packet_id": 612}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 71, "tag": "NUM_TURNS_IN_PLAY", "value": 4, "has_change_def": false, "packet_id": 613}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 72, "tag": "NUM_TURNS_IN_PLAY", "value": 4, "has_change_def": false, "packet_id": 614}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 73, "tag": "NUM_TURNS_IN_PLAY", "value": 4, "has_change_def": false, "packet_id": 615}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 66, "tag": "NUM_TURNS_IN_PLAY", "value": 3, "has_change_def": false, "packet_id": 616}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "RESOURCES", "value": 2, "has_change_def": false, "packet_id": 617}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 66, "tag": "NUM_ATTACKS_THIS_TURN", "value": 0, "has_change_def": false, "packet_id": 618}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 3242, "value": 0, "has_change_def": false, "packet_id": 619}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_CARDS_DRAWN_THIS_TURN", "value": 0, "has_change_def": false, "packet_id": 620}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 621}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 464, "value": 0, "has_change_def": false, "packet_id": 622}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 4453, "value": 0, "has_change_def": false, "packet_id": 623}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 1575, "value": 0, "has_change_def": false, "packet_id": 624}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "早川奈子#5105", "entity_id": 3, "player_id": 2}, "tag": "NUM_FRIENDLY_MINIONS_THAT_ATTACKED_THIS_TURN", "value": 0, "has_change_def": false, "packet_id": 625}
+{"t": "TagChange", "d": 0, "ts": "17:10:11.040748", "entity": 1, "tag": "STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 626}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 627}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 628}
+{"t": "TagChange", "d": 0, "ts": "17:10:11.040748", "entity": 1, "tag": "STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 629}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 630}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 2166, "value": 27, "has_change_def": false, "packet_id": 631}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 632}
+{"t": "ShowEntity", "d": 1, "ts": "17:10:11.040748", "entity": 27, "card_id": "SC_753", "tags": [["CONTROLLER", 1], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["ZONE", "HAND"], ["ENTITY_ID", 27], ["RARITY", "COMMON"], ["MULTIPLE_CLASSES", 106], [478, 1], [1037, 1], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], [1724, 1], ["MINI_SET", 1], ["PROTOSS", 1]], "packet_id": 633}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 27, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 634}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 27, "tag": "ZONE_POSITION", "value": 7, "has_change_def": false, "packet_id": 635}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 27, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 636}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 27, "tag": "ZONE_POSITION", "value": 7, "has_change_def": false, "packet_id": 637}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 3242, "value": 1, "has_change_def": false, "packet_id": 638}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_CARDS_DRAWN_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 639}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 995, "value": 2, "has_change_def": false, "packet_id": 640}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 27, "tag": 1570, "value": 4, "has_change_def": false, "packet_id": 641}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 642}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 643}
+{"t": "TagChange", "d": 0, "ts": "17:10:11.040748", "entity": 1, "tag": "STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 644}
+{"t": "Block", "d": 0, "ts": "17:10:11.040748", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 645}
+{"t": "TagChange", "d": 1, "ts": "17:10:11.040748", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_END", "has_change_def": false, "packet_id": 646}
+{"t": "Options", "d": 0, "ts": "17:10:11.116426", "entity": null, "id": 7, "options": [{"entity": null, "id": 0, "type": "END_TURN", "optype": "option", "error": "INVALID", "error_param": null, "options": [], "packet_id": 647}, {"entity": 101, "id": 1, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 648}, {"entity": 43, "id": 2, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 649}, {"entity": 41, "id": 3, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [{"entity": 66, "id": 0, "type": null, "optype": "target", "error": null, "error_param": null, "options": [], "packet_id": 651}, {"entity": 70, "id": 1, "type": null, "optype": "target", "error": "REQ_MINION_TARGET", "error_param": null, "options": [], "packet_id": 652}, {"entity": 72, "id": 2, "type": null, "optype": "target", "error": "REQ_MINION_TARGET", "error_param": null, "options": [], "packet_id": 653}], "packet_id": 650}, {"entity": 21, "id": 4, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 654}, {"entity": 9, "id": 5, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 655}, {"entity": 17, "id": 6, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 656}, {"entity": 27, "id": 7, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [{"entity": 70, "id": 0, "type": null, "optype": "target", "error": null, "error_param": null, "options": [], "packet_id": 658}, {"entity": 72, "id": 1, "type": null, "optype": "target", "error": null, "error_param": null, "options": [], "packet_id": 659}, {"entity": 66, "id": 2, "type": null, "optype": "target", "error": null, "error_param": null, "options": [], "packet_id": 660}], "packet_id": 657}, {"entity": 71, "id": 8, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 661}, {"entity": 70, "id": 9, "type": "POWER", "optype": "option", "error": "REQ_ATTACK_GREATER_THAN_0", "error_param": null, "options": [], "packet_id": 662}, {"entity": 72, "id": 10, "type": "POWER", "optype": "option", "error": "REQ_YOUR_TURN", "error_param": null, "options": [], "packet_id": 663}, {"entity": 73, "id": 11, "type": "POWER", "optype": "option", "error": "REQ_YOUR_TURN", "error_param": null, "options": [], "packet_id": 664}, {"entity": 66, "id": 12, "type": "POWER", "optype": "option", "error": "REQ_YOUR_TURN", "error_param": null, "options": [], "packet_id": 665}]}
+{"t": "SendOption", "d": 0, "ts": "17:10:17.529978", "entity": null, "option": 8, "suboption": -1, "target": 0, "position": 0, "packet_id": 666}
+{"t": "Block", "d": 0, "ts": "17:10:17.913906", "entity": 71, "type": "PLAY", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 667}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 2245, "value": 2, "has_change_def": false, "packet_id": 668}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "RESOURCES_USED", "value": 2, "has_change_def": false, "packet_id": 669}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_RESOURCES_SPENT_THIS_GAME", "value": 2, "has_change_def": false, "packet_id": 670}
+{"t": "MetaData", "d": 1, "ts": "17:10:17.913906", "meta": "SLUSH_TIME", "data": "2000", "count": 1, "info": [71], "packet_id": 671}
+{"t": "Block", "d": 1, "ts": "17:10:17.913906", "entity": 71, "type": "POWER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"entity": 71, "type": "PLAY", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": null, "ended": true, "parent": {"parent": null, "packet_counter": 699, "spectator_mode": false}, "packet_id": 667}, "packet_id": 672}
+{"t": "MetaData", "d": 2, "ts": "17:10:17.913906", "meta": "EFFECT_TIMING", "data": "0", "count": 1, "info": [71], "packet_id": 673}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 70, "tag": 3883, "value": 1, "has_change_def": false, "packet_id": 674}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 70, "tag": 3883, "value": 0, "has_change_def": false, "packet_id": 675}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 70, "tag": "ARMOR", "value": 1, "has_change_def": false, "packet_id": 676}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "ARMOR_GAINED_THIS_GAME", "value": 1, "has_change_def": false, "packet_id": 677}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 2786, "value": 1, "has_change_def": false, "packet_id": 678}
+{"t": "FullEntity", "d": 2, "ts": "17:10:17.913906", "entity": 116, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 116]], "packet_id": 679}
+{"t": "ShowEntity", "d": 2, "ts": "17:10:17.913906", "entity": 116, "card_id": "CS2_017o", "tags": [["CONTROLLER", 1], ["CARDTYPE", "ENCHANTMENT"], ["TAG_SCRIPT_DATA_NUM_1", 1], ["PREMIUM", 1], ["ATTACHED", 70], ["ZONE", "SETASIDE"], ["ENTITY_ID", 116], ["CLASS", "DRUID"], ["CREATOR", 71], ["TAG_ONE_TURN_EFFECT", 1], [1037, 1], [1068, 0], ["CREATOR_DBID", 66926], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 680}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 70, "tag": "TAG_ONE_TURN_EFFECT", "value": 1, "has_change_def": false, "packet_id": 681}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 116, "tag": 1068, "value": 1, "has_change_def": false, "packet_id": 682}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 116, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 683}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 116, "tag": "ZONE", "value": "PLAY", "has_change_def": false, "packet_id": 684}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 70, "tag": 479, "value": 1, "has_change_def": false, "packet_id": 685}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 70, "tag": "ATK", "value": 1, "has_change_def": false, "packet_id": 686}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 70, "tag": 4741, "value": 2, "has_change_def": false, "packet_id": 687}
+{"t": "TagChange", "d": 2, "ts": "17:10:17.913906", "entity": 70, "tag": "LAST_AFFECTED_BY", "value": 71, "has_change_def": false, "packet_id": 688}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "HEROPOWER_ACTIVATIONS_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 689}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": 1739, "value": 1, "has_change_def": false, "packet_id": 690}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_TIMES_HERO_POWER_USED_THIS_GAME", "value": 1, "has_change_def": false, "packet_id": 691}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": 71, "tag": "HEROPOWER_ACTIVATIONS_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 692}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": 71, "tag": "EXHAUSTED", "value": 1, "has_change_def": false, "packet_id": 693}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": 1, "tag": 1323, "value": 4, "has_change_def": false, "packet_id": 694}
+{"t": "TagChange", "d": 1, "ts": "17:10:17.913906", "entity": {"name": "湫然#51704", "entity_id": 2, "player_id": 1}, "tag": "NUM_OPTIONS_PLAYED_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 695}
+{"t": "MetaData", "d": 0, "ts": "17:10:17.913906", "meta": "SLUSH_TIME", "data": "1000", "count": 1, "info": [71], "packet_id": 696}
+{"t": "Options", "d": 0, "ts": "17:10:17.921564", "entity": null, "id": 8, "options": [{"entity": null, "id": 0, "type": "END_TURN", "optype": "option", "error": "INVALID", "error_param": null, "options": [], "packet_id": 697}, {"entity": 101, "id": 1, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 698}, {"entity": 43, "id": 2, "type": "POWER", "optype": "option", "error": null, "error_param": null, "options": [], "packet_id": 699}]}

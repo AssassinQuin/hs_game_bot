@@ -141,7 +141,6 @@ class EffectAnalyzer:
         total = sum(e.base + spellpower * e.hits for e in dmg)
         return {"total": total, "hits": max(e.hits for e in dmg)}
 
-    def infer_trigger_card(self, keyword, effect_index, deck_count): ...  # 原样保留
     def enrich(self, evt, store): ...                                     # 接口不变
 ```
 
@@ -151,7 +150,9 @@ carddb 保持纯字典,新增只读 `text(card_id)`(已就位)。
 ## 8. 诚实性原则
 
 - 语法表未覆盖 → `Unknown(raw)` 入 IR,不产生任何标注(宁可少说不说错);
-- 指纹推断(雷纳索尔)带 `inferred: true` 供渲染层标注;
+- 触发命名只认日志揭示(SHOW_ENTITY 回填的 card_id),不做指纹猜测 —— 2026-09-13
+  实测:旧"开局+Idx=1+牌库≥31 → 雷纳索尔"指纹在新环境(阿扎莉娜等新 40 卡引擎、
+  伊瑟拉等开局牌普及)会误标;未揭示的开局触发由渲染层判弃,揭示后以真名出一次;
 - random_split 类预估按不放大法强处理,注释说明误差来源。
 
 ## 9. 测试策略
@@ -176,3 +177,34 @@ carddb 保持纯字典,新增只读 `text(card_id)`(已就位)。
 - 不引入外部 NLP/LLM 解析卡牌文本——语法表覆盖可判定效果,未覆盖保持未知;
 - 不把 IR 写回 store 状态——IR 是派生事实,不参与状态权威;
 - 不做客户端资源包逆向(成本/合规不成比例,官方导出已够)。
+
+## 12. 扩表记录(2026-09-13, 出现牌驱动)
+
+> 方法: 扫描"对局出现过的 cardId 全集"(live 日志 + 训练语料切片 + 登记卡表,
+> 513 张) → Unknown 文本聚类 → 按簇扩规则族。不做全卡表 speculative 扩张。
+> **覆盖率: 100/513(19.5%) → 368/513(71.7%)**, 余 78 张有文本未覆盖(单例长尾,
+> 诚实保持 Unknown) + 67 张无文本 token/附慕(本来无可解析)。
+
+新增 IR kind: `Draw(amount, scope)` / `Armor(amount)` / `Buff(atk, hp)` /
+`Summon(count, atk, hp, scope)` / `CostUp(amount)`; CostDown.scope 扩
+self / target / drawn / your:X(类目词容 <b> 标签)。COMPILER_VERSION=6。
+
+T1 斩杀线(2026-09-13): 新增 `SpellPower(amount)`(法术伤害增益族, "法术伤害+N",
+含 `<b>`/「使其获得」容错)与 `Mechanic("cast_draw")`(施法抽牌触发, 文本通道,
+拍卖师族)。COMPILER_VERSION=7。(注: 触发句会被抽牌族裸规则同时误标一条
+Draw(1), 当前无消费方, 见 effects.py MECHANICS 行注释。)
+
+规则要点(实测措辞驱动):
+- 英雄技能占位符: `#N`=固定值(不吃法强), `$d`=护甲模板, `$a`=攻击模板;
+- 抽牌族否定镜: `(?<!每)`挡"每抽一张牌"(动态减费条件), `(?<!在)(?<!手)`挡
+  "在你的对手抽牌后"(对手侧事件)—— 抽牌事实只认本牌自己的抽牌效果;
+- 减费 scope 口径: self/drawn/hand/next/your 计入 mana_ramp_value 等效回费
+  (沿用"建造水晶塔按面值"定版); **target(使其/它的/其, 如侦察)不计回费**
+  —— 减的是尚未入手的牌;
+- 加费族独立成 CostUp(死灵光环/前沿哨所), 不混入回费口径;
+- 机制标签表扩至 30 行(出现牌 mechanics[] 词表盘点, 玩家可见关键词才收录:
+  CHARGE/RUSH/TAUNT/…/STARSHIP_PIECE; TRIGGER_VISUAL/AURA 等引擎内部旗标不打标)
+  —— 关键词-only 卡(冲锋/突袭/潜行/复生)由数据通道覆盖, 不写文本规则。
+
+`parse-cards` 同步: 扫描范围加语料切片(客户端轮转删老会话日志, 语料是历史
+对局持久全集); 报告按 IR kind 通用化(covered/uncovered/notext 旧键保留)。

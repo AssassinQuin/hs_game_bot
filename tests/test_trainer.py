@@ -107,3 +107,57 @@ def test_group_folds_no_leakage():
         assert not (g_tr & g_va)                # 同组绝不跨训练/验证
         seen_all.extend(va)
     assert sorted(seen_all) == list(range(len(groups)))  # 每个样本恰验证一次
+
+
+def test_mulligan_dispatch_position_independent(monkeypatch):
+    """2026-09-13 实测: watcher 拼参把旗标放在子命令前(--config…mulligan train),
+    分发若只认 argv[0] 会落进 argparse 报 invalid choice。"""
+    import trainer.__main__ as cli
+
+    seen = {}
+
+    def fake_main(a):
+        seen["argv"] = list(a)
+        return 0
+
+    monkeypatch.setattr(cli.mulligan, "main", fake_main)
+    argv = ["--config", "x.yaml", "--data-dir", "d", "--deck", "奇迹德",
+            "mulligan", "train"]
+    assert cli.main(argv) == 0
+    assert seen["argv"] == ["--config", "x.yaml", "--data-dir", "d",
+                            "--deck", "奇迹德", "train"]  # 仅摘掉 mulligan 令牌
+
+
+def test_mulligan_flags_before_subcommand(monkeypatch):
+    """argparse 子解析的 default 会把子命令前设置的同名旗标盖回 None(实测);
+    add_common(sub=True) 用 SUPPRESS 压制 —— watcher 旗标全部前置, 此语义必须成立。"""
+    import trainer.mulligan as tm
+    seen = {}
+
+    def fake_report(cfg, deck):
+        seen["deck"] = deck
+        return 0
+
+    monkeypatch.setattr(tm, "cmd_report", fake_report)
+    rc = tm.main(["--config", "no-such.yaml", "--data-dir", "X",
+                  "--deck", "测试卡组", "report"])
+    assert rc == 0
+    assert seen["deck"] == "测试卡组"            # 前置 --deck 不被子命令默认值覆盖
+
+
+def test_cli_flags_before_subcommand(monkeypatch, tmp_path):
+    """__main__ 同样语义: 前置 --deck/--corpus/--out 须原样抵达 material。"""
+    import trainer.__main__ as cli
+    seen = {}
+    stats = {"rows": 0, "games": 0, "slices": 0, "wins": 0, "skip": {}}
+
+    def fake_build(corpus, deck, out, carddb, battletag):
+        seen.update(corpus=str(corpus), deck=deck, out=str(out))
+        return stats
+
+    monkeypatch.setattr(cli.material, "build_material", fake_build)
+    rc = cli.main(["--config", "no-such.yaml", "--data-dir", str(tmp_path),
+                   "--deck", "测试卡组", "--corpus", "C", "--out", "O",
+                   "material"])
+    assert rc == 0
+    assert seen == {"corpus": "C", "deck": "测试卡组", "out": "O"}

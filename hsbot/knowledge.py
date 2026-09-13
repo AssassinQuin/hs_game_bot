@@ -29,6 +29,7 @@ _LEDGER_TYPES = (CardType.SPELL, CardType.MINION, CardType.WEAPON,
 class Ledger:
     in_hand: Counter = field(default_factory=Counter)
     used: Counter = field(default_factory=Counter)       # 已打出/已进墓地/奥秘位
+    lost: Counter = field(default_factory=Counter)       # 被偷本体(控制权转对手)
     remaining: Counter = field(default_factory=Counter)  # 牌库剩余期望组成
     deck_actual: int = 0                                 # DECK 区真实张数
     known_top: str | None = None                         # 顶牌已知(=下次抽确定)
@@ -84,7 +85,17 @@ class DeckKnowledge:
                     used[cid] += 1
             led.in_hand = hand
             led.used = used
-            led.remaining = Counter(self.decklist) - hand - used
+            # 被偷本体(嫉妒收割者类): 控制权已转对手的实体, 揭示后按卡号扣除
+            # —— 不扣则牌库剩余期望/库侧斩杀/费用一直多算(2026-09-13 用户要求)
+            lost: Counter = Counter()
+            for eid in st.stolen_eids:
+                se = st.get(eid)
+                scid = getattr(se, "card_id", None) if se is not None else None
+                if (scid and scid in self.decklist and not is_generated(se)
+                        and se.tags.get(GameTag.CARDTYPE) in _LEDGER_TYPES):
+                    lost[scid] += 1
+            led.lost = lost
+            led.remaining = Counter(self.decklist) - hand - used - lost
             deck_ents = st.deck_entities(me)
             led.deck_actual = len(deck_ents)
 

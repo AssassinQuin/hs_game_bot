@@ -99,9 +99,64 @@ def test_deferred_drained_even_when_play_bails():
     assert log.kinds().count("play") == 0
 
 
-def test_prepare_precedes_its_cost_change():
-    """2026-09-13 实测: 预备完成(DECK_ACTION)块内的费用变化曾先于预备信息。
-    块开始即发"预备完成", 块内费用变化随后 —— 先预备后费用改变。"""
+def _prepare_sequence(st):
+    """按 20_48_57_g03 实测的 DECK_ACTION 预备块原始结构搭一局:
+    块开始(暂存预备完成) → 挂"正在预备"附魔 → 宿主 PREPARING=1 →
+    挂"预备完毕"附魔 → 块内减费 9→4 → 收口。"""
+    st.apply(mk_full(83, "JAIL_718", ZONE=Zone.HAND.value, CONTROLLER=1,
+                     CARDTYPE=CardType.MINION.value, COST=9, PREPARE=1))
+    b = mk_block(BlockType.DECK_ACTION, 83)
+    st.apply(b, depth=0)
+    st.apply(mk_full(84, "JAIL_907e02", ZONE=Zone.SETASIDE.value, CONTROLLER=1,
+                     CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=83), depth=1)
+    st.apply(mk_tag(84, GameTag.ZONE, Zone.PLAY.value), depth=1)
+    st.apply(mk_tag(83, GameTag.PREPARING, 1), depth=1)   # 触发+预备完成在此发出
+    st.apply(mk_full(85, "JAIL_907e", ZONE=Zone.SETASIDE.value, CONTROLLER=1,
+                     CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=83), depth=1)
+    st.apply(mk_tag(83, GameTag.COST, 4), depth=1)   # 块内: 预备减费 9→4
+    return b
+
+
+def test_prepare_trigger_precedes_prepare_and_cost():
+    """2026-09-13 实测(游戏 4409fd9a): 尾随约1秒的"正在预备"TRIGGER 块按日志
+    原位垫底, 因果序全反 —— 触发是预备的起点, 必须最前; 预备完成先于其费用
+    变化不变。真身触发块随后按实体号去重, 不再重复出链路行。"""
+    st, log = _store()
+    _heroes(st)
+    b = _prepare_sequence(st)
+    b.end()
+    st.settle()
+    kinds = log.kinds()
+    assert kinds.index("trigger") < kinds.index("prepare") < kinds.index("cost")
+    trig = [e for e in log.by_kind("trigger") if e["eid"] == 84][0]
+    assert trig["card_id"] == "JAIL_907e02" and trig["host"] == "JAIL_718"
+    assert trig["actor"] == 1
+    from hsbot.render import chain_line
+    line = chain_line(dict(trig, turn=7, friendly=1), st.carddb)
+    assert "触发 JAIL_907e02〔JAIL_718〕" in line
+    prep = log.by_kind("prepare")[0]
+    assert prep["card_id"] == "JAIL_718" and prep["actor"] == 1
+    assert "预备完成 JAIL_718" in chain_line(dict(prep, turn=7, friendly=1),
+                                            st.carddb)
+
+
+def test_prepare_trailing_real_trigger_deduped():
+    st, log = _store()
+    _heroes(st)
+    b = _prepare_sequence(st)
+    b.end()
+    st.settle()
+    n_before = len(log.by_kind("trigger"))
+    t = mk_block(BlockType.TRIGGER, 84)          # 尾随约1秒的真身触发块
+    st.apply(t, depth=0)
+    t.end()
+    st.settle()
+    assert len(log.by_kind("trigger")) == n_before
+
+
+def test_prepare_variant_without_preparing_flip_still_reported():
+    """变体形态: 预备块内无 PREPARING 翻转(亦无附魔可归因)时, 块尾按原行为
+    补发预备完成; 其后无关触发动不受去重影响。"""
     st, log = _store()
     _heroes(st)
     st.apply(mk_full(83, "JAIL_718", ZONE=Zone.HAND.value, CONTROLLER=1,
@@ -111,13 +166,18 @@ def test_prepare_precedes_its_cost_change():
     st.apply(mk_tag(83, GameTag.COST, 4), depth=1)   # 块内: 预备减费 9→4
     b.end()
     st.settle()
-    kinds = log.kinds()
-    assert kinds.index("prepare") < kinds.index("cost")
-    prep = log.by_kind("prepare")[0]
-    assert prep["card_id"] == "JAIL_718" and prep["actor"] == 1
+    prep = log.by_kind("prepare")
+    assert prep and prep[0]["card_id"] == "JAIL_718" and prep[0]["actor"] == 1
     from hsbot.render import chain_line
-    line = chain_line(dict(prep, turn=7, friendly=1), st.carddb)
-    assert "预备完成 JAIL_718" in line
+    assert "预备完成 JAIL_718" in chain_line(dict(prep[0], turn=7, friendly=1),
+                                            st.carddb)
+    st.apply(mk_full(90, "JAIL_907e02", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=83))
+    t = mk_block(BlockType.TRIGGER, 90)
+    st.apply(t, depth=0)
+    t.end()
+    st.settle()
+    assert any(e["eid"] == 90 for e in log.by_kind("trigger"))
 
 
 def test_deck_action_without_prepare_not_reported():
@@ -181,37 +241,27 @@ def test_trigger_and_fatigue_events():
     assert any("我方英雄" in e.get("msg", "") for e in log.by_kind("text"))
 
 
-def test_hidden_start_of_game_trigger_inferred_renathal():
-    """隐藏开局触发可判定: 40 卡组局 + START_OF_GAME + EffectIndex=1 → 雷纳索尔王子;
-    30 卡组局不推断。"""
+def test_hidden_start_of_game_trigger_stays_unnamed():
+    """2026-09-13: 指纹猜名已下线 —— 隐藏开局触发只记机读事实(card_id=None、
+    effect_index/actor_deck_count), 不硬编码猜雷纳索尔; 命名只认日志揭示
+    (SHOW_ENTITY)回填的 card_id, 开局窗口渲染判弃(见 test_render_knowledge)。"""
     st, log = _store()
     _heroes(st)
     for i in range(100, 131):                      # 31 张牌库 → 40 卡组局
         st.apply(mk_full(i, None, ZONE=Zone.DECK.value, CONTROLLER=2))
     st.apply(mk_full(16, None, ZONE=Zone.DECK.value, CONTROLLER=2))
-    # 雷纳索尔指纹: START_OF_GAME + EffectIndex=1
+    # 旧指纹特征: START_OF_GAME + EffectIndex=1(阿扎莉娜/伊瑟拉等同会误中)
     b = packets.Block(TS, 16, BlockType.TRIGGER, None, None, 1, 0, None,
                       GameTag.START_OF_GAME_KEYWORD)
     st.apply(b)
     trig = log.by_kind("trigger")[-1]
-    assert trig["card_id"] is None                      # store 不做推断
+    assert trig["card_id"] is None and "inferred" not in trig
     assert trig["effect_index"] == 1 and trig["actor_deck_count"] == 32
     from hsbot.analysis import EffectAnalyzer
     from hsbot.render import chain_line
     enriched = EffectAnalyzer(st.carddb).enrich(dict(trig), st)
-    assert enriched["card_id"] == "REV_018" and enriched.get("inferred") is True
-    line = chain_line(enriched, st.carddb)
-    assert "REV_018" in line and "(开局)" in line
-    # 30 卡组局: 对手牌库只剩 ≤30 → 不推断
-    st2, log2 = _store()
-    _heroes(st2)
-    for i in range(200, 226):
-        st2.apply(mk_full(i, None, ZONE=Zone.DECK.value, CONTROLLER=2))
-    st2.apply(mk_full(16, None, ZONE=Zone.DECK.value, CONTROLLER=2))
-    b2 = packets.Block(TS, 16, BlockType.TRIGGER, None, None, 1, 0, None,
-                       GameTag.START_OF_GAME_KEYWORD)
-    st2.apply(b2)
-    assert log2.by_kind("trigger")[-1]["card_id"] is None
+    assert enriched["card_id"] is None             # 不给事件流编造 id
+    assert chain_line(enriched, st.carddb) is None  # 开局未揭示: 渲染判弃
 
 
 def test_enchantment_chain_links():
@@ -244,6 +294,19 @@ def test_enchantment_chain_links():
     assert trig["host"] == "JAIL_718"
     line = chain_line(dict(trig, turn=5, friendly=1), st.carddb)
     assert "〔JAIL_718〕" in line
+    # 联动卡效果台账(对局存档持久化): 附魔 → 宿主 + 来源卡, 含 PLAY 区在身
+    st.apply(mk_full(91, "SC_755e", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=10, CREATOR=18))
+    st.apply(mk_full(18, "SC_755", ZONE=Zone.GRAVEYARD.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value))
+    links = {l["cid"]: l for l in st.to_dict("t")["linked_effects"]}
+    assert links["JAIL_430e"]["host"] == 10
+    assert links["JAIL_430e"]["host_cid"] == "SC_753"
+    assert links["JAIL_907e02"]["host_cid"] == "JAIL_718"
+    assert links["SC_755e"]["creator"] == "SC_755"   # 归因到打出的来源卡
+    assert links["SC_755e"]["creator_eid"] == 18
+    assert links["SC_755e"]["zone"] == "PLAY"        # 附魔在身时的实际区
+    assert links["JAIL_430e"]["creator"] is None     # 无 CREATOR: 诚实留空
 
 
 def test_cosmetic_pet_triggers_ignored():
@@ -335,6 +398,42 @@ def test_mulligan_flow():
     assert m and "留牌: OG_048" in m[0]["msg"]
 
 
+def test_stolen_original_leaves_ledger():
+    """嫉妒收割者类"偷取本体"(我方实体控制权转对手): 台账扣除被偷卡 ——
+    牌库剩余期望/库侧斩杀/费用不再多算(2026-09-13 用户要求)。"""
+    from hsbot.knowledge import DeckKnowledge
+
+    st, _log = _store()
+    _heroes(st)
+    st.note_friendly(1)
+    st.apply(mk_full(10, "CS2_029", ZONE=Zone.DECK.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value, COST=1))
+    k = DeckKnowledge({"CS2_029": 2, "EX1_169": 2}, st.carddb, "测试")
+    assert k.rebuild(st).remaining["CS2_029"] == 2
+    st.apply(mk_tag(10, GameTag.CONTROLLER, 2))            # 本体被偷(暗牌未揭示)
+    assert 10 in st.stolen_eids
+    led = k.rebuild(st)
+    assert led.remaining["CS2_029"] == 1 and led.lost["CS2_029"] == 1
+    assert led.remaining["EX1_169"] == 2                   # 其余台账不动
+
+
+def test_mulligan_replacement_draws_recorded():
+    """换牌换入(决定后、首回合前的抽牌)记入 MulliganState.replaced_in,
+    随 mulligan_facts 落盘进留牌训练特征(2026-09-13 用户要求)。"""
+    st, _log = _store()
+    _heroes(st)
+    st.apply(mk_full(10, "OG_048", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_full(11, "CS2_029", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_choices_mulligan(2, 7, [10, 11]))          # 我方起手两张
+    st.apply(mk_send_mulligan(7, [10]))                    # 留 10, 换 11
+    st.hint_draw(12, "EX1_169", 1)                         # 换入: 决定后的抽牌
+    facts = st.mulligan_facts()[1]
+    assert facts["replaced_in"] == ["EX1_169"]
+    st._on_turn_start(1)                                   # 首回合开始: 窗口关闭
+    st.hint_draw(13, "OG_048", 1)                          # T1 常规抽牌不误记
+    assert st.mulligan_facts()[1]["replaced_in"] == ["EX1_169"]
+
+
 def test_discover_flow():
     st, log = _store()
     _heroes(st)
@@ -393,7 +492,8 @@ def test_to_dict_shape():
     st.apply(mk_full(10, "CS2_029", COST=2, ZONE=Zone.HAND.value, CONTROLLER=1))
     d = st.to_dict("turn_end")
     assert d["reason"] == "turn_end"
-    assert set(d) == {"reason", "turn", "friendly_turn", "my_turn", "players", "me", "opp"}
+    assert set(d) == {"reason", "turn", "friendly_turn", "my_turn",
+                      "linked_effects", "players", "me", "opp"}
     assert set(d["me"]) == {"hp", "armor", "mana", "deck", "hand", "board"}
     assert set(d["opp"]) == {"hp", "armor", "deck", "hand_n", "board"}
     assert d["me"]["hand"][0]["id"] == "CS2_029" and d["me"]["hand"][0]["pos"] == 0

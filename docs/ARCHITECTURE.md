@@ -44,6 +44,8 @@
 | `watcher.GameScope` | 局作用域状态容器 | 无行为 |
 | `store.GameStore` | 唯一状态权威(实体/标签/快照查询) | 不做卡牌/效果解释、不格式化 |
 | `analysis.EffectAnalyzer` | 卡牌/效果解析($N/预估/指纹) | 不改状态 |
+| `analysis.lethal_plan` | 斩杀线编排: store/台账事实 → planner 纯函数 → 机读 facts | 不改状态; 措辞零(结论词归 render) |
+| `planner/(pieces/simstate/dfs/plan)` | 出牌线纯函数搜索(编译→记忆化 DFS→Plan) | 无 IO/无全局态; 仅依赖 hsbot.consts; 不 import store/watcher |
 | `effects.EffectCache/GRAMMAR` | 效果 IR 编译与增量缓存 | 不参与状态权威 |
 | `watcher.EventRouter(_route)` | 事件消费决策(标题/快照触发/链路) | 不维护游戏事实(事实在 store) |
 | `watcher.SnapshotService` | 快照构建+分发+持久化 | 不做游戏决策 |
@@ -74,6 +76,9 @@
 4. 渲染层零游戏规则; 解析层零状态维护; 两者都零 IO。
 5. 对局事实唯一来源 = store; 训练语料/快照的 meta 全部读 store
    (corpus 不再平行推导)。
+6. (2026-09-14 补记) overlay → render.plan_line 为单向措辞复用边
+   (结论词单一出处); planner 为 analysis.lethal_plan 委托的纯函数包,
+   依赖仅 hsbot.consts。
 
 ## 5. 已知债务(docs/AUDIT_2026-09-13.md)
 

@@ -19,26 +19,29 @@ def main(argv=None) -> int:
     argv = list(sys.argv[1:]) if argv is None else list(argv)
     ap = argparse.ArgumentParser(prog="trainer", description="离线训练系统(价值模型/留牌)")
 
-    def add_common(p):
-        # 与顶层同名同 dest: 顶层已设值时 argparse 不再用子命令默认值覆盖,
-        # 参数放在子命令前或后都生效。
-        p.add_argument("--deck", default=None, help="卡组名(默认取 config deck_name)")
-        p.add_argument("--battletag", default=None, help="我方战网名(默认取 config)")
-        p.add_argument("--corpus", default=None, help="语料目录(默认 data/training)")
-        p.add_argument("--out", default=None, help="产出目录(默认 trainer/data/<卡组>)")
+    def add_common(p, sub=False):
+        # 顶层与子命令同名同 dest。子命令副本的 default 必须 SUPPRESS: argparse
+        # 子解析会先写入自身默认值, 把子命令前设置的同名旗标盖回 None(实测),
+        # SUPPRESS 后旗标放在子命令前或后都生效。
+        kw = {"default": argparse.SUPPRESS} if sub else {"default": None}
+        p.add_argument("--deck", help="卡组名(默认取 config deck_name)", **kw)
+        p.add_argument("--battletag", help="我方战网名(默认取 config)", **kw)
+        p.add_argument("--corpus", help="语料目录(默认 data/training)", **kw)
+        p.add_argument("--out", help="产出目录(默认 trainer/data/<卡组>)", **kw)
 
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--data-dir", dest="data_dir", default=None)
     add_common(ap)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_mat = sub.add_parser("material", help="语料原始切片 → 回合级训练素材")
-    add_common(p_mat)
+    add_common(p_mat, sub=True)
     p_train = sub.add_parser("train", help="素材 → 价值模型(时序 AUC 报告)")
-    add_common(p_train)
+    add_common(p_train, sub=True)
     p_bt = sub.add_parser("backtest", help="素材 → 分组交叉验证(同局绝不跨训练/验证组)")
-    add_common(p_bt)
-    if argv and argv[0] == "mulligan":       # 留牌训练器(独立子命令族)
-        return mulligan.main(argv[1:])
+    add_common(p_bt, sub=True)
+    if "mulligan" in argv:                   # 留牌训练器(独立子命令族, 旗标可在前后)
+        i = argv.index("mulligan")
+        return mulligan.main(argv[:i] + argv[i + 1:])
     args = ap.parse_args(argv)
 
     cfg = Config.load({"config": args.config, "data_dir": args.data_dir})

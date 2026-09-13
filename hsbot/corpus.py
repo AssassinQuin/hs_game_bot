@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from .adapter import feed_line, new_parser, packet_payload, walk_packets
+from .consts import game_hash
 from .knowledge import deck_timeline, parse_log_time, session_date
 from .persist import atomic_write_text
 
@@ -138,7 +139,9 @@ class CorpusExporter:
         meta = {
             "_meta": True,
             "source": source, "session": session, "game_index": idx,
+            "game_id": game_hash(session, start_ts),   # 与控制台行首同一对局 hash
             "start_ts": start_ts, "turns": st.turn,
+            "linked_effects": st.linked_effects(),     # 联动卡效果台账(终局态)
             "deck_name": deck_name or "未知卡组", "deck_code": deck_code,
             "decklist": decklist,
             "players": players, "heroes": heroes, "results": results,
@@ -177,7 +180,9 @@ class CorpusExporter:
         回放验收/复现全靠它 —— 结构化事件再全也不如原始日志可信。"""
         if not jsonl_path or not lines:
             return None
-        out = Path(jsonl_path).with_suffix(".power.log")
+        out = Path(jsonl_path)
+        if out.name.endswith(".jsonl"):    # 收尾覆写传入的已是切片路径: 原名覆写
+            out = out.with_suffix(".power.log")
         atomic_write_text(out, "\n".join(lines) + "\n")
         return out
 

@@ -55,6 +55,21 @@ def test_load_game_extracts_class_from_events(tmp_path):
     assert g.kept == ["GOOD"]
 
 
+def test_replaced_in_joins_model_features(tmp_path):
+    """换牌换入(replaced_in)进模型特征口径: final = kept + replaced_in;
+    决策统计口径 kept 保持不变(2026-09-13 用户要求)。"""
+    p = _write_game(tmp_path, "s_g01.jsonl")
+    lines = p.read_text(encoding="utf-8").splitlines()
+    meta = json.loads(lines[0])
+    meta["mulligan"]["1"]["replaced_in"] = ["NEW_1", "NEW_2"]
+    p.write_text("\n".join([json.dumps(meta, ensure_ascii=False)] + lines[1:])
+                 + "\n", encoding="utf-8")
+    g, why = tm.load_game(p, "湫然#51704")
+    assert why == "" and g.replaced_in == ["NEW_1", "NEW_2"]
+    assert g.final == ["GOOD", "NEW_1", "NEW_2"]   # 模型特征: 最终留牌
+    assert g.kept == ["GOOD"]                      # 决策统计: 只看决定
+
+
 def test_load_game_skip_reasons(tmp_path):
     p = _write_game(tmp_path, "a.jsonl", result="PLAYING")
     assert tm.load_game(p, "湫然#51704")[1].startswith("未出结果")

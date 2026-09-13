@@ -62,10 +62,17 @@ class Game:
     coin: bool         # 后手(起手有幸运币)
     opp_class: str     # 对手职业(CLASS 英文标签)
     cards: list        # 起手 offered(去幸运币, 保序, 可能重复)
-    kept: list         # 其中留下的(逐张)
+    kept: list         # 其中留下的(逐张; 决策统计口径)
     decklist: dict | None = None   # 本局卡组构成 {card_id: 张数}(旧样本可能缺)
     mtime: float = 0.0
     size: int = 0
+    replaced_in: list | None = None  # 换牌换入(决定后、首回合前的抽牌; 旧样本缺)
+
+    @property
+    def final(self) -> list:
+        """最终留牌 = 决定保留 + 换入(模型特征口径, 2026-09-13 用户要求:
+        换牌后的手牌也要作为留牌给模型训练; 决策统计仍用 kept)。"""
+        return list(self.kept) + list(self.replaced_in or [])
 
 
 def deck_features(decklist: dict | None, carddb: CardDB,
@@ -162,11 +169,13 @@ def load_game(path: Path, battletag: str) -> tuple[Game | None, str]:
         mtime, size = st.st_mtime, st.st_size
     except OSError:
         mtime, size = 0.0, 0
+    replaced_in = [c for c in m.get("replaced_in") or []
+                   if c and not is_coin(c)]
     return Game(path=path.name, result=win,
                 coin=any(is_coin(c) for c in offered_all),
                 opp_class=opp_class or UNKNOWN, cards=offered, kept=kept,
                 decklist=meta.get("decklist") or None,
-                mtime=mtime, size=size), ""
+                mtime=mtime, size=size, replaced_in=replaced_in), ""
 
 
 def build_dataset(training_dir: Path, deck: str,
@@ -214,7 +223,7 @@ def _vocab_pairs(games: list) -> tuple[list, list]:
     vocab = sorted({c for g in games for c in g.cards})
     pair_n = Counter()
     for g in games:
-        ks = sorted(set(g.kept))
+        ks = sorted(set(g.final))   # 组合特征按最终留牌
         for a, b in combinations(ks, 2):
             pair_n[(a, b)] += 1
     pairs = sorted(p for p, n in pair_n.items() if n >= LR_PAIR_SUPPORT)
@@ -231,7 +240,7 @@ def _fit_eval(games: list, vocab: list, pairs: list, carddb, prior) -> dict | No
     tr, te = games[:-n_test], games[-n_test:]
     classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
     tails = [deck_features(g.decklist, carddb, prior)[0] for g in games]
-    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.kept,
+    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.final,
                                    g.coin, g.opp_class) + t
     ytr = [g.result for g in tr]
     if len(set(ytr)) < 2:
@@ -266,7 +275,7 @@ def train_lr(games: list, carddb, prior) -> dict | None:
     metrics = _fit_eval(games, vocab, pairs, carddb, prior)
     classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
     tails = [deck_features(g.decklist, carddb, prior)[0] for g in games]
-    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.kept,
+    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.final,
                                    g.coin, g.opp_class) + t
     try:
         model = LogisticRegression(C=0.3, max_iter=2000).fit(
@@ -295,7 +304,7 @@ def train_tabpfn(games: list, data_dir, carddb, prior) -> dict | None:
     vocab, pairs = _vocab_pairs(games)
     classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
     tails = [deck_features(g.decklist, carddb, prior)[0] for g in games]
-    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.kept,
+    xof = lambda g, t: lr_features(vocab, classes, pairs, g.cards, g.final,
                                    g.coin, g.opp_class) + t
     X = np.array([xof(g, tails[i]) for i, g in enumerate(games)],
                  dtype=np.float32)
@@ -355,7 +364,7 @@ def _save_version(root: Path, deck: str, stats: dict, lr: dict | None,
             json.dumps(tab, ensure_ascii=False), encoding="utf-8")
     (out / "games_digest.json").write_text(
         json.dumps([{"c": g.opp_class, "o": int(g.coin),
-                     "f": sorted(set(g.cards)), "k": sorted(set(g.kept)),
+                     "f": sorted(set(g.cards)), "k": sorted(set(g.final)),
                      "r": g.result} for g in games],
                    ensure_ascii=False), encoding="utf-8")
     metrics = (lr or {}).get("metrics") or {}
@@ -612,7 +621,7 @@ def cmd_backtest(cfg: Config, deck: str) -> int:
         return lambda X: clf.predict_proba(X)[:, 1]
 
     tails = [deck_features(g.decklist, carddb, prior)[0] for g in games]
-    X = [lr_features(*v_cls_pr, g.cards, g.kept, g.coin, g.opp_class) + t
+    X = [lr_features(*v_cls_pr, g.cards, g.final, g.coin, g.opp_class) + t
          for g, t in zip(games, tails)]
     y = [g.result for g in games]
     sess = [g.path.split("_g")[0] for g in games]           # 组 = 会话
@@ -629,9 +638,9 @@ def cmd_backtest(cfg: Config, deck: str) -> int:
         tr, va = games[:cut], games[cut:]
         if len(set(g.result for g in va)) < 2:
             continue
-        Xtr = [lr_features(*v_cls_pr, g.cards, g.kept, g.coin, g.opp_class)
+        Xtr = [lr_features(*v_cls_pr, g.cards, g.final, g.coin, g.opp_class)
                + deck_features(g.decklist, carddb, prior)[0] for g in tr]
-        Xva = [lr_features(*v_cls_pr, g.cards, g.kept, g.coin, g.opp_class)
+        Xva = [lr_features(*v_cls_pr, g.cards, g.final, g.coin, g.opp_class)
                + deck_features(g.decklist, carddb, prior)[0] for g in va]
         ytr = [g.result for g in tr]
         yva = [g.result for g in va]
@@ -663,11 +672,13 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description="起手留牌 AI 训练器(设计见 docs/MULLIGAN_AI.md)")
 
-    def add_common(p):
-        # 与顶层同名同 dest: 顶层已设值时 argparse 不再用子命令默认值覆盖,
-        # 因此 --deck/--data 放在子命令前或后都生效。
-        p.add_argument("--deck", default=None, help="卡组名(默认取 config deck_name)")
-        p.add_argument("--data", default=None, help="训练语料目录")
+    def add_common(p, sub=False):
+        # 顶层与子命令同名同 dest。子命令副本的 default 必须 SUPPRESS: argparse
+        # 子解析会先写入自身默认值, 把子命令前设置的同名旗标盖回 None(实测),
+        # SUPPRESS 后 --deck/--data 放在子命令前或后都生效。
+        kw = {"default": argparse.SUPPRESS} if sub else {"default": None}
+        p.add_argument("--deck", help="卡组名(默认取 config deck_name)", **kw)
+        p.add_argument("--data", help="训练语料目录", **kw)
 
     ap.add_argument("--config", default="config.yaml", help="配置文件路径")
     ap.add_argument("--data-dir", dest="data_dir", default=None,
@@ -675,13 +686,13 @@ def main(argv=None) -> int:
     add_common(ap)
     sub = ap.add_subparsers(dest="cmd")
     p_train = sub.add_parser("train", help="扫描语料训练并保存新版本")
-    add_common(p_train)
+    add_common(p_train, sub=True)
     p_rep = sub.add_parser("report", help="查看已保存模型")
-    add_common(p_rep)
+    add_common(p_rep, sub=True)
     p_bt = sub.add_parser("backtest", help="分组交叉验证: 同会话绝不跨训练/验证组")
-    add_common(p_bt)
+    add_common(p_bt, sub=True)
     p_adv = sub.add_parser("advise", help="给一个起手场景出建议")
-    add_common(p_adv)
+    add_common(p_adv, sub=True)
     p_adv.add_argument("--hand", required=True,
                        help="起手手牌: 中文名或 card:ID, 逗号分隔")
     p_adv.add_argument("--vs", default="*", help="对手职业: 中文名/CLASS/HERO_06/*")

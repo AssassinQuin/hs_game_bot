@@ -1,0 +1,283 @@
+{"_meta": true, "source": "live", "session": "Hearthstone_2026_09_13_20_05_54", "game_index": 1, "start_ts": "20:10:32.585244", "turns": 8, "deck_name": "奇迹德", "deck_code": "AAEBAfHGBwL9jQaluwYO/gHTA4/2AuC+A/DUA7ClBK7ABNXSBIHUBIDKBpD0BpX0BqqvB4LaBwAA", "decklist": {"EX1_169": 2, "CS2_008": 2, "BOT_054": 2, "BT_724": 2, "SCH_427": 2, "AV_295": 2, "TSC_654": 2, "TID_001": 2, "CORE_AT_037": 2, "TTN_955": 1, "VAC_519": 1, "VAC_428": 2, "SC_753": 2, "SC_755": 2, "TIME_701": 2, "JAIL_718": 2}, "players": {"1": {"name": "湫然#51704", "player_id": 1, "hero_power": "HERO_06ebp"}, "2": {"name": "MightyPants#532950", "player_id": 2, "hero_power": "HERO_01bp"}}, "heroes": {"1": "HERO_06bi", "2": "HERO_01b"}, "results": {"1": "WON", "2": "LOST"}, "mulligan": {"1": {"offered": ["AV_295", "TID_001", "BT_724", "CS2_008", "MUDAN_COIN1"], "kept": ["AV_295"], "replaced": ["TID_001", "BT_724", "CS2_008"], "decided": true}, "2": {"offered": ["#80", "#50", "#78"], "kept": [], "replaced": [], "decided": false}}, "event_count": 282}
+{"t": "CreateGame", "d": 0, "ts": "20:10:32.585244", "entity": 1, "tags": [["CARDTYPE", "GAME"], ["ZONE", "PLAY"], ["ENTITY_ID", 1], [937, 2], ["SPAWN_TIME_COUNT", 1], ["GAME_SEED", 1599128179]], "players": [{"entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "player_id": 1, "hi": 144115211015832391, "lo": 1710082869, "tags": [["CONTROLLER", 1], ["CARDTYPE", "PLAYER"], ["PLAYER_ID", 1], ["HERO_ENTITY", 96], ["MAXHANDSIZE", 10], ["STARTHANDSIZE", 4], ["TEAM_ID", 1], ["ZONE", "PLAY"], ["ENTITY_ID", 2], ["MAXRESOURCES", 10], ["SPAWN_TIME_COUNT", 1], ["MAX_EXCAVATE_TIER", 2]], "name": null, "packet_id": 2}, {"entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "player_id": 2, "hi": 144115211015832391, "lo": 83449896, "tags": [["CONTROLLER", 2], ["CARDTYPE", "PLAYER"], ["PLAYER_ID", 2], ["HERO_ENTITY", 98], ["MAXHANDSIZE", 10], ["STARTHANDSIZE", 4], ["TEAM_ID", 2], ["ZONE", "PLAY"], ["ENTITY_ID", 3], ["MAXRESOURCES", 10], ["SPAWN_TIME_COUNT", 1], ["MAX_EXCAVATE_TIER", 2]], "name": null, "packet_id": 3}], "packet_id": 1}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 4, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 4]], "packet_id": 4}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 5, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 5]], "packet_id": 5}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 6, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 6]], "packet_id": 6}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 7, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 7]], "packet_id": 7}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 8, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 8]], "packet_id": 8}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 9, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 9]], "packet_id": 9}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 10, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 10]], "packet_id": 10}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 11, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 11]], "packet_id": 11}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 12, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 12]], "packet_id": 12}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 13, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 13]], "packet_id": 13}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 14, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 14]], "packet_id": 14}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 15, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 15]], "packet_id": 15}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 16, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 16]], "packet_id": 16}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 17, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 17]], "packet_id": 17}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 18, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 18]], "packet_id": 18}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 19, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 19]], "packet_id": 19}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 20, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 20]], "packet_id": 20}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 21, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 21]], "packet_id": 21}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 22, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 22]], "packet_id": 22}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 23, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 23]], "packet_id": 23}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 24, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 24]], "packet_id": 24}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 25, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 25]], "packet_id": 25}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 26, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 26]], "packet_id": 26}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 27, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 27]], "packet_id": 27}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 28, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 28]], "packet_id": 28}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 29, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 29]], "packet_id": 29}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 30, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 30]], "packet_id": 30}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 31, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 31]], "packet_id": 31}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 32, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 32]], "packet_id": 32}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 33, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 33]], "packet_id": 33}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 34, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 34]], "packet_id": 34}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 35, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 35]], "packet_id": 35}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 36, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 36]], "packet_id": 36}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 37, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 37]], "packet_id": 37}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 38, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 38]], "packet_id": 38}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 39, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 39]], "packet_id": 39}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 40, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 40]], "packet_id": 40}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 41, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 41]], "packet_id": 41}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 42, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 42]], "packet_id": 42}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 43, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 43]], "packet_id": 43}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 44, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 44]], "packet_id": 44}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 45, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 45]], "packet_id": 45}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 46, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 46]], "packet_id": 46}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 47, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 47]], "packet_id": 47}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 48, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 48]], "packet_id": 48}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 49, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 49]], "packet_id": 49}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 50, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 50]], "packet_id": 50}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 51, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 51]], "packet_id": 51}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 52, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 1], ["ENTITY_ID", 52]], "packet_id": 52}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 53, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 53]], "packet_id": 53}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 54, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 54]], "packet_id": 54}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 55, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 55]], "packet_id": 55}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 56, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 56]], "packet_id": 56}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 57, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 57]], "packet_id": 57}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 58, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 58]], "packet_id": 58}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 59, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 59]], "packet_id": 59}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 60, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 60]], "packet_id": 60}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 61, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 61]], "packet_id": 61}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 62, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 62]], "packet_id": 62}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 63, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 63]], "packet_id": 63}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 64, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 64]], "packet_id": 64}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 65, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 65]], "packet_id": 65}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 66, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 66]], "packet_id": 66}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 67, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 67]], "packet_id": 67}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 68, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 68]], "packet_id": 68}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 69, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 69]], "packet_id": 69}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 70, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 70]], "packet_id": 70}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 71, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 71]], "packet_id": 71}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 72, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 72]], "packet_id": 72}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 73, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 73]], "packet_id": 73}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 74, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 74]], "packet_id": 74}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 75, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 75]], "packet_id": 75}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 76, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 76]], "packet_id": 76}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 77, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 77]], "packet_id": 77}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 78, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 78]], "packet_id": 78}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 79, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 79]], "packet_id": 79}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 80, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 80]], "packet_id": 80}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 81, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 81]], "packet_id": 81}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 82, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 82]], "packet_id": 82}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 83, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 83]], "packet_id": 83}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 84, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 84]], "packet_id": 84}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 85, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 85]], "packet_id": 85}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 86, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 86]], "packet_id": 86}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 87, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 87]], "packet_id": 87}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 88, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 88]], "packet_id": 88}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 89, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 89]], "packet_id": 89}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 90, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 90]], "packet_id": 90}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 91, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 91]], "packet_id": 91}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 92, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 92]], "packet_id": 92}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 93, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 93]], "packet_id": 93}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 94, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 94]], "packet_id": 94}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 95, "card_id": null, "tags": [["ZONE", "DECK"], ["CONTROLLER", 2], ["ENTITY_ID", 95]], "packet_id": 95}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 96, "card_id": "HERO_06g", "tags": [["CONTROLLER", 1], ["CARDTYPE", "HERO"], ["HEALTH", 30], ["PREMIUM", 1], ["ZONE", "PLAY"], ["ENTITY_ID", 96], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], ["HERO_POWER", 69989], ["SPAWN_TIME_COUNT", 1], ["EMOTECHARACTER", 18], ["HAS_ACTIVATE_POWER", 1], ["EMOTECLASS", 6], [3085, 30]], "packet_id": 96}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 97, "card_id": "HERO_06fbp", "tags": [["CONTROLLER", 1], ["CARDTYPE", "HERO_POWER"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "PLAY"], ["ENTITY_ID", 97], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], ["CREATOR", 96], [1037, 1], [1086, 69990], ["CREATOR_DBID", 71062], ["SPAWN_TIME_COUNT", 1], ["HAS_ACTIVATE_POWER", 1]], "packet_id": 97}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 98, "card_id": "HERO_06bi", "tags": [["CONTROLLER", 2], ["CARDTYPE", "HERO"], ["HEALTH", 30], ["PREMIUM", 1], ["ZONE", "PLAY"], ["ENTITY_ID", 98], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], ["HERO_POWER", 66926], ["HIDE_WATERMARK", 1], ["SPAWN_TIME_COUNT", 1], ["EMOTECHARACTER", 20], ["HAS_ACTIVATE_POWER", 1], ["EMOTECLASS", 6], [3085, 30]], "packet_id": 98}
+{"t": "FullEntity", "d": 0, "ts": "20:10:32.585244", "entity": 99, "card_id": "HERO_06ebp", "tags": [["CONTROLLER", 2], ["CARDTYPE", "HERO_POWER"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "PLAY"], ["ENTITY_ID", 99], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], ["CREATOR", 98], [1037, 2], [1086, 66928], ["CREATOR_DBID", 123761], ["SPAWN_TIME_COUNT", 1], ["HAS_ACTIVATE_POWER", 1]], "packet_id": 99}
+{"t": "TagChange", "d": 0, "ts": "20:10:32.585244", "entity": 1, "tag": "STATE", "value": "RUNNING", "has_change_def": false, "packet_id": 100}
+{"t": "TagChange", "d": 0, "ts": "20:10:32.585244", "entity": 2, "tag": "PLAYSTATE", "value": "PLAYING", "has_change_def": false, "packet_id": 101}
+{"t": "TagChange", "d": 0, "ts": "20:10:32.585244", "entity": 3, "tag": "PLAYSTATE", "value": "PLAYING", "has_change_def": false, "packet_id": 102}
+{"t": "Block", "d": 0, "ts": "20:10:32.585244", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "6", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 103}
+{"t": "Block", "d": 0, "ts": "20:10:32.585244", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 104}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": "CURRENT_PLAYER", "value": 1, "has_change_def": false, "packet_id": 105}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": "FIRST_PLAYER", "value": 1, "has_change_def": false, "packet_id": 106}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 1, "tag": "TURN", "value": 1, "has_change_def": false, "packet_id": 107}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": 2166, "value": 20, "has_change_def": false, "packet_id": 108}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": 467, "value": 3, "has_change_def": false, "packet_id": 109}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 20, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 110}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 20, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 111}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 20, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 112}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 20, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 113}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": 2166, "value": 32, "has_change_def": false, "packet_id": 114}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": 467, "value": 2, "has_change_def": false, "packet_id": 115}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 32, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 116}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 32, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 117}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 32, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 118}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 32, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 119}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": 2166, "value": 41, "has_change_def": false, "packet_id": 120}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 121}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 41, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 122}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 41, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 123}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 41, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 124}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 41, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 125}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 126}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": "NUM_TURNS_LEFT", "value": 1, "has_change_def": false, "packet_id": 127}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 2166, "value": 86, "has_change_def": false, "packet_id": 128}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 467, "value": 4, "has_change_def": false, "packet_id": 129}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 86, "card_id": "TTN_955", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "HAND"], ["ENTITY_ID", 86], ["CLASS", "DRUID"], ["RARITY", "COMMON"], ["CHOOSE_ONE", 1], [478, 2], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4]], "packet_id": 130}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 87, "card_id": "TTN_955A", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "SETASIDE"], ["ENTITY_ID", 87], ["CLASS", "DRUID"], ["CREATOR", 86], ["PARENT_CARD", 86], [1068, 0], ["CREATOR_DBID", 100093], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4], [4901, 0]], "packet_id": 131}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 88, "card_id": "TTN_955B", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["PREMIUM", 1], ["ZONE", "SETASIDE"], ["ENTITY_ID", 88], ["CLASS", "DRUID"], ["CREATOR", 86], ["PARENT_CARD", 86], [1068, 0], ["CREATOR_DBID", 100093], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4], [4901, 0]], "packet_id": 132}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 86, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 133}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 86, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 134}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 86, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 135}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 86, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 136}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 2166, "value": 89, "has_change_def": false, "packet_id": 137}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 467, "value": 3, "has_change_def": false, "packet_id": 138}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 89, "card_id": "AV_295", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["ZONE", "HAND"], ["ENTITY_ID", 89], ["CLASS", "DRUID"], ["RARITY", "EPIC"], ["CHOOSE_ONE", 1], [478, 2], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1]], "packet_id": 139}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 90, "card_id": "AV_295a", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["ZONE", "SETASIDE"], ["ENTITY_ID", 90], ["CLASS", "DRUID"], ["CREATOR", 89], ["PARENT_CARD", 89], [1068, 0], ["CREATOR_DBID", 70320], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 140}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 91, "card_id": "AV_295b", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["ZONE", "SETASIDE"], ["ENTITY_ID", 91], ["CLASS", "DRUID"], ["CREATOR", 89], ["PARENT_CARD", 89], [1068, 0], ["CREATOR_DBID", 70320], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 141}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 89, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 142}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 89, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 143}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 89, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 144}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 89, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 145}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 2166, "value": 80, "has_change_def": false, "packet_id": 146}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 467, "value": 2, "has_change_def": false, "packet_id": 147}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 80, "card_id": "TIME_701", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 1], ["COST", 1], ["ZONE", "HAND"], ["ENTITY_ID", 80], ["CLASS", "DRUID"], ["RARITY", "RARE"], ["DISCOVER", 1], [478, 2], [1043, 1], [1068, 0], ["USE_DISCOVER_VISUALS", 1], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4]], "packet_id": 148}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 80, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 149}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 80, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 150}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 80, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 151}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 80, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 152}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 2166, "value": 66, "has_change_def": false, "packet_id": 153}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 154}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 66, "card_id": "AV_295", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["ZONE", "HAND"], ["ENTITY_ID", 66], ["CLASS", "DRUID"], ["RARITY", "EPIC"], ["CHOOSE_ONE", 1], [478, 2], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1]], "packet_id": 155}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 67, "card_id": "AV_295a", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["ZONE", "SETASIDE"], ["ENTITY_ID", 67], ["CLASS", "DRUID"], ["CREATOR", 66], ["PARENT_CARD", 66], [1068, 0], ["CREATOR_DBID", 70320], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 156}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:32.585244", "entity": 68, "card_id": "AV_295b", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 2], ["COST", 2], ["ZONE", "SETASIDE"], ["ENTITY_ID", 68], ["CLASS", "DRUID"], ["CREATOR", 66], ["PARENT_CARD", 66], [1068, 0], ["CREATOR_DBID", 70320], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 157}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 66, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 158}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 66, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 159}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 66, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 160}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 66, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 161}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 162}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": "NUM_TURNS_LEFT", "value": 1, "has_change_def": false, "packet_id": 163}
+{"t": "FullEntity", "d": 1, "ts": "20:10:32.585244", "entity": 100, "card_id": "MUDAN_COIN1", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["ZONE", "HAND"], ["ENTITY_ID", 100], ["CLASS", "NEUTRAL"], ["ZONE_POSITION", 5], ["NUM_TURNS_IN_HAND", 1], ["CREATOR", 1], ["SPAWN_TIME_COUNT", 1], ["COIN_CARD", 1], [4901, 1]], "packet_id": 164}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 100, "tag": 4901, "value": 0, "has_change_def": false, "packet_id": 165}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 2, "tag": "TIMEOUT", "value": 45, "has_change_def": false, "packet_id": 166}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 3, "tag": "TIMEOUT", "value": 45, "has_change_def": false, "packet_id": 167}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 1, "tag": 10, "value": 85, "has_change_def": false, "packet_id": 168}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": 1, "tag": "NEXT_STEP", "value": "BEGIN_MULLIGAN", "has_change_def": false, "packet_id": 169}
+{"t": "Choices", "d": 0, "ts": "20:10:32.585244", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "id": 1, "tasklist": null, "type": "MULLIGAN", "min": 0, "max": 3, "source": 1, "choices": [20, 32, 41], "packet_id": 170}
+{"t": "Choices", "d": 0, "ts": "20:10:32.585244", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "id": 2, "tasklist": null, "type": "MULLIGAN", "min": 0, "max": 5, "source": 1, "choices": [86, 89, 80, 66, 100], "packet_id": 171}
+{"t": "TagChange", "d": 0, "ts": "20:10:32.585244", "entity": 1, "tag": "STEP", "value": "BEGIN_MULLIGAN", "has_change_def": false, "packet_id": 172}
+{"t": "Block", "d": 0, "ts": "20:10:32.585244", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 173}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": "MULLIGAN_STATE", "value": "INPUT", "has_change_def": false, "packet_id": 174}
+{"t": "TagChange", "d": 1, "ts": "20:10:32.585244", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "tag": "MULLIGAN_STATE", "value": "INPUT", "has_change_def": false, "packet_id": 175}
+{"t": "SendChoices", "d": 1, "ts": "20:10:56.864217", "entity": null, "id": 2, "type": "MULLIGAN", "choices": [89, 80], "packet_id": 176}
+{"t": "ChosenEntities", "d": 1, "ts": "20:10:56.926151", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "id": 1, "choices": [], "packet_id": 177}
+{"t": "ChosenEntities", "d": 1, "ts": "20:10:57.044268", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "id": 2, "choices": [89, 80], "packet_id": 178}
+{"t": "TagChange", "d": 0, "ts": "20:10:57.081228", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": "MULLIGAN_STATE", "value": "DEALING", "has_change_def": false, "packet_id": 179}
+{"t": "Block", "d": 0, "ts": "20:10:57.081228", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 180}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 19, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 181}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 19, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 182}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 20, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 183}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 20, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 184}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 8, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 185}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 8, "tag": "ZONE_POSITION", "value": 2, "has_change_def": false, "packet_id": 186}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 32, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 187}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 32, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 188}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 48, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 189}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 48, "tag": "ZONE_POSITION", "value": 3, "has_change_def": false, "packet_id": 190}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 41, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 191}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 41, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 192}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": "MULLIGAN_STATE", "value": "WAITING", "has_change_def": false, "packet_id": 193}
+{"t": "Block", "d": 0, "ts": "20:10:57.081228", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 194}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": "MULLIGAN_STATE", "value": "DONE", "has_change_def": false, "packet_id": 195}
+{"t": "TagChange", "d": 0, "ts": "20:10:57.081228", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "tag": "MULLIGAN_STATE", "value": "DEALING", "has_change_def": false, "packet_id": 196}
+{"t": "Block", "d": 0, "ts": "20:10:57.081228", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 197}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:57.081228", "entity": 94, "card_id": "BOT_054", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["TAG_LAST_KNOWN_COST_IN_HAND", 1], ["COST", 1], ["ZONE", "HAND"], ["ENTITY_ID", 94], ["CLASS", "DRUID"], ["RARITY", "COMMON"], [478, 2], [1037, 2], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 4]], "packet_id": 198}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 94, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 199}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 94, "tag": "ZONE_POSITION", "value": 1, "has_change_def": false, "packet_id": 200}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 86, "tag": 1068, "value": 2, "has_change_def": false, "packet_id": 201}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 86, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 202}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 86, "tag": 1037, "value": 2, "has_change_def": false, "packet_id": 203}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 86, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 204}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 86, "tag": 1043, "value": 0, "has_change_def": false, "packet_id": 205}
+{"t": "HideEntity", "d": 1, "ts": "20:10:57.081228", "entity": 86, "zone": "DECK", "packet_id": 206}
+{"t": "HideEntity", "d": 1, "ts": "20:10:57.081228", "entity": 87, "zone": "SETASIDE", "packet_id": 207}
+{"t": "HideEntity", "d": 1, "ts": "20:10:57.081228", "entity": 88, "zone": "SETASIDE", "packet_id": 208}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 86, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 209}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:57.081228", "entity": 65, "card_id": "CS2_008", "tags": [["CONTROLLER", 2], ["CARDTYPE", "SPELL"], ["PREMIUM", 1], ["ZONE", "HAND"], ["ENTITY_ID", 65], ["CLASS", "DRUID"], ["FACTION", "NEUTRAL"], ["RARITY", "FREE"], [478, 2], [1037, 2], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["SPELL_SCHOOL", 1]], "packet_id": 210}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 65, "tag": "NUM_TURNS_IN_HAND", "value": 1, "has_change_def": false, "packet_id": 211}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 65, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 212}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 66, "tag": 1068, "value": 2, "has_change_def": false, "packet_id": 213}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 66, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 214}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 66, "tag": 1037, "value": 2, "has_change_def": false, "packet_id": 215}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 66, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 216}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 66, "tag": 1043, "value": 0, "has_change_def": false, "packet_id": 217}
+{"t": "HideEntity", "d": 1, "ts": "20:10:57.081228", "entity": 66, "zone": "DECK", "packet_id": 218}
+{"t": "HideEntity", "d": 1, "ts": "20:10:57.081228", "entity": 67, "zone": "SETASIDE", "packet_id": 219}
+{"t": "HideEntity", "d": 1, "ts": "20:10:57.081228", "entity": 68, "zone": "SETASIDE", "packet_id": 220}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 66, "tag": "ZONE", "value": "DECK", "has_change_def": false, "packet_id": 221}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "tag": "MULLIGAN_STATE", "value": "WAITING", "has_change_def": false, "packet_id": 222}
+{"t": "Block", "d": 0, "ts": "20:10:57.081228", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 223}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "tag": "MULLIGAN_STATE", "value": "DONE", "has_change_def": false, "packet_id": 224}
+{"t": "ShuffleDeck", "d": 1, "ts": "20:10:57.081228", "player_id": 1, "packet_id": 225}
+{"t": "ShuffleDeck", "d": 1, "ts": "20:10:57.081228", "player_id": 2, "packet_id": 226}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": "TURN", "value": 1, "has_change_def": false, "packet_id": 227}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 228}
+{"t": "Block", "d": 0, "ts": "20:10:57.081228", "entity": 52, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "2", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 229}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:57.081228", "entity": 52, "card_id": "REV_018", "tags": [["CONTROLLER", 1], ["CARDTYPE", "MINION"], ["TAG_LAST_KNOWN_COST_IN_HAND", 3], [479, 3], ["COST", 3], ["ATK", 3], ["HEALTH", 4], ["ZONE", "DECK"], ["ENTITY_ID", 52], ["ELITE", 1], ["CLASS", "NEUTRAL"], ["RARITY", "LEGENDARY"], ["REVEALED", 1], [478, 1], ["DECK_RULE_MOD_DECK_SIZE", 40], [1043, 1], [1068, 0], ["SPAWN_TIME_COUNT", 1], ["HAS_SIGNATURE_QUALITY", 1], ["HAS_ACTIVATE_POWER", 1], [2936, 1], [3085, 4], [4472, 3]], "packet_id": 230}
+{"t": "Block", "d": 0, "ts": "20:10:57.081228", "entity": 52, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "0", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 231}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 52, "tag": "TAG_SCRIPT_DATA_NUM_1", "value": 1, "has_change_def": false, "packet_id": 232}
+{"t": "HideEntity", "d": 1, "ts": "20:10:57.081228", "entity": 52, "zone": "DECK", "packet_id": 233}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 52, "tag": "REVEALED", "value": 0, "has_change_def": false, "packet_id": 234}
+{"t": "FullEntity", "d": 1, "ts": "20:10:57.081228", "entity": 101, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 1], ["ENTITY_ID", 101]], "packet_id": 235}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:57.081228", "entity": 101, "card_id": "REV_018e", "tags": [["CONTROLLER", 1], ["CARDTYPE", "ENCHANTMENT"], ["PREMIUM", 1], ["ATTACHED", 96], ["ZONE", "SETASIDE"], ["ENTITY_ID", 101], ["CLASS", "NEUTRAL"], ["CREATOR", 52], [1037, 1], [1068, 0], ["CREATOR_DBID", 79767], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 236}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 101, "tag": 1068, "value": 1, "has_change_def": false, "packet_id": 237}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 101, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 238}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 101, "tag": "ZONE", "value": "PLAY", "has_change_def": false, "packet_id": 239}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 96, "tag": 3085, "value": 40, "has_change_def": false, "packet_id": 240}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 96, "tag": "HEALTH", "value": 40, "has_change_def": false, "packet_id": 241}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 96, "tag": 4741, "value": 1, "has_change_def": false, "packet_id": 242}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 96, "tag": "LAST_AFFECTED_BY", "value": 52, "has_change_def": false, "packet_id": 243}
+{"t": "MetaData", "d": 1, "ts": "20:10:57.081228", "meta": "OVERRIDE_HISTORY", "data": "0", "count": 1, "info": [52], "packet_id": 244}
+{"t": "Block", "d": 0, "ts": "20:10:57.081228", "entity": 76, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "1", "target": 0, "suboption": -1, "trigger_keyword": 1724, "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 245}
+{"t": "FullEntity", "d": 1, "ts": "20:10:57.081228", "entity": 102, "card_id": null, "tags": [["ZONE", "SETASIDE"], ["CONTROLLER", 2], ["ENTITY_ID", 102]], "packet_id": 246}
+{"t": "ShowEntity", "d": 1, "ts": "20:10:57.081228", "entity": 102, "card_id": "VAC_422e", "tags": [["CONTROLLER", 2], ["CARDTYPE", "ENCHANTMENT"], ["ATTACHED", 3], ["ZONE", "SETASIDE"], ["ENTITY_ID", 102], ["CLASS", "NEUTRAL"], ["CREATOR", 76], [1037, 2], [1068, 0], ["CREATOR_DBID", 105893], ["SPAWN_TIME_COUNT", 1], [4901, 0]], "packet_id": 247}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 102, "tag": 1068, "value": 1, "has_change_def": false, "packet_id": 248}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 102, "tag": 1068, "value": 0, "has_change_def": false, "packet_id": 249}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 102, "tag": "ZONE", "value": "PLAY", "has_change_def": false, "packet_id": 250}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "tag": 4741, "value": 1, "has_change_def": false, "packet_id": 251}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "tag": "LAST_AFFECTED_BY", "value": 76, "has_change_def": false, "packet_id": 252}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 102, "tag": "TAG_SCRIPT_DATA_NUM_1", "value": 105893, "has_change_def": false, "packet_id": 253}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.081228", "entity": 102, "tag": "TAG_SCRIPT_DATA_NUM_2", "value": 4, "has_change_def": false, "packet_id": 254}
+{"t": "Block", "d": 0, "ts": "20:10:57.081228", "entity": 1, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "4", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 255}
+{"t": "TagChange", "d": 0, "ts": "20:10:57.445256", "entity": 1, "tag": "STEP", "value": "MAIN_READY", "has_change_def": false, "packet_id": 256}
+{"t": "Block", "d": 0, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 257}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 1, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 258}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 259}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": {"name": "湫然#51704", "entity_id": 3, "player_id": 2}, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 260}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 96, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 261}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 97, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 262}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 98, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 263}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 99, "tag": "NUM_TURNS_IN_PLAY", "value": 1, "has_change_def": false, "packet_id": 264}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": "RESOURCES", "value": 1, "has_change_def": false, "packet_id": 265}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 266}
+{"t": "TagChange", "d": 0, "ts": "20:10:57.445256", "entity": 1, "tag": "STEP", "value": "MAIN_START_TRIGGERS", "has_change_def": false, "packet_id": 267}
+{"t": "Block", "d": 0, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 268}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 269}
+{"t": "TagChange", "d": 0, "ts": "20:10:57.445256", "entity": 1, "tag": "STEP", "value": "MAIN_START", "has_change_def": false, "packet_id": 270}
+{"t": "Block", "d": 0, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 271}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": 2166, "value": 32, "has_change_def": false, "packet_id": 272}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": 467, "value": 1, "has_change_def": false, "packet_id": 273}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 32, "tag": "ZONE", "value": "HAND", "has_change_def": false, "packet_id": 274}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 32, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 275}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 32, "tag": "ZONE_POSITION", "value": 0, "has_change_def": false, "packet_id": 276}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 32, "tag": "ZONE_POSITION", "value": 4, "has_change_def": false, "packet_id": 277}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": "NUM_CARDS_DRAWN_THIS_TURN", "value": 1, "has_change_def": false, "packet_id": 278}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": 995, "value": 1, "has_change_def": false, "packet_id": 279}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "tag": 467, "value": 0, "has_change_def": false, "packet_id": 280}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 281}
+{"t": "TagChange", "d": 0, "ts": "20:10:57.445256", "entity": 1, "tag": "STEP", "value": "MAIN_ACTION", "has_change_def": false, "packet_id": 282}
+{"t": "Block", "d": 0, "ts": "20:10:57.445256", "entity": {"name": "勇猛的熊#56982", "entity_id": 2, "player_id": 1}, "type": "TRIGGER", "index": null, "effectid": "System.Collections.Generic.List`1[System.String]", "effectindex": "-1", "target": 0, "suboption": -1, "trigger_keyword": "TAG_NOT_SET", "ended": true, "parent": {"parent": null, "packet_counter": 284, "spectator_mode": false}, "packet_id": 283}
+{"t": "TagChange", "d": 1, "ts": "20:10:57.445256", "entity": 1, "tag": "NEXT_STEP", "value": "MAIN_END", "has_change_def": false, "packet_id": 284}

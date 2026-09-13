@@ -18,16 +18,19 @@ from pathlib import Path
 
 from .adapter import (game_meta, new_parser, reset_player_manager,
                       resolve_friendly, walk_packets)
-from .analysis import EffectAnalyzer
+from .analysis import EffectAnalyzer, lethal_plan
 from .effects import EffectCache
 from .carddb import CardDB
 from .config import Config
+from .consts import game_hash
 from .knowledge import DeckKnowledge, parse_decks_log
 from .mulligan_ai import MulliganAdvisor, models_root_for
 from .overlay import (KIND_ADVICE, KIND_CHAIN, KIND_GAME_END, KIND_NOTICE,
-                      KIND_SNAPSHOT, Msg, TAG_MY, TAG_OPP, TAG_UNKNOWN)
+                      KIND_SNAPSHOT, KIND_STAT, Msg, TAG_MY, TAG_OPP,
+                      TAG_UNKNOWN)
 from .persist import SessionStore, atomic_write_text
-from .render import chain_line, game_end_line, snapshot_block, snapshot_line
+from .render import chain_line, game_end_line, snapshot_block, snapshot_line, \
+    stat_fields, stat_text
 from .store import GameStore
 
 log = logging.getLogger("hsbot.watcher")
@@ -44,6 +47,7 @@ class GameScope:
     """一局的作用域状态。新局 = 整体替换本对象(重置语义),
     杜绝"逐字段覆写"式重置 —— 漏一个字段就是跨局残留。"""
     no: int
+    game_id: str = ""                    # 对局身份 hash(标题/链路/快照/jsonl 合并主键)
     cursor: int = 0                      # 包游标(packet 树平铺位置)
     gs: GameStore | None = None          # 本局状态仓(每局一个, 局终归档丢弃)
     knowledge: DeckKnowledge | None = None
@@ -53,6 +57,7 @@ class GameScope:
     title_done: bool = False             # 回合标题防重发
     pending_game_end: bool = False       # 终局快照延迟到批尾
     rich_events: list = field(default_factory=list)  # 富化后事件(随快照持久化)
+    last_stat: str | None = None         # 信息区上一次内容(变化才发)
     last_raw_path: Path | None = None    # 已导出的当局切片路径(收尾覆写用)
 
 
@@ -78,27 +83,29 @@ class SnapshotService:
         self.carddb = carddb
         self._emit = emit
 
-    def build_and_emit(self, *, st, led, knowledge, deck_name, generic, game_no,
+    def build_and_emit(self, *, st, led, knowledge, deck_name, generic, game_id,
                        chain, summary, rich_events, persist, reason) -> None:
         block = snapshot_block(
             st, led, knowledge=knowledge, deck_name=deck_name, generic=generic,
-            game_no=game_no, chain_lines=chain, chain_summary=summary,
+            game_id=game_id, chain_lines=chain, chain_summary=summary,
             carddb=self.carddb, reason=reason)
         if reason == "game_end":
             end = game_end_line(st)
             nl = chr(10)
             self._emit(Msg(KIND_GAME_END,
-                           ui=snapshot_line(st, game_no, reason) + nl + end,
+                           ui=snapshot_line(st, game_id, reason) + nl + end,
                            full=block + nl + end))
         else:
-            self._emit(Msg(KIND_SNAPSHOT, ui=snapshot_line(st, game_no, reason),
+            self._emit(Msg(KIND_SNAPSHOT, ui=snapshot_line(st, game_id, reason),
                            full=block))
         if persist is None:
             return
         payload = st.to_dict(reason)
+        payload["game_id"] = game_id       # 快照与链路行/训练 jsonl 的对齐主键
         if led is not None:
             payload["ledger"] = {
                 "in_hand": dict(led.in_hand), "used": dict(led.used),
+                "lost": dict(led.lost),
                 "remaining": dict(led.remaining), "deck_actual": led.deck_actual,
                 "known_top": led.known_top, "known_bottom": led.known_bottom,
             }
@@ -292,7 +299,13 @@ class Watcher:
         self.stream.tail_open = True
         self.match = None
         self.decks_path = path.parent / "Decks.log"
-        self.session_name = f"replay_{path.parent.name}"
+        # 会话名按切片/原日志还原成真实会话目录名(不加 replay_ 前缀):
+        # 同一局回放与 live 算出的对局 hash 才一致, 输出行才能和训练样本对上
+        name = path.stem
+        if name.endswith(".power"):     # .power.log 切片: stem 只剥了一层后缀
+            name = name[:-len(".power")]
+        m = re.fullmatch(r"(.+)_g\d+", name)
+        self.session_name = m.group(1) if m else path.parent.name
         self.store = SessionStore(self.cfg.sessions_dir)
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         # 按 GameState CREATE_GAME 切段, 段内小批量交错"喂入/处理",
@@ -458,7 +471,7 @@ class Watcher:
                 and self.state == "IN_GAME"):
             # 先手局: 留牌阶段friendly才解析出来, 而第1回合已在进行 —— 补发标题
             self.match.title_done = True
-            self._emit(f"──── 第{self.game_no}局 · 我的第1回合开始 (T1) │ "
+            self._emit(f"──── {self.match.game_id} · 我的第1回合开始 (T1) │ "
                        f"{self.match.gs.mana_text(self.match.gs.friendly_key)} ────")
         if self.match is not None and self.match.pending_game_end \
                 and self.parser.games:
@@ -466,6 +479,34 @@ class Watcher:
             # 保证终局行双方 PLAYSTATE 完整 —— 与旧全量导出路径等价
             self._process_tree(self.parser.games[-1], flush=True)
             self._fire_pending_game_end()
+        self._emit_stat()
+
+    def _emit_stat(self) -> None:
+        """上部信息区(敌血/斩杀/法强/回费/费用): 批尾重算, 变化才发 ——
+        状态恒定时零流量; 追平期由 mute 静音。台账随之全量重建(幂等)。
+        消息带机读字段(data): 悬浮窗分格面板用, 控制台/文件用文本。"""
+        if not (self.match and self.match.gs is not None
+                and self.state in ("IN_GAME", "GAME_END")):
+            return
+        if self.match.knowledge is not None:
+            self.match.knowledge.rebuild(self.match.gs)
+        # 斩杀线(T1, 接口契约 §4): 信息区批尾重算点。我方回合且开关开 → 算
+        # plan 随机读字段下发; 对手回合/关闭恒 None(渲染按 lethal 决定第三行,
+        # 其余情况文本零变化, "变化才发"门不受影响)
+        plan = (lethal_plan(self.match.gs, self.match.knowledge, self.analyzer,
+                            enabled=self.cfg.lethal_plan)
+                if (self.match.gs.is_my_turn() and self.cfg.lethal_plan)
+                else None)
+        fields = stat_fields(self.match.gs, knowledge=self.match.knowledge,
+                             carddb=self.carddb, analyzer=self.analyzer,
+                             plan=plan)
+        if fields is None:
+            return
+        text = stat_text(fields)
+        if text == self.match.last_stat:
+            return
+        self.match.last_stat = text
+        self._emit(Msg(KIND_STAT, ui=text, data=fields), KIND_STAT)
 
     def _detect_game(self) -> None:
         n = len(self.parser.games)
@@ -480,12 +521,16 @@ class Watcher:
         """新局 = 替换整个局作用域(GameScope) —— 重置语义, 不逐字段覆盖。"""
         self.game_no += 1
         self.match = GameScope(no=self.game_no)
+        tree = self.parser.games[-1] if self.parser.games else None
+        if tree is not None:
+            # 对局身份 hash(会话名+开局时刻): 标题/链路/快照/训练 jsonl 四方对齐
+            self.match.game_id = game_hash(self.session_name, str(tree.ts))
         self.stream.pend_cid = {}        # 新局边界: 跨局流缓冲清空
         self.stream.pend_ctrl = {}
         self.stream.pend_draws = []
         self.state = "IN_GAME"
         self.match.gs = GameStore(carddb=self.carddb, battletag=self.cfg.battletag,
-                                  tree=self.parser.games[-1] if self.parser.games else None,
+                                  tree=tree,
                                   player_manager=self.parser.player_manager,
                                   draw_dedup=self.cfg.draw_dedup_seconds)
         self.match.gs.set_meta(game_meta(self.parser))   # 一次会话内不变, 新局注入一次
@@ -496,12 +541,14 @@ class Watcher:
                 self.hub.set_file(self.store.path.with_suffix(".log"))
         self.match.knowledge = self._load_knowledge()
         note = "" if self.match.knowledge else " (Decks.log 中未找到卡组代码, 通用模式)"
-        self._emit(f"── 新对局 #{self.game_no} ── 所选卡组: {self.cfg.deck_name}{note}")
+        self._emit(f"── 新对局 {self.match.game_id} ── 所选卡组: {self.cfg.deck_name}{note}")
 
     def _load_knowledge(self) -> DeckKnowledge | None:
         code = self.cfg.deck_code
         if not code and self.decks_path is not None:
             code = parse_decks_log(self.decks_path).get(self.cfg.deck_name)
+        if not code:
+            code = self._saved_deck_code()
         if not code:
             return None
         k = DeckKnowledge.from_code(code, self.carddb, self.cfg.deck_name,
@@ -515,6 +562,19 @@ class Watcher:
         except OSError:
             pass
         return k
+
+    def _saved_deck_code(self) -> str | None:
+        """上次对局落盘的卡组代码(data/decks/decklist.json)。
+        Decks.log 不可用(回放切片/会话中途挂载)时的兜底 —— 库侧斩杀/回费/费用
+        与组件台账照常计算, 不再降级为 ?; 卡组对不上时由 mismatch 判通用模式。"""
+        try:
+            import json as _json
+            data = _json.loads((self.cfg.data_dir / "decks" / "decklist.json")
+                               .read_text(encoding="utf-8"))
+            code = data.get("code")
+            return code if isinstance(code, str) and code else None
+        except (OSError, ValueError):
+            return None
 
     def _process_tree(self, tree, flush: bool = False) -> None:
         if self.match is None or self.match.gs is None:
@@ -547,13 +607,13 @@ class Watcher:
             if evt["first"]:
                 if evt["actor"] == friendly:
                     self.match.title_done = True
-                    self._emit(f"──── 第{self.game_no}局 · 我的第1回合开始 (T1) │ "
+                    self._emit(f"──── {self.match.game_id} · 我的第1回合开始 (T1) │ "
                                f"{self.match.gs.mana_text(evt['actor'])} ────")
                 return
             if friendly is not None and evt["actor"] == friendly:
                 n, total = evt["my_turn_no"], evt["total_turn"]
                 self.match.title_done = True
-                self._emit(f"──── 第{self.game_no}局 · 我的第{n}回合开始 (T{total}) │ "
+                self._emit(f"──── {self.match.game_id} · 我的第{n}回合开始 (T{total}) │ "
                            f"{self.match.gs.mana_text(evt['actor'])} ────")
             else:
                 self._snapshot("turn_end")
@@ -571,13 +631,17 @@ class Watcher:
             is_my_play = True
         else:
             is_my_play = False
-        evt = self.analyzer.enrich(evt, self.gs)   # 解析层: 渲染前实时富化
+        evt = self.analyzer.enrich(evt, self.gs, live=not self.mute)
+        #        ↑ 解析层: 渲染前实时富化; 静默(追平)期跳过留牌推理不堵日志
+        evt["game_id"] = self.match.game_id   # 行首对局 hash(链路行/rich_events 共用)
         if is_my_play:
             # 富化之后才记账: 若将来推断改变 card_id, 摘要与链路行仍一致(审计 低#10)
             self.match.summary.append(self.carddb.name(evt["card_id"]))
         if len(self.match.rich_events) < 400:
             self.match.rich_events.append(dict(evt))   # 富化结果随快照持久化
         line = chain_line(evt, self.carddb)
+        if line is None:                 # 渲染层判弃(开局未揭示触发): 事实已入
+            return                       # rich_events 留档, 只是不出显示行
         self.match.chain.append(line)
         msg_kind = _MSG_KIND_BY_EVENT.get(kind, KIND_CHAIN)
         if msg_kind == KIND_CHAIN:
@@ -645,7 +709,7 @@ class Watcher:
         self.snapshot_service.build_and_emit(
             st=self.gs, led=led, knowledge=self.match.knowledge,
             deck_name=self.cfg.deck_name, generic=self.match.generic,
-            game_no=self.game_no, chain=self.match.chain,
+            game_id=self.match.game_id, chain=self.match.chain,
             summary=self.match.summary, rich_events=self.match.rich_events,
             persist=self.store, reason=reason)
         self.match.chain, self.match.summary = [], []
