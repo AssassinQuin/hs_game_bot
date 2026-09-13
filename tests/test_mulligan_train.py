@@ -177,3 +177,123 @@ def test_advise_without_lr_uses_table(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "统计表" in out                     # 语料过小, 无 LR
     assert "留 ── GOOD" in out and "建议留" in out and "建议换" in out
+
+
+# ── v2: 专家先验 / 集合枚举 / Thompson / 同情境匹配 ──
+
+PRIOR = {"cards": {"X": {"keep": 0.10, "keep_coin": 0.20},
+                   "Y": {"keep": -0.10}},
+         "pairs": {}, "engine": []}
+
+
+def test_prior_fills_cards_without_data():
+    stats = {}
+    adv = tm.card_advice(stats, "X", "PALADIN", None, 0.5, NO_DB, PRIOR)
+    assert adv["src"] == "专家先验" and adv["label"] == "建议留"
+    assert adv["gain"] == 0.10
+    adv_coin = tm.card_advice(stats, "X", "PALADIN", 1, 0.5, NO_DB, PRIOR)
+    assert adv_coin["gain"] == 0.20            # keep_coin 覆盖
+    adv_y = tm.card_advice(stats, "Y", "PALADIN", None, 0.5, NO_DB, PRIOR)
+    assert adv_y["label"] == "建议换"
+    # 无先验卡仍走费用启发 → 样本不足
+    assert tm.card_advice(stats, "Z", "PALADIN", None, 0.5, NO_DB, PRIOR)["label"] == "样本不足"
+
+
+def test_prior_file_loader(tmp_path):
+    p = tmp_path / "mulligan_prior.yaml"
+    p.write_text(
+        "奇迹德:\n"
+        "  engine: [GOOD]\n"
+        "  cards:\n"
+        "    GOOD: {keep: 0.08}\n"
+        "  pairs:\n"
+        "    - {cards: [GOOD, BAD], bonus: 0.05}\n", encoding="utf-8")
+    prior = tm.load_prior(p, "奇迹德", NO_DB, {"GOOD", "BAD"})
+    assert prior["cards"]["GOOD"]["keep"] == 0.08
+    assert prior["pairs"] == {("BAD", "GOOD"): 0.05}
+    assert prior["engine"] == ["GOOD"]
+    # 卡组不匹配 → 空先验, 不报错
+    assert tm.load_prior(p, "别的卡组", NO_DB, {"GOOD"}) == \
+        {"cards": {}, "pairs": {}, "engine": []}
+
+
+def test_best_keep_set_synergy_beats_additive():
+    gains = {"A": -0.01, "B": -0.01}           # 单看都不留
+    assert tm.best_keep_set(["A", "B"], gains, {}) == []
+    keep = tm.best_keep_set(["A", "B"], gains, {("A", "B"): 0.05})
+    assert sorted(keep) == ["A", "B"]          # 协同让组合变最优
+    # 正增益卡必留; 零增益卡不并入(平分取最小集)
+    assert tm.best_keep_set(["C", "D"], {"C": 0.05, "D": 0.0}, {}) == ["C"]
+
+
+def test_thompson_explores_uncertain_cards():
+    stats = {}
+    tm.table_update(stats, tm.Game("a.jsonl", 0, False, "PALADIN", ["C"], []))
+    tm.table_update(stats, tm.Game("b.jsonl", 0, False, "PALADIN", ["C"], []))
+    rng = tm_random(1)
+    samples = [tm.thompson_gain(stats, "C", "PALADIN", 0, 0.5, NO_DB,
+                                {"cards": {}, "pairs": {}, "engine": []}, rng)
+               for _ in range(40)]
+    assert any(s > 0 for s in samples)         # 从未留过 → 后验宽 → 会探索留
+    # 双侧高样本且胜率各半 → 采样收敛到均值附近(利用)
+    for i in range(90):                        # 留/换两侧都是约一半胜
+        kept = ["D"] if i % 2 == 0 else []
+        result = 1 if i % 4 in (0, 3) else 0
+        tm.table_update(stats, tm.Game(f"d{i}.jsonl", result, False, "PALADIN",
+                                       ["D"], kept))
+    rng = tm_random(2)
+    tight = [tm.thompson_gain(stats, "D", "PALADIN", 0, 0.5, NO_DB,
+                              {"cards": {}, "pairs": {}, "engine": []}, rng)
+             for _ in range(30)]
+    assert max(abs(s) for s in tight) < 0.25
+
+
+def tm_random(seed):
+    import random
+    return random.Random(seed)
+
+
+def test_matched_evidence_levels():
+    g = lambda f, k, r: {"c": "PALADIN", "o": 0, "f": f, "k": k, "r": r}
+    near = [g(["X", "A", "B"], ["X"], 1), g(["X", "A", "C"], ["X"], 1),
+            g(["X", "A", "D"], [], 0), g(["X", "A", "E"], ["X"], 0)]
+    far = [g(["Y", "Z"], ["X"], 1)]            # 共享不足 2 张
+    digest = near + far
+    ev = tm.matched_evidence(digest, "X", ["X", "A", "Q"], "PALADIN", 0)
+    assert ev["level"] == "近似手牌" and ev["n"] == 4
+    assert ev["keep"] == (2, 1) and ev["drop"] == (0, 1)
+    ev1 = tm.matched_evidence(digest[:1], "X", ["X", "A"], "PALADIN", 0)
+    assert ev1["level"] == "无可比对局"
+    # 手牌不近似但同职业同手样本足 → 降级到同职业同手
+    many_far = [g(["X", "Y"], ["X"], r) for r in (1, 0, 1, 0)]
+    ev2 = tm.matched_evidence(many_far, "X", ["X", "A"], "PALADIN", 0)
+    assert ev2["level"] == "同职业同手"
+
+
+def test_train_saves_digest_and_advise_shows_matched(tmp_path, capsys):
+    corpus = tmp_path / "corpus" / "奇迹德"
+    corpus.mkdir(parents=True)
+    # 4 局近似手牌(共享≥2张), X 留换两侧都有
+    for i, (kept, r) in enumerate([(["GOOD", "BAD"], 1), (["GOOD"], 1),
+                                   ([], 0), (["GOOD"], 0)]):
+        _write_game(corpus, f"s_g{i:02d}.jsonl", result="WON" if r else "LOST",
+                    offered=("GOOD", "BAD", "OK"), kept=tuple(kept))
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "mulligan_prior.yaml").write_text(
+        "奇迹德:\n  cards:\n    GOOD: {keep: 0.08}\n", encoding="utf-8")
+    pre = ["--config", "no-such.yaml", "--data-dir", str(tmp_path / "data")]
+    post = ["--data", str(tmp_path / "corpus"), "--deck", "奇迹德"]
+    assert tm.main(pre + ["train"] + post) == 0
+    capsys.readouterr()
+    digest_path = (tmp_path / "data" / "models" / "mulligan" / "奇迹德"
+                   / "v001" / "games_digest.json")
+    assert digest_path.exists()
+    assert tm.main(pre + ["advise"] + post +
+                   ["--vs", "圣骑士", "--first", "--hand", "GOOD,BAD"]) == 0
+    out = capsys.readouterr().out
+    assert "近似手牌" in out or "同职业同手" in out
+    # 探索局: 固定种子可复现, 输出标注探索
+    assert tm.main(pre + ["advise"] + post +
+                   ["--vs", "圣骑士", "--first", "--explore", "--seed", "3",
+                    "--hand", "GOOD,BAD"]) == 0
+    assert "Thompson 探索局" in capsys.readouterr().out

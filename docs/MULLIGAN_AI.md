@@ -4,12 +4,20 @@
 > 回答"这手牌该留哪几张"。训练器 = [scripts/train_mulligan.py](../scripts/train_mulligan.py),
 > 全部产物落 `data/models/mulligan/<卡组>/`, 供 `report`/`advise` 复用,
 > 也是后续军师(M4)开局自动建议的数据源。
+>
+> v2 核心逻辑: **结论有出处, 建议按集合, 探索有方向, 证据可配对**。
+> 观察数据只能反映你自己的习惯(见 §5), 所以这套逻辑的关键是让
+> "留其他牌可能更好"能从 先验 → 猜测 → 数据结论 逐级升级。
 
 ## 1. 数据流
 
 ```
 Power.log ─(hsbot corpus.py: import-all / auto_training)→ data/training/<卡组>/*.jsonl
-jsonl ─(train_mulligan: load_game)→ Game 样本 ─(统计表 + 逻辑回归)→ data/models/mulligan/<卡组>/vNNN/
+jsonl ─(train_mulligan: load_game)→ Game 样本 ─┬─ 平滑统计表 stats.json
+                                               ├─ 逻辑回归 model.json(可选)
+                                               ├─ 同情境匹配索引 games_digest.json
+                                               └─ meta.json / games_seen.json
+data/mulligan_prior.yaml(人工维护, 入库)───────┘(专家先验, 每次训练/建议时读取)
 ```
 
 每局 JSONL 首行 `_meta` 已含 玩家/胜负/留牌(offered/kept/replaced)/卡组清单,
@@ -25,66 +33,110 @@ jsonl ─(train_mulligan: load_game)→ Game 样本 ─(统计表 + 逻辑回归
 | 幸运币(`is_coin`: GAME_005 / *COIN*)从 offered/kept 剔除, 只留作"后手"标记 | 币不可换, 不参与决策 |
 | 起手可含同名两张 → 按逐张计(Counter), 各自计入留/换 | 洗牌可抽到双张 |
 
-## 2. 模型(双层)
-
-留牌是**组合决策 + 只观察到自己行为**的数据(对手不广播决定), 业界主流做法
-(HSReplay 留牌胜率表、组合多臂老虎机、胜率模型反事实翻位)在"单卡增益"层面
-是同构的: 比较 **P(胜│留) 与 P(胜│换)**。本工具两层各司其职:
+## 2. 模型
 
 ### 2.1 平滑统计表(主力, 零依赖)
 
-对每张卡按 `(对手职业, 先/后手)` 计 四元组 计数:
+对每张卡按 `(对手职业, 先/后手)` 计四元组 `keep:{w,l}` / `drop:{w,l}`,
+查询走**三级级联**(取样本最足的格子, 报告标明出处):
+`同先手(n≥3) → 本职业(n≥5) → 全体`。
 
 ```
-keep: {w, l}   该卡被留下时    的胜负局数
-drop: {w, l}   该卡被换掉时    的胜负局数
+留→胜率 = (keep_w + BETA_PRIOR_N × 均值) / (keep_n + BETA_PRIOR_N)   # 换侧同理
+增益    = w × (留→胜率 − 换→胜率) + (1−w) × 先验                      # w = min(留n,换n)/(min+SHRINK_N)
 ```
 
-查询走**三级级联**(取样本最足的格子, 报告里标明出处):
+结论阈值: 增益 ≥ +3% 建议留 │ ≤ −3% 建议换 │ 其余中性; 样本 <6 局标"样本不足"
+(有专家先验的卡除外, 见 §2.2)。
+
+### 2.2 专家先验文件(人工维护, 入库)
+
+`data/mulligan_prior.yaml`, 按卡组分节; `keep` 是留牌增益先验,
+`keep_coin`/`keep_first` 覆盖特定手, `pairs` 是两张同留的协同加成,
+卡名/`card_id` 均可。作用:
+
+- **无数据兜底**: 你从没留过/没换过的卡, 由先验给出初始结论(出处标"专家先验"),
+  而不是一律"样本不足";
+- **有数据收缩**: 数据侧的 Beta 均值与收缩目标向先验偏移, 话语权随样本衰减
+  (`w = n/(n+4)`, 数据越来越多 → 先验自动让位);
+- **协同注入**: `pairs` 加成计入集合枚举总分, 让"拍卖师+过牌"这类组合知识
+  在数据不足时也参与决策。
+
+`engine` 列出引擎卡(预留, 供近似手牌配对加权)。奇迹德一节是 AI 填的初始草稿,
+**请按手感改**; 删掉整节 = 回到纯数据驱动。
+
+### 2.3 逻辑回归(可选, sklearn 训练 / 纯 JSON 推理)
+
+每局一行: `手牌onehot + 留牌onehot + 留牌组合特征 + 先手 + 对手职业onehot`。
+组合特征 = 共同留过 ≥`LR_PAIR_SUPPORT`(4) 次的卡对 conjunction, 可捕捉
+"拍卖师+廉价法术"式配合; 正则 C=0.3; 语料 <20 局不训。
+
+- **评估防泄漏**: 时间序前 80% 拟合 → 后 20% 留出打分(AUC / LogLoss),
+  服务模型再用全量重拟合;
+- **拍板权门控**: 留出 AUC ≥ `LR_AUC_GATE`(0.55) 时 LR 才对最终建议有拍板权,
+  否则降为参考(几十局的 LR 常是噪声)。系数落 `model.json`, 推理零 sklearn。
+
+### 2.4 建议按集合: 枚举 2^n 个候选留牌组合
+
+留牌是**选集合**, 不是 n 个独立开关(单卡逻辑看不见"拍卖师+过牌"配合)。
+`advise` 在全部候选集合上取分最高(升序枚举+严格比较 → 平分取最小集):
 
 ```
-职业×先手(n≥3) → 本职业(n≥5) → 全体
+统计表路径: score(set) = Σ card_advice 增益 + Σ 专家 pairs 加成
+LR 路径(过门控): score(set) = LR P(胜 │ 手牌, set, 职业, 先/后手)
 ```
 
-增益估计(参数集中在脚本头部, 可调):
+起手最多 4 张(≤16 组合), 理论穷举无压力; 卡数超过 `ENUM_MAX_CARDS`(10) 退回贪心。
+
+### 2.5 Thompson 探索: 往最缺证据的方向打
+
+观察数据是"只观察自己决定"的离线数据——**从不验证的方向永远没有数据**
+(§5)。`advise --explore` 不用增益均值, 而是从每张卡的留牌增益**后验抽一次样**
+(Beta: 留侧/换侧各自 `Beta(胜 + a×均值, 负 + a×(1−均值))`, 取差)按抽样值决策:
+
+- 数据足的卡: 后验窄 → 抽样≈均值 → 行为稳定(利用);
+- 没验证过的卡: 后验宽 → 抽样经常翻面 → 自动产生"故意留/故意换"的探索局。
+
+探索预算自动分配给最缺数据的地方, 无需手调 ε。`--seed` 可复现;
+输出标注探索偏差("均值 −2% → 抽样 +4%"), 这些对局落库后, 统计表对
+被习惯锁死的卡就有了两侧样本。
+
+### 2.6 同情境匹配证据: 给对比找可比对象
+
+"换→胜率 23%" 混淆了手牌上下文(它只在"这卡没用的手"里被换过)。
+训练时把每局压缩成 `{职业, 先/后手, 起手集合, 留牌集合, 胜负}` 存入
+`games_digest.json`; `advise` 逐卡给出**可比对局**的对照:
 
 ```
-留→胜率 = (keep_w + BETA_PRIOR_N × 全局胜率) / (keep_n + BETA_PRIOR_N)   # Beta 平滑, 换侧同理
-增益    = w × (留→胜率 − 换→胜率) + (1−w) × 费用启发先验                  # w = min(留n,换n)/(min+SHRINK_N)
-费用启发先验: ≤2费 +3% │ 3费 0 │ ≥4费 −4%/费(封底 −15%)                  # 弱先验, 数据主导
+近似手牌(同职业同手 且 与当前起手共享≥2张, ≥3局) → 同职业同手(≥3局) → 无可比对局
+近似手牌9局: 留4(3胜1负) 换5(1胜4负)
 ```
 
-结论阈值: 增益 ≥ +3% 建议留 │ ≤ −3% 建议换 │ 其余中性; 样本 <6 局只报"样本不足"。
-留/换任一侧无样本时 w=0 → 增益退化为费用先验(如"从未留过"的卡不会凭对手侧
-数据直接翻成建议留), 两侧胜率照常展示供人工判断。
+来源、样本、可比性全透明; 没有可比对象就直说, 不退回先验装作有结论。
 
-### 2.2 逻辑回归(可选, sklearn 训练 / 纯 JSON 推理)
+## 3. 结论的三层来源(逐卡"出处"列)
 
-每局一行: `手牌onehot + 留牌onehot + 先手 + 对手职业onehot`, 正则 C=0.3,
-可捕捉单卡表看不到的手牌组合效应; 语料 <20 局不训。
+```
+同先手数据 > 本职业数据 > 全体数据 > 专家先验 > 相似卡迁移(预留) > 费用启发
+```
 
-- **评估防泄漏**: 按 时间序 前 80% 拟合 → 后 20% 留出打分(AUC / LogLoss),
-  服务模型再用全量重拟合。
-- **建议**: 贪心反事实翻位——从全换出发, 逐卡试"留下能否提高 P(胜)",
-  复核到不动点; 不限先/后手时取先/后手两套建议的交集。
-- **拍板权门控**: 留出 AUC ≥ 0.55 时 LR 才对最终建议有拍板权, 否则降为参考
-  (几十局的 LR 常是噪声, 小样本下统计表更稳)。系数落 `model.json`,
-  推理只用 `math.exp`, 不依赖 sklearn。
+费用启发(≤2费 +3% │ 3费 0 │ ≥4费 −4%/费, 封底 −15%)是**最弱档**,
+只在无任何数据且无先验时兜底, 结论标"样本不足"。
 
-### 2.3 已知偏差(诚实条款)
+## 4. 已知偏差(诚实条款)
 
-- **选择偏差**: 只观察自己的决定。"留→胜率高"可能是"手牌好才留它"而非"它好"。
-  缓解 = 看**留/换差值**与双侧样本量, 而非单侧胜率; 报告始终展示两侧。
-- **离线策略数据**: 没有反事实(同一手牌留/换都打一遍)。样本过万前,
-  结论是"倾向"不是"定理"; 想加速可故意换掉个别高置信卡做 ε-探索(人工操作)。
-- 对手留牌不可观测 → 不建模对手手牌; 同职业不同形态(快攻/控制)暂不区分,
-  后续可用对手前几回合行为聚类扩充条件维度。
+- **选择偏差**: 只观察自己的决定。"留→胜率高"可能是"手牌好才留它"。
+  缓解: 看**留/换差值**与双侧样本量、匹配证据限定可比对局、LR 整手牌条件化;
+  无法根治——Thompson 探索(§2.5)是唯一产生真反事实数据的途径。
+- **偏差方向 = 确认现有习惯**: 从不换的卡, 换侧无样本 → 增益退为先验;
+  从不留的卡同理。所以模型天然倾向保守, 探索局是打破习惯锁的钥匙。
+- **对手不可观测**: 对手留牌不广播, 不建模对手手牌; 同职业不同形态
+  (快攻/控制)暂不区分, 后续可用对手前几回合行为聚类扩充条件维度。
 
-## 3. 增量策略
+## 5. 增量策略
 
-**每次 train 全量重扫语料**(每局只读 `_meta` + 英雄实体前段, 成本恒小),
-不做计数增量合并——全量重扫无状态漂移、可重现, 语料再大一个量级也够快。
-"增量"体现在:
+**每次 train 全量重扫语料**(每局只读 `_meta` + 英雄段, 成本恒小, 无状态漂移),
+不做计数增量合并——全量重扫无状态漂移、可重现。"增量"体现在:
 
 - 对比上一版 `games_seen.json`(文件名 + mtime/size) → 报告"较上一版新增 N 局";
 - 产物按版本目录 `vNNN` 留档, `LATEST.json` 指向最新, 旧版可回溯对比;
@@ -93,40 +145,46 @@ drop: {w, l}   该卡被换掉时    的胜负局数
 ```
 data/models/mulligan/<卡组>/
   v001/ meta.json(局数/新增/跳过/对手分布/LR指标) · stats.json(计数表+全局胜率)
-        model.json(LR 系数, 可选) · games_seen.json(增量游标)
+        model.json(LR 系数, 可选) · games_digest.json(匹配证据索引)
+        games_seen.json(增量游标)
   LATEST.json
 ```
 
-## 4. 用法
+## 6. 用法
 
 ```bash
 python scripts/train_mulligan.py                    # 训练+报告(config 默认卡组)
-python scripts/train_mulligan.py --deck 奇迹德      # 指定卡组
 python scripts/train_mulligan.py report             # 查看已保存模型
 python scripts/train_mulligan.py advise --vs 圣骑士 --coin \
-    --hand 水栖形态,黑市拍卖师,顺水漂流              # 给一个起手出建议
-python scripts/train_mulligan.py --config my.yaml ...   # 配置参数须在子命令前
+    --hand 水栖形态,黑市拍卖师,顺水漂流              # 建议(集合枚举)
+python scripts/train_mulligan.py advise --explore --seed 7 \
+    --hand 水栖形态,黑市拍卖师                       # Thompson 探索局
 ```
 
-`advise` 的 `--vs` 接受 中文名(圣骑士)/CLASS 标签(PALADIN)/英雄卡(HERO_04)/`*`;
-`--hand` 接受中文名或 `card:ID`; `--coin`/`--first` 指定后手/先手(缺省=不限,
-统计表走"本职业"级联, LR 取先/后手交集)。
+先验文件改完即生效(每次 train/advise 都重新读取), 无需重训。
+`advise` 的 `--vs` 接受 中文名/CLASS 标签/英雄卡/`*`; `--hand` 接受中文名或
+`card:ID`; `--coin`/`--first` 指定后手/先手(缺省=不限, 统计表走"本职业"级联,
+LR 取先/后手交集)。
 
-## 5. 与 hsbot 的集成路径
+## 7. 与 hsbot 的集成路径
 
 军师(M4)在收到 `mulligan` 事件时: 读 `LATEST.json` → `stats.json`/`model.json`
-→ `card_advice()` 出逐卡结论, 经 render 层进悬浮窗。推理零 sklearn 依赖,
-`train_mulligan.py` 的 `card_advice/lr_advice` 即推理 API(后续如需常驻,
-再把这两个纯函数提升进 `hsbot/analysis/`)。
+→ `card_advice()`/`best_keep_set()` 出建议, 经 render 层进悬浮窗; 探索局可按
+日期低频触发。推理零 sklearn 依赖, `train_mulligan.py` 的
+`card_advice / best_keep_set / thompson_gain` 即推理 API(后续如需常驻,
+再把这些纯函数提升进 `hsbot/analysis/`)。
 
-## 6. 业界参照
+## 8. 业界参照
 
 - [HSReplay: The Art of the Mulligan](https://articles.hsreplay.net/2019/04/15/the-art-of-mulligan/)
   与 [卡牌留牌数据](https://articles.hsreplay.net/2020/07/23/card-mulligan-data/):
   留/换胜率表是行业标准口径, 留牌选择影响胜率 5~10%。
 - [Approaching Hearthstone as a Combinatorial Multi-Armed Bandit Problem
   (Maastricht U., 2019)](https://project.dke.maastrichtuniversity.nl/games/files/msc/Valkenberg_Thesis.pdf):
-  起手/选牌 = 组合多臂老虎机, 支持本工具"单卡增益 + 组合微调"的分解。
+  起手/选牌 = 组合多臂老虎机 —— 本工具的 集合枚举 + Thompson 采样 正是其
+  实用化落地。
 - [Predicting Hearthstone game outcome with ML (elie.net)](https://elie.net/blog/hearthstone/predicting-hearthstone-game-outcome-with-machine-learning)
   与 [r/competitivehs 对单卡留牌胜率偏差的批评](https://outof.games/devtracker/hearthstone/reddit/r-competitivehs/3171):
-  "训练胜率模型再反事实评估留牌位"正是 §2.2 的做法与 §2.3 的偏差来源。
+  "训练胜率模型再反事实评估留牌位"正是 §2.3 的做法与 §4 的偏差来源。
+- Thompson sampling: Thompson(1933) 的贝叶斯多臂老虎机方案, 工程综述见
+  [A Tutorial on Thompson Sampling](https://arxiv.org/abs/1707.02038)。

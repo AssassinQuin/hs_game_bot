@@ -73,9 +73,11 @@ python -m hsbot --config my.yaml replay x.log    # 任意子命令均可 --confi
 ## 留牌 AI（离线）
 
 `scripts/train_mulligan.py` 从训练语料学习「按对手职业 × 先/后手」的起手留牌：
-平滑统计表给逐卡留/换增益，可选的逻辑回归（sklearn）做组合修正与时序验证，
-产物按版本落 `data/models/mulligan/<卡组>/`。打几局 → 重跑一次 `train` 即增量吸收
-新对局；`advise` 子命令给任意起手场景出建议。设计、偏差说明与参数见
+平滑统计表给逐卡留/换增益，专家先验文件（`data/mulligan_prior.yaml`，人工维护）
+兜底无数据卡，可选逻辑回归（sklearn）做组合修正与时序验证；建议在 2^n 个候选
+留牌集合上枚举取最优，`advise --explore` 用 Thompson 采样生成探索局，逐卡附
+"同情境匹配"证据。产物按版本落 `data/models/mulligan/<卡组>/`。打几局 → 重跑
+一次 `train` 即增量吸收新对局。设计、偏差说明与参数见
 [docs/MULLIGAN_AI.md](docs/MULLIGAN_AI.md)。
 
 ## 配置项（config.yaml）

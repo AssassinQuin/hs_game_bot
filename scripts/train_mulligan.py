@@ -4,33 +4,38 @@
 我方判定用 config.battletag; 对手职业统一从事件流的英雄实体 CLASS 标签提取
 (旧样本 _meta.heroes 大面积缺失, 事件流永远可靠); 幸运币不参与留牌决策。
 
-模型(双层, 设计与偏差讨论见 docs/MULLIGAN_AI.md):
+结论的三层来源与一个闭环(设计与偏差讨论见 docs/MULLIGAN_AI.md):
   1) 平滑统计表 —— (卡牌 × 对手职业 × 先/后手) 的 留/换 胜负计数, 三级级联
-     (同先手行 → 本职业行 → 全体) + Beta 平滑 + 费用启发先验。零依赖、
-     可解释 —— 每张卡结论的直接依据。
-  2) 逻辑回归胜率模型(可选, sklearn) —— 每局一行: 手牌 onehot + 留牌 onehot
-     + 先手/对手职业; 时序留出评估 AUC/LogLoss; 贪心反事实翻位出建议留牌集。
-     系数落 JSON, 推理不依赖 sklearn。
+     (同先手行 → 本职业行 → 全体) + Beta 平滑。零依赖、可解释。
+  2) 专家先验 —— data/mulligan_prior.yaml(人工维护): 无数据卡由先验兜底,
+     有数据卡作为收缩目标; 话语权随样本自动衰减。含 pairs 协同与引擎卡。
+  3) 逻辑回归(可选, sklearn) —— 整手牌条件化 + 留牌组合特征, 时序留出验证
+     (AUC ≥ LR_AUC_GATE 才有拍板权); 系数落 JSON, 推理不依赖 sklearn。
+建议 = 在 2^n 个候选留牌集合上取最优(集合枚举, 协同一等公民), 而非逐卡独立;
+--explore 用 Thompson 采样从后验探索最缺证据的方向; 逐卡附"同情境匹配"证据。
 
-增量: 每次 train 全量重扫语料(每局只读 _meta + 英雄段, 成本恒小, 无状态漂移),
+增量: 每次 train 全量重扫语料(每局只读 _meta+英雄段, 成本恒小, 无状态漂移),
 对比上一版 games_seen 报告新增局数; 产物落版本目录 vNNN + LATEST.json。
 
 用法:
   python scripts/train_mulligan.py                     # 训练+报告(config 默认卡组)
   python scripts/train_mulligan.py report              # 查看已保存模型
   python scripts/train_mulligan.py advise --vs 圣骑士 --coin \
-      --hand 交易馆长,危机,JAIL_718
+      --hand 交易馆长,危机,JAIL_718                     # 给一个起手出建议
+  python scripts/train_mulligan.py advise --explore --seed 7 ...   # Thompson 探索局
 """
 from __future__ import annotations
 
 import argparse
 import json
 import math
+import random
 import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
+from itertools import combinations
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -51,16 +56,20 @@ HERO_ID_CLASS = {"HERO_01": "WARRIOR", "HERO_02": "SHAMAN", "HERO_03": "ROGUE",
 UNKNOWN = "UNKNOWN"
 
 # ── 平滑/阈值参数(集中一处, 调参改这里) ──
-BETA_PRIOR_N = 2.0     # Beta 平滑虚拟样本数(以全局胜率为先验均值)
-SHRINK_N = 4.0         # 数据向费用启发先验收缩: 权重 n/(n+SHRINK_N)
+BETA_PRIOR_N = 2.0     # Beta 平滑虚拟样本数(以全局胜率/先验为均值)
+SHRINK_N = 4.0         # 数据向先验收缩: 权重 n/(n+SHRINK_N)
 N_COIN_CELL = 3        # (职业×先手) 格子最少样本, 否则级联回本职业行
 N_CLASS_CELL = 5       # 本职业格最少样本, 否则级联回全体
-N_ADVICE_MIN = 6       # 低于此样本只报"样本不足"
+N_ADVICE_MIN = 6       # 低于此样本只报"样本不足"(有专家先验的卡除外)
 GAIN_KEEP = 0.03       # 增益 ≥ +3% → 建议留
 GAIN_DROP = -0.03      # 增益 ≤ -3% → 建议换
 LR_MIN_GAMES = 20      # 语料低于此局数不训逻辑回归
 LR_AUC_GATE = 0.55     # LR 时序留出 AUC 低于此值时, 建议权归统计表
 LR_TEST_FRAC = 0.2     # 时序留出比例
+LR_PAIR_SUPPORT = 4    # 留牌组合特征最少共现次数
+ENUM_MAX_CARDS = 10    # 起手去重卡数超过此值退回贪心(理论最多 4)
+MATCHED_MIN = 3        # 同情境匹配证据最少局数
+ENUM_PRIOR_TXT = "专家先验"
 
 
 def class_zh(en: str) -> str:
@@ -179,7 +188,59 @@ def build_dataset(training_dir: Path, deck: str,
     return games, skip
 
 
-# ════════════════════ 2. 平滑统计表 ════════════════════
+# ════════════════════ 2. 专家先验(人工维护文件) ════════════════════
+# data/mulligan_prior.yaml, 按卡组分节; 卡名/卡ID 均可。话语权随样本自动衰减。
+
+def load_prior(path: Path, deck: str, carddb: CardDB, known_ids: set) -> dict:
+    """解析先验文件 → {"cards": {cid: gain}, "pairs": {(a,b): bonus}, "engine": [cid]}。
+    known_ids 用于把中文名反查成 card_id(统计表/卡表词汇)。"""
+    out = {"cards": {}, "pairs": {}, "engine": []}
+    if not path.exists():
+        return out
+    try:
+        import yaml
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:  # noqa: BLE001
+        print(f"(先验文件解析失败, 忽略: {exc})")
+        return out
+    sec = data.get(deck) or data.get("通用") or {}
+    name2id = {}
+    for cid in known_ids:
+        nm = carddb.name(cid)
+        if nm and nm != cid:
+            name2id[nm] = cid
+
+    def resolve(tok):
+        tok = str(tok).strip()
+        return tok if tok in known_ids else name2id.get(tok)
+
+    for name, ent in (sec.get("cards") or {}).items():
+        cid = resolve(name)
+        if not cid or not isinstance(ent, dict):
+            continue
+        out["cards"][cid] = ent
+    for ent in sec.get("pairs") or []:
+        ids = [resolve(t) for t in ent.get("cards") or []]
+        bonus = ent.get("bonus")
+        if all(ids) and isinstance(bonus, (int, float)):
+            out["pairs"][tuple(sorted(ids))] = float(bonus)
+    out["engine"] = [c for c in (resolve(t) for t in sec.get("engine") or []) if c]
+    return out
+
+
+def prior_gain(prior: dict, cid: str, coin: int | None) -> float | None:
+    ent = prior["cards"].get(cid)
+    if not ent:
+        return None
+    base = ent.get("keep")
+    if coin == 1 and ent.get("keep_coin") is not None:
+        base = ent["keep_coin"]
+    elif coin == 0 and ent.get("keep_first") is not None:
+        base = ent["keep_first"]
+    return None if base is None else float(base)
+
+
+# ════════════════════ 3. 平滑统计表 ════════════════════
 # cell = {"keep": {"w": n, "l": n}, "drop": {...}}; 格键 "职业|先手"(先手: 1/0/*)
 
 def _new_cell() -> dict:
@@ -202,8 +263,24 @@ def table_update(stats: dict, g: Game) -> None:
             cell["drop"]["w" if g.result else "l"] += d
 
 
+def _pick_cell(stats: dict, cid: str, opp_class: str,
+               coin: int | None) -> tuple[dict | None, str | None]:
+    """级联取样本最足的格子: 同先手(n≥3) → 本职业(n≥5) → 全体。"""
+    cascade = [("*|*", 0, "全体")]
+    if opp_class != "*":
+        cascade.insert(0, (f"{opp_class}|*", N_CLASS_CELL, "本职业"))
+        if coin is not None:
+            cascade.insert(0, (f"{opp_class}|{coin}", N_COIN_CELL, "同先手"))
+    ent = stats.get(cid) or {}
+    for key, min_n, label in cascade:
+        c = ent.get(key)
+        if c and _cell_n(c) >= max(min_n, 1):
+            return c, label
+    return None, None
+
+
 def cost_prior(cid: str, carddb: CardDB) -> float:
-    """费用启发先验(弱): 低费倾向留、高费倾向换。样本上来后数据主导。"""
+    """费用启发先验(最弱档): 低费倾向留、高费倾向换。有专家先验时不启用。"""
     cost = carddb.cost(cid)
     if cost is None:
         return 0.0
@@ -214,34 +291,34 @@ def cost_prior(cid: str, carddb: CardDB) -> float:
     return max(-0.15, -(cost - 3) * 0.04)
 
 
-def _wr(side: dict, prior_wr: float) -> float:
+def _wr(side: dict, mean: float) -> float:
     n = side["w"] + side["l"]
-    return (side["w"] + BETA_PRIOR_N * prior_wr) / (n + BETA_PRIOR_N)
+    return (side["w"] + BETA_PRIOR_N * mean) / (n + BETA_PRIOR_N)
 
 
 def card_advice(stats: dict, cid: str, opp_class: str, coin: int | None,
-                deck_wr: float, carddb: CardDB) -> dict:
-    """逐卡留牌增益 = P(胜|留) - P(胜|换); 级联取样本最足的格子。"""
-    cascade = [("*|*", 0, "全体")]
-    if opp_class != "*":
-        cascade.insert(0, (f"{opp_class}|*", N_CLASS_CELL, "本职业"))
-        if coin is not None:
-            cascade.insert(0, (f"{opp_class}|{coin}", N_COIN_CELL, "同先手"))
-    ent = stats.get(cid) or {}
-    cell, src = None, None
-    for key, min_n, label in cascade:
-        c = ent.get(key)
-        if c and _cell_n(c) >= max(min_n, 1):
-            cell, src = c, label
-            break
-    if cell is None:                              # 完全无数据: 纯费用先验
-        return {"n": 0, "gain": cost_prior(cid, carddb), "prior": True,
-                "src": "无数据", "label": "样本不足", "keep_wr": None,
-                "drop_wr": None, "keep_n": 0, "drop_n": 0}
+                deck_wr: float, carddb: CardDB, prior: dict | None = None) -> dict:
+    """逐卡留牌增益 = P(胜|留) − P(胜|换); 级联取样本最足的格子。
+    无数据的卡: 专家先验兜底(标"专家先验"), 否则费用启发(标"样本不足")。"""
+    prior = prior or {"cards": {}, "pairs": {}, "engine": []}
+    pg = prior_gain(prior, cid, coin)
+    fill = pg if pg is not None else cost_prior(cid, carddb)
+    cell, src = _pick_cell(stats, cid, opp_class, coin)
+    if cell is None:
+        if pg is not None:
+            label = "建议留" if pg >= GAIN_KEEP else \
+                "建议换" if pg <= GAIN_DROP else "先验中性"
+            return {"n": 0, "gain": pg, "prior": True, "src": ENUM_PRIOR_TXT,
+                    "label": label, "keep_wr": None, "drop_wr": None,
+                    "keep_n": 0, "drop_n": 0}
+        return {"n": 0, "gain": fill, "prior": True, "src": "无数据",
+                "label": "样本不足", "keep_wr": None, "drop_wr": None,
+                "keep_n": 0, "drop_n": 0}
     nk, nd = sum(cell["keep"].values()), sum(cell["drop"].values())
-    keep_wr, drop_wr = _wr(cell["keep"], deck_wr), _wr(cell["drop"], deck_wr)
+    keep_wr = _wr(cell["keep"], deck_wr + (pg or 0) / 2)
+    drop_wr = _wr(cell["drop"], deck_wr - (pg or 0) / 2)
     w = min(nk, nd) / (min(nk, nd) + SHRINK_N)
-    gain = w * (keep_wr - drop_wr) + (1 - w) * cost_prior(cid, carddb)
+    gain = w * (keep_wr - drop_wr) + (1 - w) * fill
     n_total = nk + nd
     if n_total < N_ADVICE_MIN:
         label = "样本不足"
@@ -256,21 +333,66 @@ def card_advice(stats: dict, cid: str, opp_class: str, coin: int | None,
             "keep_n": nk, "drop_n": nd}
 
 
-# ════════════════════ 3. 逻辑回归(sklearn 训练 / 纯 JSON 推理) ════════════════════
+# ════════════════════ 4. 集合枚举 + Thompson 探索 ════════════════════
 
-def _lr_features(vocab: list, classes: list, cards: list, kept: list,
-                 coin: bool, opp_class: str) -> list:
+def best_keep_set(cards: list, gains: dict, pair_bonus: dict) -> list:
+    """在全部候选留牌集合上取分最高者(升序枚举+严格比较 → 平分时取最小集)。
+    score(set) = Σ 单卡增益 + Σ 专家 pair 协同。卡数超限退回贪心。"""
+    uniq = sorted(set(cards), key=cards.index)
+    if len(uniq) > ENUM_MAX_CARDS:
+        return [c for c in uniq if gains.get(c, 0) > 0]
+    best, best_s = [], 0.0                     # 空集基线 0 分
+    for size in range(1, len(uniq) + 1):
+        for combo in combinations(uniq, size):
+            cs = set(combo)
+            s = sum(gains.get(c, 0) for c in combo)
+            s += sum(b for p, b in pair_bonus.items() if set(p) <= cs)
+            if s > best_s + 1e-12:
+                best, best_s = list(combo), s
+    return best
+
+
+def thompson_gain(stats: dict, cid: str, opp_class: str, coin: int | None,
+                  deck_wr: float, carddb: CardDB, prior: dict,
+                  rng: random.Random) -> float:
+    """从留牌增益的后验抽一次样(Beta): 数据窄→贴近均值(利用), 数据缺→宽→探索。"""
+    pg = prior_gain(prior, cid, coin) or 0.0
+    cell, _ = _pick_cell(stats, cid, opp_class, coin)
+    sides = (("keep", deck_wr + pg / 2), ("drop", deck_wr - pg / 2))
+    ps = []
+    for side, mean in sides:
+        w = cell[side]["w"] if cell else 0
+        l = cell[side]["l"] if cell else 0
+        ps.append(rng.betavariate(max(w + BETA_PRIOR_N * mean, 1e-6),
+                                  max(l + BETA_PRIOR_N * (1 - mean), 1e-6)))
+    return ps[0] - ps[1]
+
+
+# ════════════════════ 5. 逻辑回归(sklearn 训练 / 纯 JSON 推理) ════════════════════
+
+def _lr_features(model_or_vocab, classes, pairs, cards, kept, coin,
+                 opp_class) -> list:
+    if isinstance(model_or_vocab, dict):       # 便于推理侧直传模型
+        m = model_or_vocab
+        return _lr_features(m["vocab"], m["classes"], m["pairs"], cards,
+                            kept, coin, opp_class)
+    vocab = model_or_vocab
     nc = len(vocab)
-    x = [0.0] * (2 * nc + 1 + len(classes))
+    x = [0.0] * (2 * nc + 1 + len(classes) + len(pairs))
+    vidx = {c: i for i, c in enumerate(vocab)}
     for cid in cards:
-        if cid in vocab:
-            x[vocab.index(cid)] = 1.0
+        if cid in vidx:
+            x[vidx[cid]] = 1.0
+    kept_set = set(kept)
     for cid in kept:
-        if cid in vocab:
-            x[nc + vocab.index(cid)] = 1.0
+        if cid in vidx:
+            x[nc + vidx[cid]] = 1.0
     x[2 * nc] = 1.0 if coin else 0.0
     if opp_class in classes:
         x[2 * nc + 1 + classes.index(opp_class)] = 1.0
+    for j, (a, b) in enumerate(pairs):         # 留牌组合(协同)特征
+        if a in kept_set and b in kept_set:
+            x[2 * nc + 1 + len(classes) + j] = 1.0
     return x
 
 
@@ -292,7 +414,18 @@ def _auc(y_true: list, scores: list) -> float | None:
     return (s - n_pos * (n_pos + 1) / 2) / ((len(y_true) - n_pos) * n_pos)
 
 
-def _fit_eval(games: list) -> dict | None:
+def _vocab_pairs(games: list) -> tuple[list, list]:
+    vocab = sorted({c for g in games for c in g.cards})
+    pair_n = Counter()
+    for g in games:
+        ks = sorted(set(g.kept))
+        for a, b in combinations(ks, 2):
+            pair_n[(a, b)] += 1
+    pairs = sorted(p for p, n in pair_n.items() if n >= LR_PAIR_SUPPORT)
+    return vocab, pairs
+
+
+def _fit_eval(games: list, vocab: list, pairs: list) -> dict | None:
     """时序留出评估(前 80% 拟合 → 后 20% 打分), 返回测试段指标。"""
     try:
         from sklearn.linear_model import LogisticRegression
@@ -300,9 +433,9 @@ def _fit_eval(games: list) -> dict | None:
         return None
     n_test = max(1, int(len(games) * LR_TEST_FRAC))
     tr, te = games[:-n_test], games[-n_test:]
-    vocab = sorted({c for g in games for c in g.cards})
     classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
-    xof = lambda g: _lr_features(vocab, classes, g.cards, g.kept, g.coin, g.opp_class)
+    xof = lambda g: _lr_features(vocab, classes, pairs, g.cards, g.kept,
+                                 g.coin, g.opp_class)
     ytr = [g.result for g in tr]
     if len(set(ytr)) < 2:
         return None
@@ -312,8 +445,7 @@ def _fit_eval(games: list) -> dict | None:
         yte = [g.result for g in te]
     except ValueError:
         return None
-    out = {"n_train": len(tr), "n_test": len(te),
-           "test_auc": _auc(yte, list(pte))}
+    out = {"n_train": len(tr), "n_test": len(te), "test_auc": _auc(yte, list(pte))}
     if 0 < sum(yte) < len(yte):
         ll = -sum(y * math.log(max(p, 1e-9)) + (1 - y) * math.log(max(1 - p, 1e-9))
                   for y, p in zip(yte, pte)) / len(yte)
@@ -324,64 +456,92 @@ def _fit_eval(games: list) -> dict | None:
 
 
 def train_lr(games: list) -> dict | None:
-    """全量拟合出服务模型; 指标来自时序留出(不泄漏)。"""
+    """全量拟合出服务模型(含留牌组合特征); 指标来自时序留出(不泄漏)。"""
     if len(games) < LR_MIN_GAMES:
         return None
     try:
         from sklearn.linear_model import LogisticRegression
     except ImportError:
         return None
-    metrics = _fit_eval(games)
-    vocab = sorted({c for g in games for c in g.cards})
+    vocab, pairs = _vocab_pairs(games)
+    metrics = _fit_eval(games, vocab, pairs)
     classes = sorted({g.opp_class for g in games if g.opp_class != UNKNOWN})
-    xof = lambda g: _lr_features(vocab, classes, g.cards, g.kept, g.coin, g.opp_class)
+    xof = lambda g: _lr_features(vocab, classes, pairs, g.cards, g.kept,
+                                 g.coin, g.opp_class)
     try:
         model = LogisticRegression(C=0.3, max_iter=2000).fit(
             [xof(g) for g in games], [g.result for g in games])
     except ValueError:
         return None
-    return {"vocab": vocab, "classes": classes, "coef": model.coef_[0].tolist(),
+    return {"vocab": vocab, "classes": classes, "pairs": pairs,
+            "coef": model.coef_[0].tolist(),
             "intercept": float(model.intercept_[0]),
             "metrics": metrics or {}}
 
 
 def _lr_p(model: dict, cards: list, kept: list, coin: bool,
           opp_class: str) -> float:
-    x = _lr_features(model["vocab"], model["classes"], cards, kept,
+    x = _lr_features(model, model["classes"], model["pairs"], cards, kept,
                      coin, opp_class)
     z = model["intercept"] + sum(w * v for w, v in zip(model["coef"], x))
     return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, z))))
 
 
-def lr_advice(model: dict, cards: list, coin: bool, opp_class: str) -> list:
-    """贪心反事实翻位: 从全换出发, 留使 P(胜) 提高的卡, 迭代到不动点。"""
-    cards = sorted(set(cards), key=cards.index)   # 去重保序
-    keep: list = []
-    for _ in range(3):
-        changed = False
-        for cid in cards:                     # 加入增益为正的卡
-            if cid in keep:
-                continue
-            base = _lr_p(model, cards, keep, coin, opp_class)
-            if _lr_p(model, cards, keep + [cid], coin, opp_class) > base:
-                keep = sorted(keep + [cid], key=cards.index)
-                changed = True
-        for cid in list(keep):                # 复核: 不再增益的退出
-            without = [c for c in keep if c != cid]
-            if _lr_p(model, cards, without, coin, opp_class) >= \
-                    _lr_p(model, cards, keep, coin, opp_class):
-                keep.remove(cid)
-                changed = True
-        if not changed:
-            break
-    return keep
+def lr_best_set(model: dict, cards: list, coin: bool, opp_class: str) -> list:
+    """在 2^n 个候选集合上取 P(胜) 最高者(空集为基线; 平分取最小集)。"""
+    uniq = sorted(set(cards), key=cards.index)
+    if len(uniq) > ENUM_MAX_CARDS:
+        order = sorted(uniq, key=lambda c: -_lr_p(model, cards, [c], coin, opp_class))
+        return [c for c in order
+                if _lr_p(model, cards, [c], coin, opp_class)
+                > _lr_p(model, cards, [], coin, opp_class)]
+    best, best_s = [], _lr_p(model, cards, [], coin, opp_class)
+    for size in range(1, len(uniq) + 1):
+        for combo in combinations(uniq, size):
+            p = _lr_p(model, cards, list(combo), coin, opp_class)
+            if p > best_s + 1e-12:
+                best, best_s = list(combo), p
+    return best
 
 
-# ════════════════════ 4. 模型库(版本目录 + LATEST) ════════════════════
+# ════════════════════ 6. 同情境匹配证据 ════════════════════
+
+def matched_evidence(digest: list, cid: str, hand: list, opp_class: str,
+                     coin: int | None) -> dict:
+    """在近似相同起手里找"留/换都发生过"的对局: 近似手牌(共享≥2张) → 同职业同手。
+    这是唯一能让"该不该换一种留法"获得数据对照的途径。"""
+    def split(pool):
+        keep = [g for g in pool if cid in g["k"]]
+        drop = [g for g in pool if cid not in g["k"]]
+        wr = lambda gs: (sum(g["r"] for g in gs), len(gs) - sum(g["r"] for g in gs))
+        return {"keep": wr(keep), "drop": wr(drop)}
+
+    pool = [g for g in digest if cid in g["f"]
+            and (opp_class == "*" or g["c"] == opp_class)
+            and (coin is None or g["o"] == coin)]
+    hand_set = set(hand)
+    near = [g for g in pool if len(set(g["f"]) & hand_set) >= 2]
+    if len(near) >= MATCHED_MIN:
+        out = split(near)
+        out.update({"level": "近似手牌", "n": len(near)})
+    elif len(pool) >= MATCHED_MIN:
+        out = split(pool)
+        out.update({"level": "同职业同手", "n": len(pool)})
+    else:
+        out = {"level": "无可比对局", "n": max(len(near), len(pool)),
+               "keep": (0, 0), "drop": (0, 0)}
+    return out
+
+
+# ════════════════════ 7. 模型库(版本目录 + LATEST) ════════════════════
 
 def models_root(cfg: Config, deck: str) -> Path:
     safe = "".join("_" if c in '\\/:*?"<>|' else c for c in deck).strip() or "未知卡组"
     return Path(cfg.data_dir) / "models" / "mulligan" / safe
+
+
+def prior_path(cfg: Config) -> Path:
+    return Path(cfg.data_dir) / "mulligan_prior.yaml"
 
 
 def _load_latest(root: Path) -> tuple[str | None, dict]:
@@ -394,8 +554,9 @@ def _load_latest(root: Path) -> tuple[str | None, dict]:
         art = {"meta": json.loads((vdir / "meta.json").read_text(encoding="utf-8")),
                "seen": json.loads((vdir / "games_seen.json").read_text(encoding="utf-8")),
                "stats": json.loads((vdir / "stats.json").read_text(encoding="utf-8"))}
-        mpath = vdir / "model.json"
-        art["lr"] = json.loads(mpath.read_text(encoding="utf-8")) if mpath.exists() else None
+        for name, key in (("model.json", "lr"), ("games_digest.json", "digest")):
+            p = vdir / name
+            art[key] = json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
         return ver, art
     except (ValueError, KeyError, OSError):
         return None, {}
@@ -421,6 +582,11 @@ def _save_version(root: Path, deck: str, deck_dir: Path, stats: dict,
     (out / "games_seen.json").write_text(
         json.dumps({g.path: [g.mtime, g.size] for g in games},
                    ensure_ascii=False), encoding="utf-8")
+    (out / "games_digest.json").write_text(
+        json.dumps([{"c": g.opp_class, "o": int(g.coin),
+                     "f": sorted(set(g.cards)), "k": sorted(set(g.kept)),
+                     "r": g.result} for g in games],
+                   ensure_ascii=False), encoding="utf-8")
     metrics = (lr or {}).get("metrics") or {}
     (out / "meta.json").write_text(
         json.dumps({"version": ver, "deck": deck,
@@ -435,13 +601,14 @@ def _save_version(root: Path, deck: str, deck_dir: Path, stats: dict,
     return ver
 
 
-# ════════════════════ 5. 报告渲染 ════════════════════
+# ════════════════════ 8. 报告渲染 ════════════════════
 
 def _pct(x) -> str:
     return "—" if x is None else f"{x * 100:.1f}%"
 
 
-def print_table_report(stats: dict, deck_wr: float, carddb: CardDB) -> None:
+def print_table_report(stats: dict, deck_wr: float, carddb: CardDB,
+                       prior: dict) -> None:
     """逐卡留牌增益表(以样本最多的对手职业做级联查询)。"""
     by_n = lambda cid: _cell_n(stats[cid].get("*|*", _new_cell()))
     vocab = sorted(stats, key=lambda c: (-by_n(c), c))
@@ -449,20 +616,20 @@ def print_table_report(stats: dict, deck_wr: float, carddb: CardDB) -> None:
                          for cid in stats for k in stats[cid] if k != "*|*")
     main_class = cls_counts.most_common(1)[0][0] if cls_counts else UNKNOWN
     print(f"── 单卡留牌增益(平滑统计表, 优先职业: {class_zh(main_class)}) ──")
-    print(f"{'卡牌':<14} {'格子':<5} {'样本':>4} {'留牌率':>7} {'留→胜':>7} "
+    print(f"{'卡牌':<14} {'出处':<6} {'样本':>4} {'留牌率':>7} {'留→胜':>7} "
           f"{'换→胜':>7} {'增益':>8}  结论")
     for cid in vocab:
-        adv = card_advice(stats, cid, main_class, None, deck_wr, carddb)
+        adv = card_advice(stats, cid, main_class, None, deck_wr, carddb, prior)
         n_offer = adv["keep_n"] + adv["drop_n"]
         kept_rate = adv["keep_n"] / n_offer if n_offer else None
         name = (carddb.name(cid) or cid)[:12]
         note = "" if adv["prior"] else f"(n={adv['n']})"
-        print(f"{name:<14} {adv['src']:<5} {n_offer:>4} {_pct(kept_rate):>7} "
+        print(f"{name:<14} {adv['src']:<6} {n_offer:>4} {_pct(kept_rate):>7} "
               f"{_pct(adv['keep_wr']):>7} {_pct(adv['drop_wr']):>7} "
               f"{adv['gain'] * 100:>+7.1f}%  {adv['label']}{note}")
 
 
-# ════════════════════ 6. 子命令 ════════════════════
+# ════════════════════ 9. 子命令 ════════════════════
 
 def cmd_train(cfg: Config, deck: str) -> int:
     carddb = CardDB(cfg.cache_dir / "cards.zh.json")
@@ -481,6 +648,7 @@ def cmd_train(cfg: Config, deck: str) -> int:
     for g in games:
         table_update(stats, g)
     deck_wr = sum(g.result for g in games) / len(games)
+    prior = load_prior(prior_path(cfg), deck, carddb, set(stats))
     lr = train_lr(games)
 
     print(f"── 留牌模型训练 ({deck}) ──")
@@ -491,12 +659,14 @@ def cmd_train(cfg: Config, deck: str) -> int:
                      Counter(g.opp_class for g in games).most_common()))
     if skip:
         print("跳过: " + " │ ".join(f"{k} {v}" for k, v in skip.items()))
-    print_table_report(stats, deck_wr, carddb)
+    print(f"专家先验: {len(prior['cards'])} 卡 / {len(prior['pairs'])} 组合"
+          + ("" if prior["cards"] or prior["pairs"] else "(无 — 可编辑 data/mulligan_prior.yaml)"))
+    print_table_report(stats, deck_wr, carddb, prior)
     if lr is not None:
         m = lr["metrics"]
         print(f"── 逻辑回归(sklearn): {m.get('n_train', '?')} 局训练 / "
               f"{m.get('n_test', '?')} 局时序留出 │ AUC {m.get('test_auc', '—')} │ "
-              f"LogLoss {m.get('test_logloss', '—')} ──")
+              f"LogLoss {m.get('test_logloss', '—')} │ 组合特征 {len(lr['pairs'])} ──")
     else:
         print(f"── 逻辑回归: 未启用(需 sklearn 且语料 ≥ {LR_MIN_GAMES} 局; 仅统计表) ──")
     print(f"置信度: {len(games)} 局样本"
@@ -516,6 +686,7 @@ def cmd_report(cfg: Config, deck: str) -> int:
     meta = art["meta"]
     stats = art["stats"].get("cards", {})
     carddb = CardDB(cfg.cache_dir / "cards.zh.json")
+    prior = load_prior(prior_path(cfg), deck, carddb, set(stats))
     print(f"── 留牌模型 {ver} ({deck}) ──")
     print(f"训练于 {meta['trained_at']} │ {meta['n_games']} 局(当批新增 "
           f"{meta['n_new']}) │ 我方胜率 {_pct(meta['wins'] / meta['n_games'])} │ "
@@ -523,13 +694,14 @@ def cmd_report(cfg: Config, deck: str) -> int:
                                (meta.get("class_counts") or {}).items()))
     if meta.get("lr_metrics"):
         print(f"逻辑回归指标: {meta['lr_metrics']}")
-    print_table_report(stats, art["stats"].get("deck_wr", 0.5), carddb)
+    print_table_report(stats, art["stats"].get("deck_wr", 0.5), carddb, prior)
     print(f"模型目录: {root / ver}")
     return 0
 
 
 def cmd_advise(cfg: Config, deck: str, hand: list, opp_class: str,
-               coin: int | None) -> int:
+               coin: int | None, explore: bool = False,
+               seed: int | None = None) -> int:
     root = models_root(cfg, deck)
     ver, art = _load_latest(root)
     if ver is None:
@@ -538,6 +710,7 @@ def cmd_advise(cfg: Config, deck: str, hand: list, opp_class: str,
     carddb = CardDB(cfg.cache_dir / "cards.zh.json")
     stats = art["stats"].get("cards", {})
     lr = art.get("lr")
+    digest = art.get("digest") or []
     deck_wr = art["stats"].get("deck_wr", 0.5)
 
     # 手牌: card:ID 直给, 或按卡表把中文名反查成 card_id
@@ -550,43 +723,69 @@ def cmd_advise(cfg: Config, deck: str, hand: list, opp_class: str,
         rev = {zh: en for en, zh in CLASS_ZH.items()}
         cls = rev.get(cls) or _class_from_hero_id(cls) or \
             (cls.upper() if cls.upper() in CLASS_ZH else cls)
+    prior = load_prior(prior_path(cfg), deck, carddb, ids)
+    uniq = sorted(set(cards), key=cards.index)
 
     print(f"── 留牌建议 ({deck}, 模型 {ver}) ──")
     coin_txt = "后手(有幸运币)" if coin == 1 else "先手" if coin == 0 else "不限先/后手"
-    print(f"对手: {class_zh(cls)} │ {coin_txt}")
+    print(f"对手: {class_zh(cls)} │ {coin_txt}"
+          + (" │ Thompson 探索局" if explore else ""))
     cost = lambda c: carddb.cost(c)
     print("起手: " + "、".join(
         f"{carddb.name(c)}({'?' if cost(c) is None else cost(c)}费)" for c in cards))
-    advs = [(c, card_advice(stats, c, cls, coin, deck_wr, carddb)) for c in cards]
-    # LR 只有通过时序留出验证(AUC ≥ LR_AUC_GATE)才对最终建议有拍板权,
-    # 否则降为参考(59 局量级下 LR 常是噪声, 统计表更稳)。
+
+    advs = [(c, card_advice(stats, c, cls, coin, deck_wr, carddb, prior))
+            for c in uniq]
+    mean_gains = {c: a["gain"] for c, a in advs}
+    pair_bonus = {p: b for p, b in prior["pairs"].items()
+                  if set(p) <= set(uniq)}
+
+    # 建议权: LR 过 AUC 门控 → 用 LR 给集合打分; 否则统计表增益+专家协同, 集合枚举
     auc = ((lr or {}).get("metrics") or {}).get("test_auc")
     lr_ok = lr is not None and auc is not None and auc >= LR_AUC_GATE
     if lr_ok:
-        if coin is None:                     # 不限先/后手: 取两个手都建议留的交集
-            keep_set = set(lr_advice(lr, cards, False, cls)) & \
-                set(lr_advice(lr, cards, True, cls))
-            basis = f"LR(AUC {auc:.2f}, 先/后手交集) + 统计表"
-        else:
-            keep_set = set(lr_advice(lr, cards, bool(coin), cls))
-            basis = f"LR(AUC {auc:.2f}) + 统计表"
+        mean_set = lr_best_set(lr, cards, bool(coin) if coin is not None else False, cls)
+        basis = f"LR 集合枚举(AUC {auc:.2f}) + 专家先验"
     else:
-        keep_set = {c for c, a in advs if a["label"] == "建议留"}
-        basis = "统计表" + (f"(LR AUC {auc:.2f} 过低, 仅参考)"
-                            if lr is not None and auc is not None else "")
+        mean_set = best_keep_set(uniq, mean_gains, pair_bonus)
+        basis = "统计表+专家先验, 集合枚举" + \
+            (f"(LR AUC {auc:.2f} 过低, 仅参考)" if lr is not None and auc is not None else "")
+
+    final_set = mean_set
+    if explore:                                # Thompson: 从后验抽样决策
+        rng = random.Random(seed) if seed is not None else random.Random()
+        sampled = {c: thompson_gain(stats, c, cls, coin, deck_wr, carddb,
+                                    prior, rng) for c in uniq}
+        final_set = best_keep_set(uniq, sampled, pair_bonus)
+        dev = [c for c in uniq if (c in final_set) != (c in mean_set)]
+        if dev:
+            print("探索说明(与均值建议不同, 用于积累反事实样本): " + "、".join(
+                f"{carddb.name(c)}(均值{mean_gains[c] * 100:+.1f}%→抽样"
+                f"{sampled[c] * 100:+.1f}%)" for c in dev))
+        else:
+            print("(本次抽样与均值建议一致, 无探索偏差)")
+
     nm = lambda c: carddb.name(c) or c
-    print(f"建议: 留 ── {'、'.join(nm(c) for c in cards if c in keep_set) or '(无)'} │ "
-          f"换 ── {'、'.join(nm(c) for c in cards if c not in keep_set) or '(无)'}"
+    print(f"建议: 留 ── {'、'.join(nm(c) for c in cards if c in final_set) or '(无)'} │ "
+          f"换 ── {'、'.join(nm(c) for c in cards if c not in final_set) or '(无)'}"
           f"   [依据: {basis}]")
-    print("逐卡(留→胜率 vs 换→胜率, 平滑增益):")
+    print("逐卡(留→胜率 vs 换→胜率, 平滑增益 │ 同情境匹配证据):")
     for c, a in advs:
+        ev = matched_evidence(digest, c, cards, cls, coin) if digest else None
+        if ev and ev["level"] != "无可比对局":
+            kw, kl = ev["keep"]
+            dw, dl = ev["drop"]
+            ev_txt = (f"│ {ev['level']}{ev['n']}局: 留{kw + kl}({kw}胜{kl}负) "
+                      f"换{dw + dl}({dw}胜{dl}负)")
+        else:
+            ev_txt = "│ 无可比对局"
         print(f"  {nm(c):<14} {a['label']:<5} 留→{_pct(a['keep_wr'])} "
               f"换→{_pct(a['drop_wr'])} 增益{a['gain'] * 100:+.1f}% "
-              f"(n={a['n']}, {a['src']})")
+              f"({a['src']}) {ev_txt}")
     return 0
 
 
-# ════════════════════ 7. CLI ════════════════════
+# ════════════════════ 10. CLI ════════════════════
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
@@ -614,6 +813,9 @@ def main(argv=None) -> int:
     p_adv.add_argument("--vs", default="*", help="对手职业: 中文名/CLASS/HERO_06/*")
     p_adv.add_argument("--coin", action="store_true", help="后手")
     p_adv.add_argument("--first", action="store_true", help="先手")
+    p_adv.add_argument("--explore", action="store_true",
+                       help="Thompson 探索局: 从后验抽样决策, 积累反事实样本")
+    p_adv.add_argument("--seed", type=int, default=None, help="探索采样种子(复现用)")
 
     argv = list(argv) if argv is not None else sys.argv[1:]
     if argv and argv[0] not in ("train", "report", "advise") \
@@ -631,7 +833,7 @@ def main(argv=None) -> int:
         return cmd_report(cfg, deck)
     hand = [t.strip() for t in re.split(r"[,，、]", args.hand) if t.strip()]
     coin = 1 if args.coin else (0 if args.first else None)
-    return cmd_advise(cfg, deck, hand, args.vs, coin)
+    return cmd_advise(cfg, deck, hand, args.vs, coin, args.explore, args.seed)
 
 
 if __name__ == "__main__":
