@@ -84,6 +84,31 @@ def test_stat_zone_emits_on_change_only(tmp_path):
     assert len([m for m in msgs if m.kind == KIND_STAT]) == len(stats)
 
 
+def test_advice_msg_carries_machine_fields(tmp_path):
+    """留牌建议 Msg 必须带 data=advice 机读字段(2026-09-14 三区布局:
+    悬浮窗推荐区从机读字段渲染, 不从文本反推)。"""
+    from hsbot.overlay import KIND_ADVICE
+
+    cfg = Config.load({"overlay_enabled": False, "auto_training": False,
+                       "data_dir": str(tmp_path), "battletag": "湫然#51704"})
+    carddb = CardDB(cfg.cache_dir / "cards.zh.json")
+    msgs: list = []
+    w = Watcher(cfg, carddb, out=msgs.append)
+    stub_adv = {"keep": ["X"], "drop": [], "per_card": {},
+                "opp_class": "PRIEST", "coin": False}
+
+    class Stub:
+        @staticmethod
+        def advise(offered, cls, coin, explore=False, seed=None):
+            return dict(stub_adv)
+
+    w.analyzer.mulligan = Stub()       # 注入建议器(enrich 经 analyzer 取用)
+    w.run_replay(FIXTURE.parent / "mulligan_offer.log")
+    advs = [m for m in msgs if m.kind == KIND_ADVICE]
+    assert advs, "留牌建议未走 KIND_ADVICE 通道"
+    assert advs[0].data == stub_adv, "advice Msg 未携带机读字段"
+
+
 def test_tail_state_classification():
     """尾包完整性判定的行形契约: 包节头/续写/组边界(含 PowerTaskList 镜像流)。"""
     from hsbot.watcher import _tail_state

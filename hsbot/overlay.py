@@ -1,14 +1,21 @@
-"""输出层 —— 半透明置顶日志窗 + 输出枢纽。
+"""输出层 —— 置顶悬浮窗(三区布局) + 输出枢纽。
 
 * OutputHub: watcher 每行输出的三路分发(控制台 / 会话记录文件 / overlay 队列),
   消息为 Msg 结构: 控制台/悬浮窗收 ui 简洁版, 文件收 full 完整版。
   线程安全, 替代裸 print。
-* OverlayWindow: tkinter 半透明置顶窗, 需在主线程跑 mainloop
+* OverlayWindow: tkinter 置顶窗, 需在主线程跑 mainloop
   (watcher 放后台线程, 经 Queue 传递)。炉石需以"无边框/窗口化"模式运行,
   独占全屏时覆盖窗不可见。窗口位置/大小自动记忆(data/overlay_state.json);
   信息按人物(我/对面)与事件类型分色(颜色表见 config.yaml overlay_colors)。
-  两区布局: 上区 = 信息面板(KIND_STAT, 六格分区: 敌/斩杀/法强/回费/费用/减费,
-  render.stat_fields 机读字段驱动, 可斩线整行附于面板底), 下区 = 日志流。
+  三区布局(2026-09-14 用户定版, 上/中上部背景真不透明):
+    上区   = 信息面板(KIND_STAT 机读字段驱动, 两行×3格: 敌/理论伤害/法力 +
+             回费/减费/法术费);
+    中上部 = 推荐区(KIND_ADVICE 留牌建议 + KIND_STAT.plan 可斩线,
+             render.advice_rows/plan_line 措辞, 推荐打法 top3 封顶);
+    中下   = 日志流(局终清空并重置上两区)。
+  不透明实现: 整窗 alpha=1.0, 日志区背景色经 -transparentcolor 镂空
+  (游戏透出、面板实底、透明区点击穿透给游戏); 平台不支持或
+  overlay_log_transparent=false 时回退旧行为(整窗 overlay_alpha 半透明)。
 """
 from __future__ import annotations
 
@@ -20,9 +27,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .persist import atomic_write_text
-from .render import plan_line
+from .render import advice_rows, plan_line
 
 _MAX_LINES = 1500  # 窗口内保留的最大行数(防止内存/渲染膨胀)
+
+# 日志区镂空底色(整窗唯一透明色; 取色远离全部前景/面板色, 防误镂)
+_LOG_BG_MAGIC = "#010203"
+_LOG_BG_FALLBACK = "#0d1117"   # 旧版日志底色(非镂空模式)
+_ADVICE_PANEL_ROWS = 3         # 推荐区行数上限(用户: top3 打法)
 
 # ---- Msg 协议常量(耦合#5: kind/tag 取值唯一在此, watcher/render/overlay 共用) ----
 KIND_CHAIN = "chain"
@@ -30,8 +42,8 @@ KIND_SNAPSHOT = "snapshot"
 KIND_GAME_END = "game_end"
 KIND_NOTICE = "notice"          # 系统通知(新对局/监控会话)与未分类兜底
 KIND_ERROR = "error"
-KIND_ADVICE = "advice"          # 留牌建议(开局高亮)
-KIND_STAT = "stat"              # 上部信息区(敌血/斩杀/法强/回费/费用, 整体替换)
+KIND_ADVICE = "advice"          # 留牌建议(开局高亮; data=advice 机读字段)
+KIND_STAT = "stat"              # 上部信息区(敌血/伤害/法力/回费/费用, 整体替换)
 TAG_MY = "my"
 TAG_OPP = "opp"
 TAG_UNKNOWN = "unknown"
@@ -46,11 +58,11 @@ _DEFAULT_COLORS = {
     "game_end": "#7ec8ff", # 终局
     "notice": "#8fb7d4",   # 系统通知(新对局/监控会话)
     "error": "#ff6b6b",    # 错误
-    "advice": "#ffd700",   # 留牌建议(开局高亮)
+    "advice": "#ffd700",   # 留牌建议/可斩线(推荐区主行高亮)
     "stat": "#e6edf3",     # 上部信息区数值
-    "stat_panel": "#161d2b",  # 上区面板底色(与日志流 #0d1117 区分出分区)
-    "stat_dim": "#7d8590",    # 上区标签/细节小字
-    "stat_sep": "#2b3646",    # 上区分隔线
+    "stat_panel": "#161d2b",  # 上/中上部面板底色(实底不透明)
+    "stat_dim": "#7d8590",    # 面板标签/细节小字
+    "stat_sep": "#2b3646",    # 面板分隔线
 }
 
 
@@ -60,14 +72,14 @@ class Msg:
 
     tag = 显示样式标签(my/opp/unknown/header/...), 由产生方显式给出;
     悬浮窗不再从行文本反推 —— render 格式变化不影响分色。
-    data = 机读字段(可选): KIND_STAT 携带 render.stat_fields, 悬浮窗上区
-    分格面板直接渲染; 缺省时上区回退显示 ui 原文。"""
+    data = 机读字段(可选): KIND_STAT 携带 render.stat_fields, KIND_ADVICE
+    携带留牌建议事实 dict —— 上两区分格/推荐区直接渲染; 缺省时回退原文。"""
 
     kind: str                  # chain / snapshot / game_end / notice
     ui: str
     full: str = ""             # 缺省 = ui
     tag: str = ""              # 显示样式标签(缺省按 kind/文本兜底分类)
-    data: dict | None = None   # 机读字段(目前仅 KIND_STAT: stat_fields)
+    data: dict | None = None   # 机读字段(KIND_STAT: stat_fields / KIND_ADVICE: advice)
 
     def __post_init__(self) -> None:
         if not self.full:
@@ -75,20 +87,19 @@ class Msg:
 
 
 class _StatPanel:
-    """上区信息面板(两区布局上区): 两行×3列 分区。
+    """上区信息面板(三区布局上区): 两行×3列 分区, 实底不透明。
 
-    行1 敌/斩杀/法强, 行2 回费/费用/减费 —— 减费单独成格: 手牌减费在身
-    (生命缚誓者的礼物/建造水晶塔等)随引擎 COST 标签动态变化。
-    视觉: 独立底色面板 + 细分隔线 + 三层字级(小标签/大数值/细节小字),
+    行1 敌/理论伤害/法力, 行2 回费/减费/法术费 —— 减费单独成格: 手牌减费在身
+    (生命缚誓者的礼物/建造水晶塔等)随引擎 COST 标签动态变化; 法力格缺数据
+    默认 1(用户定版); 法强并入理论伤害格细节(它是伤害的乘数语境)。
+    视觉: 实底面板 + 细分隔线 + 三层字级(小标签/大数值/细节小字),
     数值用雅黑加大加粗(Consolas 无 CJK, 中文回退发虚)。数据 =
     render.stat_fields 机读字段(不从文本反推); 无字段的原生文本兜底。
-    "可斩"时斩杀数值转金色(advice 色), 敌方数值用对面色(opp),
-    有减费时减费数值用我方色(my)。
-    可斩线(plan.lethal)为面板底部整行(措辞统一出自 render.plan_line,
-    悬浮窗不二次格式化); 无 plan/非可斩隐藏不占位。"""
+    "可斩"时理论伤害数值转金色(advice 色), 敌方数值用对面色(opp),
+    有减费时减费数值用我方色(my)。可斩线归中上部推荐区(_AdvicePanel)。"""
 
-    _CELLS = [("enemy", "敌"), ("lethal", "斩杀"), ("spellpower", "法强"),
-              ("ramp", "回费"), ("cost", "费用"), ("discount", "减费")]
+    _CELLS = [("enemy", "敌"), ("lethal", "理论伤害"), ("mana", "法力"),
+              ("ramp", "回费"), ("discount", "减费"), ("cost", "法术费")]
     _COLS = 3
 
     def __init__(self, tk, parent, colors: dict, font_size: int) -> None:
@@ -115,7 +126,8 @@ class _StatPanel:
                       padx=2, sticky="nsew")
             tk.Label(cell, text=label, bg=bg, fg=colors["stat_dim"],
                      font=font_l).pack()
-            val = tk.Label(cell, text="—", bg=bg, fg=colors["stat"], font=font_v)
+            val = tk.Label(cell, text="—" if key != "mana" else "1",
+                           bg=bg, fg=colors["stat"], font=font_v)
             val.pack()
             det = tk.Label(cell, text="", bg=bg, fg=colors["stat_dim"],
                            font=font_d)
@@ -132,13 +144,6 @@ class _StatPanel:
         self._raw.grid(row=2, column=0, columnspan=2 * self._COLS - 1,
                        sticky="we", padx=8, pady=(0, 4))
         self._raw.grid_remove()                    # 兜底行: 默认隐藏
-        # 可斩线整行(plan.lethal 才显示): advice 金色, 默认隐藏不占位
-        self._plan = tk.Label(frame, text="", bg=bg, fg=colors["advice"],
-                              font=(cjk, font_size - 1), justify="left",
-                              anchor="w")
-        self._plan.grid(row=3, column=0, columnspan=2 * self._COLS - 1,
-                        sticky="we", padx=8, pady=(0, 4))
-        self._plan.grid_remove()
 
     def _rewrap(self, _event=None) -> None:
         w = max(60, self._frame.winfo_width() // self._COLS - 10)
@@ -150,7 +155,8 @@ class _StatPanel:
         return "?" if v is None else str(v)
 
     def update(self, f: dict) -> None:
-        """机读字段 → 六格。每次全量覆写(含颜色), 无残留状态。"""
+        """机读字段 → 六格。每次全量覆写(含颜色), 无残留状态。
+        mana 键缺失/None(旧消息形态/未解析)→ 法力格按默认 1 显示。"""
         c = self._colors
         v, d = self.cells["enemy"]
         v.configure(text=self._q(f["enemy_total"]), fg=c["opp"])
@@ -161,35 +167,102 @@ class _StatPanel:
                     fg=c["advice"] if f["can_kill"] else c["stat"])
         d.configure(text=("可斩 " if f["can_kill"] else "")
                     + f"手{f['lethal_hand']}+库{self._q(f['lethal_deck'])}"
-                      f"+场{f['lethal_board']}")
-        v, d = self.cells["spellpower"]
-        v.configure(text=str(f["spellpower"]), fg=c["stat"])
-        d.configure(text="")
+                      f"+场{f['lethal_board']} · 法强{f['spellpower']}")
+        mana = f.get("mana")
+        v, d = self.cells["mana"]
+        v.configure(text=self._q(mana) if mana is not None else "1",
+                    fg=c["stat"])
+        d.configure(text="" if mana is None
+                    else f"水晶{mana}/{f.get('mana_res')}")
         v, d = self.cells["ramp"]
         v.configure(text=f"+{f['ramp']}", fg=c["stat"])
-        d.configure(text=f"手{f['ramp_hand']}+库{self._q(f['ramp_deck'])}")
-        v, d = self.cells["cost"]
-        v.configure(text=str(f["cost_hand"]), fg=c["stat"])
-        d.configure(text=f"组{self._q(f['cost_list'])} 库{self._q(f['cost_deck'])}")
+        d.configure(text=f"库{self._q(f['ramp_deck'])}+手{f['ramp_hand']}")
         disc = f.get("discount") or {}
         total = disc.get("total") or 0
         v, d = self.cells["discount"]
         v.configure(text=f"−{total}" if total else "0",
                     fg=c["my"] if total else c["stat"])
         d.configure(text="·".join(disc.get("sources") or []) or "—")
+        v, d = self.cells["cost"]
+        v.configure(text=str(f["cost_hand"]), fg=c["stat"])
+        d.configure(text=f"组{self._q(f['cost_list'])} 库{self._q(f['cost_deck'])}")
         self._raw.grid_remove()
-        line = plan_line(f)          # 可斩线(无 plan/非可斩 → None, 隐藏不占位)
-        if line:
-            self._plan.configure(text=line)
-            self._plan.grid()
-        else:
-            self._plan.grid_remove()
+
+    def reset(self) -> None:
+        """局终重置: 全格回缺省(敌血 —, 法力默认 1)。"""
+        for key, (val, det) in self.cells.items():
+            val.configure(text="1" if key == "mana" else "—")
+            det.configure(text="")
+        self._raw.grid_remove()
 
     def set_raw(self, text: str) -> None:
         """无机读字段的原生文本兜底(旧消息形态)。"""
         self._raw.configure(text=text)
         self._raw.grid()
-        self._plan.grid_remove()     # 旧形态无 plan 字段: 可斩线一并隐藏
+
+
+class _AdvicePanel:
+    """中上部推荐区(三区布局中上部): 推荐打法 top3 行, 实底不透明。
+
+    行来源全部是机读事实, 措辞归 render(悬浮窗不二次格式化):
+      * KIND_STAT.plan → render.plan_line "可斩: …"(确定性最优, 排第一);
+      * KIND_ADVICE.data → render.advice_rows(留牌主行 + 胜率证据行)。
+    行集 = 可斩行 + 留牌行, 封顶 _ADVICE_PANEL_ROWS(用户: top3);
+    保留到被新事实替换或局终重置(留牌建议在留牌阶段后仍可见, 不闪烁)。"""
+
+    _TONE_FG = {"advice": "advice", "dim": "stat_dim"}   # 色调 → 颜色表键
+
+    def __init__(self, tk, parent, colors: dict, font_size: int) -> None:
+        self._colors = colors
+        bg = colors["stat_panel"]
+        cjk = "Microsoft YaHei UI"
+        frame = tk.Frame(parent, bg=bg)
+        frame.pack(side="top", fill="x")
+        self._frame = frame
+        tk.Frame(frame, height=1, bg=colors["stat_sep"]).pack(fill="x")
+        tk.Label(frame, text="推荐打法", bg=bg, fg=colors["stat_dim"],
+                 font=(cjk, font_size - 2), anchor="w") \
+            .pack(fill="x", padx=8, pady=(2, 0))
+        self._plan: str | None = None
+        self._advice: list[tuple[str, str]] = []
+        self._labels = [tk.Label(frame, text="", bg=bg, fg=colors["stat_dim"],
+                                 font=(cjk, font_size - 1), justify="left",
+                                 anchor="w")
+                        for _ in range(_ADVICE_PANEL_ROWS)]
+        frame.bind("<Configure>", self._rewrap)
+
+    def _rewrap(self, _event=None) -> None:
+        w = max(60, self._frame.winfo_width() - 20)
+        for lab in self._labels:
+            lab.configure(wraplength=w)
+
+    def set_plan(self, line: str | None) -> None:
+        """可斩线机读措辞(plan_line 产物); None = 非 可斩/对手回合 → 隐藏。"""
+        self._plan = line or None
+        self._render()
+
+    def set_advice(self, rows: list[tuple[str, str]]) -> None:
+        """留牌建议行(advice_rows 产物: (文本, 色调) 列表)。"""
+        self._advice = list(rows or [])
+        self._render()
+
+    def reset(self) -> None:
+        """局终重置: 清空全部推荐行。"""
+        self._plan = None
+        self._advice = []
+        self._render()
+
+    def _render(self) -> None:
+        rows = ([(self._plan, "advice")] if self._plan else []) + self._advice
+        for i, lab in enumerate(self._labels):
+            if i < len(rows):
+                text, tone = rows[i]
+                lab.configure(text=text,
+                              fg=self._colors[self._TONE_FG.get(tone, "stat")])
+                lab.pack(fill="x", padx=8, pady=1)
+            else:
+                lab.configure(text="")    # 隐藏行一并清文本, 无残留措辞
+                lab.pack_forget()
 
 
 class OutputHub:
@@ -281,6 +354,24 @@ class OverlayWindow:
             return TAG_UNKNOWN
         return KIND_NOTICE
 
+    # ---------- 不透明/半透明模式 ----------
+    def _apply_opacity(self, root) -> str:
+        """上/中上部真不透明: 整窗全不透明 + 日志区背景色镂空。
+        返回日志区实际底色; 平台不支持镂空 → 回退整窗半透明(旧行为)。"""
+        log_bg = _LOG_BG_FALLBACK
+        if bool(getattr(self.cfg, "overlay_log_transparent", True)):
+            try:
+                root.attributes("-transparentcolor", _LOG_BG_MAGIC)
+                log_bg = _LOG_BG_MAGIC
+            except Exception:  # noqa: BLE001  非 Windows/老 tk: 回退
+                pass
+        alpha = 1.0 if log_bg == _LOG_BG_MAGIC else float(self.cfg.overlay_alpha)
+        try:
+            root.attributes("-alpha", alpha)
+        except Exception:  # noqa: BLE001  部分平台不支持透明
+            pass
+        return log_bg
+
     def run(self) -> None:
         tk = self._tk
         root = tk.Tk()
@@ -289,10 +380,7 @@ class OverlayWindow:
         if self.cfg.overlay_topmost:
             # 置顶只应真实运行开启; 测试/回放关掉, 不抢机器前台
             root.attributes("-topmost", True)
-        try:
-            root.attributes("-alpha", float(self.cfg.overlay_alpha))
-        except Exception:  # noqa: BLE001  部分平台不支持透明
-            pass
+        log_bg = self._apply_opacity(root)
         state = self._load_state()
         root.geometry(state.get("geometry") or self.cfg.overlay_geometry)
         if self.cfg.overlay_borderless:
@@ -301,16 +389,23 @@ class OverlayWindow:
 
         self._panel = _StatPanel(tk, root, self._colors,
                                  self.cfg.overlay_font_size)
+        self._advice = _AdvicePanel(tk, root, self._colors,
+                                    self.cfg.overlay_font_size)
 
-        frm = tk.Frame(root, bg="#0d1117")
-        txt = tk.Text(frm, wrap="char", bg="#0d1117", fg="#b8e6a0",
+        frm = tk.Frame(root, bg=log_bg)
+        txt = tk.Text(frm, wrap="char", bg=log_bg, fg="#b8e6a0",
                       insertbackground="#b8e6a0", relief="flat",
                       font=("Consolas", self.cfg.overlay_font_size),
-                      state="disabled", padx=6, pady=4)
+                      state="disabled", padx=6, pady=4,
+                      selectbackground="#264f78")
         self._txt = txt                    # 冒烟测试断言"行已渲染"用
         for name, color in self._colors.items():
             txt.tag_configure(name, foreground=color)
-        sb = tk.Scrollbar(frm, command=txt.yview)
+        try:                               # 滚动条融入镂空底色(拇指仍可见)
+            sb = tk.Scrollbar(frm, command=txt.yview, bg=log_bg,
+                              troughcolor=log_bg, activebackground="#30363d")
+        except Exception:  # noqa: BLE001  选项不受支持: 朴素滚动条
+            sb = tk.Scrollbar(frm, command=txt.yview)
         txt.configure(yscrollcommand=sb.set)
         frm.pack(fill="both", expand=True)
         txt.pack(side="left", fill="both", expand=True)
@@ -329,14 +424,24 @@ class OverlayWindow:
                     for item in lines:
                         try:
                             kind, text = item[0], item[1]
-                            if kind == KIND_STAT:      # 上区: 整体替换, 不进日志流
-                                data = item[3] if len(item) > 3 else None
-                                if data:
+                            data = item[3] if len(item) > 3 else None
+                            if kind == KIND_STAT:      # 上区: 整体替换,
+                                if data:               # 可斩线进推荐区
                                     self._panel.update(data)
-                                else:                  # 旧形态无机读字段: 原文兜底
+                                    self._advice.set_plan(plan_line(data))
+                                else:                  # 旧形态无机读字段
                                     self._panel.set_raw(text)
                                 continue
-                            tag = item[2] if len(item) > 2 else ""   # 兼容旧 2 元组
+                            if kind == KIND_ADVICE and data:
+                                # 推荐区: 机读字段驱动(留牌主行+胜率证据行)
+                                self._advice.set_advice(advice_rows(data))
+                            if kind == KIND_GAME_END:
+                                # 局终(打完一局): 清空日志流水 + 重置上两区,
+                                # 终局行本身保留为新一屏的首行
+                                txt.delete("1.0", "end")
+                                self._panel.reset()
+                                self._advice.reset()
+                            tag = item[2] if len(item) > 2 else ""  # 兼容旧 2 元组
                             txt.insert("end", text + "\n",
                                        self._classify(kind, text, tag))
                         except Exception:  # noqa: BLE001  单条坏消息只丢自己,

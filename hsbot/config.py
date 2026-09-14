@@ -27,7 +27,10 @@ DEFAULTS = {
     "overlay_enabled": True,    # 半透明置顶日志窗(游戏需无边框/窗口化模式)
     "overlay_topmost": True,    # 窗口置顶: 只应真实运行开启; 测试/回放一律关闭,
                                 # 不抢机器前台(2026-09-13 用户要求)
-    "overlay_alpha": 0.72,
+    "overlay_alpha": 0.72,      # 仅 overlay_log_transparent=false(旧行为)时生效
+    "overlay_log_transparent": True,  # 上/中上部面板真不透明: 整窗全不透明,
+                                      # 日志区背景色镂空(游戏透出/透明区点击穿透);
+                                      # false=整窗 overlay_alpha 半透明(旧行为)
     "overlay_geometry": "460x780+8+120",  # 默认宽x高+左边距+上边距; 实际位置/大小
                                           # 会自动记忆到 data/overlay_state.json 并优先
     "overlay_font_size": 10,
@@ -102,7 +105,8 @@ class Config:
     _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha",
               "draw_dedup_seconds", "distill_min_agree")
     _BOOL = ("console_echo", "overlay_enabled", "overlay_topmost",
-             "overlay_borderless", "auto_training", "auto_train_models",
+             "overlay_borderless", "overlay_log_transparent",
+             "auto_training", "auto_train_models",
              "mulligan_advice", "lethal_plan")
     _PATH = ("logs_dir", "data_dir", "training_dir")
 

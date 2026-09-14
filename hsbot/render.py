@@ -62,7 +62,11 @@ def _render_mulligan_offer(evt: dict, carddb: CardDB) -> str:
     adv = evt.get("advice")
     if not adv:
         return evt.get("msg", "")
+    return mulligan_advice_text(adv)
 
+
+def mulligan_advice_text(adv: dict) -> str:
+    """留牌建议事实 → 主行措辞(链路行与悬浮窗推荐区共用, 零平行格式)。"""
     def fmt(cid):
         info = adv.get("per_card", {}).get(cid) or {}
         gain = info.get("gain")
@@ -86,6 +90,26 @@ def _render_mulligan_offer(evt: dict, carddb: CardDB) -> str:
     if anti_names:
         line += " │ 不宜同留: " + "、".join(anti_names)
     return line
+
+
+# 悬浮窗推荐区: 评分器键 → 中文依据(措辞归 render; 未知键原样展示)
+_SCORER_ZH = {"v3_base": "基座", "v3": "蒸馏", "tabpfn": "TabPFN",
+              "lr": "LR", "table": "统计表"}
+
+
+def advice_rows(adv: dict | None) -> list[tuple[str, str]]:
+    """留牌建议事实 → 推荐区行[(文本, 色调)](悬浮窗"推荐打法"区)。
+    主行 = mulligan_advice_text(与链路行同源); 证据行 = 卡组胜率+依据+版本。
+    色调只有 advice(金)/dim(小字) 两种, 颜色映射归悬浮窗。无 adv → []。"""
+    if not adv:
+        return []
+    rows = [(mulligan_advice_text(adv), "advice")]
+    wr = adv.get("deck_wr")
+    if wr is not None:
+        scorer = _SCORER_ZH.get(adv.get("scorer"), adv.get("scorer") or "?")
+        tail = f" · 依据 {scorer} {adv.get('version') or ''}".rstrip()
+        rows.append((f"卡组胜率 {wr * 100:.0f}%{tail}", "dim"))
+    return rows
 
 
 # ================= 留牌结论词: 事实 → 中文(输出层政策) =================
@@ -322,6 +346,7 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
     lethal = burst_hand + (burst_deck or 0) + burst_board
     hero = st.hero(opp)
     enemy = st.hero_total_hp(opp) if hero is not None else None
+    mana = st.mana_now(me)               # 当前可用法力(法力格缺数据时 UI 默认 1)
     return {
         "enemy_total": enemy, "enemy_hp": st.hero_hp(opp),
         "enemy_armor": st.hero_armor(opp),
@@ -329,6 +354,7 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
         "lethal_board": burst_board,
         "can_kill": enemy is not None and lethal > 0 and lethal >= enemy,
         "spellpower": sp,
+        "mana": mana, "mana_res": st.mana_fields(me)["res"],
         "ramp": ramp_hand + (ramp_deck or 0), "ramp_hand": ramp_hand,
         "ramp_deck": ramp_deck,
         "cost_list": list_cost, "cost_deck": deck_cost, "cost_hand": cost_hand,

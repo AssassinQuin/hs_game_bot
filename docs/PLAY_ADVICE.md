@@ -161,7 +161,7 @@ class SimState:                   # 记忆化 key 即本结构(全 tuple/frozen)
 
 - **编排点**：`analysis.py` 新增 `lethal_plan(st, knowledge, analyzer) -> Plan | None`（analysis 是唯一效果解析层，piece 口径裁决在此）；planner 保持纯函数。
 - **触发**：watcher 信息区批尾重算点（"变化才发"门延伸到 plan 字段）——我方 `turn_start` 及每次打出后批尾重算；对手回合不算。
-- **输出通道**：扩展 `render.stat_fields` dict（`"plan": {...}` 子字段），`stat_text` 追加第三行 `可斩: A(2费)→B(0费)→… 伤24+场0 ≥ 22`，无斩时不追加（**粗估行一字不动**）；overlay 上区面板相应加格（几何记忆自适应）。不新开 KIND_ADVICE 事件（T2 的 play_offer 才走那通道）。
+- **输出通道**：扩展 `render.stat_fields` dict（`"plan": {...}` 子字段），`stat_text` 追加第三行 `可斩: A(2费)→B(0费)→… 伤24+场0 ≥ 22`，无斩时不追加（**粗估行一字不动**）；overlay 侧可斩线自上区移入中上部推荐区首行（2026-09-14 三区布局定版）。不新开 KIND_ADVICE 事件（T2 的 play_offer 才走那通道）。
 - **开关与降级**：config `lethal_plan: true`；无卡表→piece 无伤害并诚实计 uncovered；无台账→只用现状手牌；`knowledge is None`（通用模式）→手牌线。
 
 ### 6.5 测试矩阵

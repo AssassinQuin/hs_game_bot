@@ -59,14 +59,14 @@ def _run_with_auto_close(monkeypatch, q, after_ms=800, data_dir="."):
 
 
 def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch, tmp_path):
+    """全形态消息刷新不炸; 局终(game_end)清空日志流水(2026-09-14 三区布局
+    定版): game_end 行本身保留, 其后的行(下一局内容)照常渲染。"""
     q = queue.Queue()
+    q.put(("game_end", "──── 对局结束 ──── Player1=WON / Player2=LOST"))
     for kind, text in [("notice", "监控会话: Hearthstone_x │ 卡组=奇迹德"),
                        ("chain", "[T1·我] 起手可留: 黑市拍卖师、雷霆绽放、月火术"),
                        ("snapshot", "── T1 第1局(回合结束) 我:水晶1/1 ──"),
-                       ("game_end", "──── 对局结束 ──── Player1=WON / Player2=LOST"),
-                       ("error", "! 监控线程已退出, 请重启 hsbot"),
-                       ("stat", "敌 30(30血+0甲) │ 斩杀 0(手0+场0) │ 法强 0\n"
-                                "回费 +0(手0+库0) │ 费 组?/库?/手0")]:
+                       ("error", "! 监控线程已退出, 请重启 hsbot")]:
         q.put((kind, text))
     # 新形态: KIND_STAT 带机读字段(4 元组) → 上区走分格面板
     q.put(("stat", "敌 40(40血+0甲) │ 斩杀 14(手0+库14+场0) │ 法强 0\n"
@@ -86,7 +86,8 @@ def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch, tmp_path):
 
 
 def test_stat_panel_fields_and_kill_gold(ensure_display):
-    """上区五格面板: 机读字段驱动数值/细节三层字级; 可斩转金色;
+    """上区六格面板: 机读字段驱动数值/细节三层字级; 可斩转金色;
+    法力格缺数据默认 1(2026-09-14 三区布局定版);
     无机读字段的旧形态走原文兜底行。"""
     root = tk.Tk()
     root.withdraw()                    # 测试不显示 UI
@@ -104,14 +105,20 @@ def test_stat_panel_fields_and_kill_gold(ensure_display):
         assert p.cells["enemy"][0].cget("text") == "40"
         assert p.cells["enemy"][1].cget("text") == "40血+0甲"
         assert p.cells["lethal"][0].cget("text") == "14"
-        assert p.cells["lethal"][1].cget("text") == "手0+库14+场0"
+        assert p.cells["lethal"][1].cget("text") == "手0+库14+场0 · 法强0"
+        assert p.cells["mana"][0].cget("text") == "1"      # 缺数据: 默认 1
         assert p.cells["ramp"][0].cget("text") == "+10"
+        assert p.cells["ramp"][1].cget("text") == "库8+手2"
         assert p.cells["cost"][0].cget("text") == "12"
         assert p.cells["cost"][1].cget("text") == "组45 库33"
         assert p.cells["discount"][0].cget("text") == "−2"
         assert p.cells["discount"][1].cget("text") == "生命缚誓者的礼物"
         p.update({**base, "can_kill": True})
         assert p.cells["lethal"][0].cget("foreground") == _DEFAULT_COLORS["advice"]
+        assert p.cells["lethal"][1].cget("text") == "可斩 手0+库14+场0 · 法强0"
+        p.update({**base, "mana": 5, "mana_res": 10})
+        assert p.cells["mana"][0].cget("text") == "5"
+        assert p.cells["mana"][1].cget("text") == "水晶5/10"
         p.update({**base, "lethal_deck": None, "cost_list": None})
         assert "库?" in p.cells["lethal"][1].cget("text")
         p.update({**base, "discount": {"cards": 0, "total": 0, "sources": []}})

@@ -723,7 +723,9 @@ class Watcher:
                  else TAG_UNKNOWN)
         else:
             tag = ""                     # advice 等专用分色: 不叠加人物色
-        self._emit(Msg(msg_kind, line, tag=tag), msg_kind)
+        # 悬浮窗推荐区从机读字段渲染(不从文本反推); 控制台/文件不用 data
+        data = evt.get("advice") if msg_kind == KIND_ADVICE else None
+        self._emit(Msg(msg_kind, line, tag=tag, data=data), msg_kind)
 
     def _fire_pending_game_end(self) -> None:
         """game_end 延迟快照触发点: 树内包全部应用(冲刷)后再快照+导出。"""

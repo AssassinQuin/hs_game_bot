@@ -51,7 +51,7 @@
 | `watcher.SnapshotService` | 快照构建+分发+持久化 | 不做游戏决策 |
 | `watcher.TrainingExporter` | 训练样本+原始切片导出/收尾 | 不做游戏决策 |
 | `corpus.CorpusExporter` | 语料落盘+Decks 归因+import-all | 不平行推导对局事实(读 store) |
-| `overlay.OutputHub/OverlayWindow` | 输出三路分发+半透明窗+分色+几何记忆 | 不做游戏决策 |
+| `overlay.OutputHub/OverlayWindow` | 输出三路分发+三区悬浮窗(上信息区/中上部推荐区/中下日志流, 上两区实底不透明)+分色+几何记忆+局终清空重置 | 不做游戏决策(机读字段驱动, 不从文本反推) |
 
 ## 3. 设计模式落位
 
@@ -76,8 +76,9 @@
 4. 渲染层零游戏规则; 解析层零状态维护; 两者都零 IO。
 5. 对局事实唯一来源 = store; 训练语料/快照的 meta 全部读 store
    (corpus 不再平行推导)。
-6. (2026-09-14 补记) overlay → render.plan_line 为单向措辞复用边
-   (结论词单一出处); planner 为 analysis.lethal_plan 委托的纯函数包,
+6. (2026-09-14 补记) overlay → render.plan_line/advice_rows 为单向措辞复用边
+   (结论词单一出处; 可斩线自上区移入中上部推荐区, 推荐打法 top3 封顶);
+   planner 为 analysis.lethal_plan 委托的纯函数包,
    依赖仅 hsbot.consts。
 
 ## 5. 已知债务(docs/AUDIT_2026-09-13.md)

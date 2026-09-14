@@ -118,9 +118,10 @@ def test_plan_degenerate_empty_actions_no_crash(tmp_path):
     assert "可斩: (无动作) 伤?+场? ≥ ?" in out
 
 
-def test_stat_panel_plan_line_row(tmp_path):
-    """overlay 上区: plan.lethal → 面板底部可斩线整行显示(金/advice 色);
-    无 plan / 非可斩 → 隐藏不占位; 旧形态原文兜底时一并隐藏。"""
+def test_advice_panel_plan_line_row(tmp_path):
+    """overlay 中上部推荐区(2026-09-14 三区布局): plan.lethal → 推荐区首行
+    "可斩: …"(金/advice 色); 无 plan / 非可斩 → 行隐藏不占位;
+    留牌行共存时可斩线排第一(top1 打法)。"""
     tk = pytest.importorskip("tkinter")
     try:
         root = tk.Tk()
@@ -128,23 +129,23 @@ def test_stat_panel_plan_line_row(tmp_path):
     except Exception as exc:                   # noqa: BLE001  无显示环境
         pytest.skip(f"无可用显示: {exc}")
     try:
-        from hsbot.overlay import _DEFAULT_COLORS, _StatPanel
-        from hsbot.render import stat_fields
+        from hsbot.overlay import _DEFAULT_COLORS, _AdvicePanel
+        from hsbot.render import plan_line, stat_fields
 
         st, db, a = _scene(tmp_path)
         f = stat_fields(st, knowledge=None, carddb=db, analyzer=a, plan=_PLAN)
-        p = _StatPanel(tk, root, dict(_DEFAULT_COLORS), 10)
-        p.update(_BASE_FIELDS)                 # 无 plan 键 → 不显示
-        assert not p._plan.grid_info()
-        p.update(f)                            # 可斩 → 整行显示
-        assert p._plan.cget("text") == _LINE3
-        assert p._plan.grid_info()
-        assert p._plan.cget("foreground") == _DEFAULT_COLORS["advice"]
-        p.update({**f, "plan": {**_PLAN, "lethal": False}})   # 非可斩 → 隐藏
-        assert not p._plan.grid_info()
-        p.update(f)
-        assert p._plan.grid_info()
-        p.set_raw("旧形态原文兜底")             # 无机读字段 → 可斩线一并隐藏
-        assert not p._plan.grid_info()
+        p = _AdvicePanel(tk, root, dict(_DEFAULT_COLORS), 10)
+        p.set_plan(plan_line({"plan": None}))          # 无 plan → 隐藏
+        assert all(l.cget("text") == "" for l in p._labels)
+        p.set_plan(plan_line(f))                       # 可斩 → 首行显示
+        assert p._labels[0].cget("text") == _LINE3
+        assert p._labels[0].cget("foreground") == _DEFAULT_COLORS["advice"]
+        p.set_advice([("留 火球术(+20.0%)", "advice")])   # 与留牌行共存
+        assert [l.cget("text") for l in p._labels][:2] == \
+            [_LINE3, "留 火球术(+20.0%)"]
+        p.set_plan(plan_line({**f, "plan": {**_PLAN, "lethal": False}}))
+        assert p._labels[0].cget("text") == "留 火球术(+20.0%)"   # 非可斩: 退位
+        p.reset()
+        assert all(l.cget("text") == "" for l in p._labels)
     finally:
         root.destroy()

@@ -19,7 +19,10 @@ session_check_interval: 10  # 新会话目录检查间隔(秒)
 # ── 输出 ──
 console_echo: true        # 悬浮窗之外是否同步打印到控制台
 overlay_enabled: true     # 半透明置顶日志窗(炉石需用"无边框/窗口化"显示模式)
-overlay_alpha: 0.72
+overlay_alpha: 0.72       # 仅 overlay_log_transparent: false(整窗半透明旧行为)时生效
+overlay_log_transparent: true  # 三区布局(2026-09-14): 上/中上部面板真不透明 ——
+                               # 整窗全不透明, 日志区背景色镂空(游戏透出,
+                               # 透明区点击穿透给游戏); false=整窗半透明旧行为
 overlay_geometry: 460x780+8+120   # 默认宽x高+左边距+上边距; 实际位置/大小自动
                                   # 记忆到 data/overlay_state.json 并优先生效
 overlay_font_size: 10
