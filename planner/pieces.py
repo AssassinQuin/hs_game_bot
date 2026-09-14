@@ -29,6 +29,10 @@ class Piece:
     spellpower_gain: int = 0     # SpellPower.amount 合计; 文本含"选择一"→强制 0(宁漏勿错)
     discount_hand: int = 0       # CostDown scope 以 "hand:" 开头的 amount 合计
     discount_next: int = 0       # CostDown scope 以 "next:" 开头的 amount 合计
+    next_cat: str = ""           # 首个 "next:" 减费的类目词(如 星灵/法术);
+                                 # 空 = 不限类目(仅测试/调用方直给状态时出现)
+    card_cats: frozenset = frozenset()   # 本牌满足的减费类目词: 法术/随从/武器/
+                                         # 星灵(set=SPACE) —— 供 disc_next 作用判定
     engine: bool = False         # IR 含 Mechanic("cast_draw"): 每施放一法术抽一张
     is_spell: bool = False       # cardtype == "SPELL"
 
@@ -43,7 +47,8 @@ def build_piece(card_id: str, cost: int, analyzer) -> Piece:
     缺牌/异常 → inert Piece。抉择条件分支(文本含"选择一")的法强增益强制 0:
     分支未定是否生效, 宁漏勿错(可斩只可能漏报不可能误报)。"""
     try:
-        ir = analyzer.cache.get_or_compile(analyzer.carddb.raw(card_id))
+        card = analyzer.carddb.raw(card_id)
+        ir = analyzer.cache.get_or_compile(card)
     except Exception:  # noqa: BLE001  任何编译异常等价于无卡表条目
         return _inert(card_id, cost)
     if ir is None:
@@ -55,6 +60,7 @@ def build_piece(card_id: str, cost: int, analyzer) -> Piece:
     spellpower_gain = 0
     discount_hand = 0
     discount_next = 0
+    next_cat = ""
     engine = False
     for e in ir.effects:
         # 依赖方向约束: 不 import hsbot.effects, 按 IR 节点类型名判别
@@ -75,6 +81,8 @@ def build_piece(card_id: str, cost: int, analyzer) -> Piece:
                 discount_hand += e.amount
             elif scope.startswith("next:"):
                 discount_next += e.amount
+                if not next_cat:
+                    next_cat = scope[len("next:"):]
         elif kind == "SpellPower":
             spellpower_gain += e.amount
         elif kind == "Mechanic" and e.kind == "cast_draw":
@@ -88,4 +96,25 @@ def build_piece(card_id: str, cost: int, analyzer) -> Piece:
                                and not random_split),
                  mana_gain=mana_gain, spellpower_gain=spellpower_gain,
                  discount_hand=discount_hand, discount_next=discount_next,
+                 next_cat=next_cat, card_cats=_card_cats(card, cardtype),
                  engine=engine, is_spell=cardtype == "SPELL")
+
+
+# "next:X" 减费的类目词 → 本牌是否属于该类目 的判定依据。
+# 星灵: SC_753 光子炮台 / SC_755 建造水晶塔(文本均言"星灵")在卡表的
+# set 字段同为 "SPACE"(星际争霸迷你系列, 2026 实测卡表); 其余类目词按
+# 卡牌类型直译。未知类目词不进 card_cats → 减费不作用不消耗(宁漏勿错)。
+_SET_CAT = "SPACE"
+
+
+def _card_cats(card: dict, cardtype: str) -> frozenset:
+    cats = set()
+    if cardtype == "SPELL":
+        cats.add("法术")
+    elif cardtype == "MINION":
+        cats.add("随从")
+    elif cardtype == "WEAPON":
+        cats.add("武器")
+    if (card.get("set") or "") == _SET_CAT:
+        cats.add("星灵")
+    return frozenset(cats)

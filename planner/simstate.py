@@ -20,18 +20,23 @@ class SimState:
     sp: int                      # 当前法强
     disc_hand: int               # 在身的手牌法术减费余额(每张法术都减, 不耗尽)
     disc_next: int               # "下一张"减费面值(一次性: 全额作用下一张, 用后清零)
-    engines: int                 # 在场施法抽牌引擎数
-    drawn: int                   # 已消耗的未知抽牌数(Plan.face_exp 期望折算用)
-    known_draws: tuple           # ((cid, cost), ...) 队头=最先抽到(消耗式)
-    face: int                    # 已累计确定伤害
+    disc_next_cat: str = ""      # 该余额的类目词(星灵/法术/…; 空=不限类目):
+                                 # 类目不符或有剩余费的牌才作用并消耗
+                                 # (2026-09-14 用户裁决"0 水晶不需要")
+    engines: int = 0             # 在场施法抽牌引擎数
+    drawn: int = 0               # 已消耗的未知抽牌数(Plan.face_exp 期望折算用)
+    known_draws: tuple = ()      # ((cid, cost), ...) 队头=最先抽到(消耗式)
+    face: int = 0                # 已累计确定伤害
 
 
 def initial_state(mana: int, hand_cards, sp: int, known_draws=(), disc_hand: int = 0,
-                  disc_next: int = 0, engines: int = 0) -> SimState:
+                  disc_next: int = 0, engines: int = 0,
+                  disc_next_cat: str = "") -> SimState:
     """构造初始状态: hand_cards=((cid, cost), ...), 手牌升序排序规范化;
     known_draws 保持调用方给的队列序(队头=最先抽到, 不排序)。"""
     return SimState(mana=mana, hand=tuple(sorted(hand_cards)), sp=sp,
-                    disc_hand=disc_hand, disc_next=disc_next, engines=engines,
+                    disc_hand=disc_hand, disc_next=disc_next,
+                    disc_next_cat=disc_next_cat, engines=engines,
                     drawn=0, known_draws=tuple(known_draws), face=0)
 
 
@@ -44,9 +49,11 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
     - mana' = min(10, mana − eff + mana_gain)。
     - face' = face + Σ((b+sp) 若 spell_scaled 否则 b for b in segments) ——
       法强逐段结算 (base+sp)×hits。
-    - disc_next 是一次性面值(伺机待发"下一法术-3"= 下一张全额减 3, 溢出
-      浪费), 任意一张牌打出后清零; disc_hand 只减法术且不耗尽, 打出的
-      减费牌追加余额。
+    - disc_next 是一次性面值, 且 2026-09-14 用户裁决"0 水晶不需要":
+      原费(扣手牌减费后)已 0 的牌不得作用也不得消耗余额; 类目不符
+      (如 水晶塔 next:星灵 打在非星灵牌上)同样保留余额等下一张 ——
+      唯有两种其一相符才全额作用并清零(溢出浪费), 打出的减费牌自身
+      的 next 余额覆盖旧余额; disc_hand 只减法术且不耗尽。
     - 抽牌: p.is_spell 且打牌前 engines>0 → 每个在场引擎各自触发一次(循环
       engines 次): known_draws 非空则队头入手并弹出, 否则 drawn+1;
       hand' 永远排序规范化。
@@ -60,9 +67,16 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
     eff = p.cost
     if p.is_spell and state.disc_hand:
         eff -= state.disc_hand
-    eff -= state.disc_next            # next: 面值一次性全额(任意牌消耗)
-    if eff < 0:
-        eff = 0
+        if eff < 0:
+            eff = 0
+    # 下一张减费: 有剩余费且(不限类目 或 类目相符)才作用并全额消耗;
+    # 0 费牌/类目不符 → 余额原样保留(不作用不消耗)
+    disc_next, disc_next_cat = state.disc_next, state.disc_next_cat
+    if disc_next:
+        if (eff > 0 and (not disc_next_cat
+                         or disc_next_cat in p.card_cats)):
+            eff = max(0, eff - disc_next)
+            disc_next, disc_next_cat = 0, ""
     if eff > state.mana:
         raise ValueError(f"不可支付: {key[0]} 需 {eff} 费, 仅剩 {state.mana}")
 
@@ -84,11 +98,13 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
         hand = rest                           # 无抽牌: 升序子序列直接用
     # 热路径(dfs 每条边一次): 绕开 frozen __init__ 的逐字段 object.__setattr__,
     # 一次 C 级填充等价构造; 事后外部赋值仍被 frozen_setattr 拦截, 不可变性不变。
+    if p.discount_next:                       # 打出的减费牌覆盖旧余额
+        disc_next, disc_next_cat = p.discount_next, p.next_cat
     st = SimState.__new__(SimState)
     st.__dict__.update(mana=min(10, state.mana - eff + p.mana_gain), hand=hand,
                        sp=state.sp + p.spellpower_gain,
                        disc_hand=state.disc_hand + p.discount_hand,
-                       disc_next=p.discount_next,   # 旧余额已全额消耗, 清零
+                       disc_next=disc_next, disc_next_cat=disc_next_cat,
                        engines=state.engines + (1 if p.engine else 0),
                        drawn=drawn, known_draws=known,
                        face=state.face + sum((b + state.sp) if p.spell_scaled

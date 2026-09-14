@@ -87,4 +87,4 @@ def best_line(state, pieces: dict, *, board_atk: int = 0,
 def _key(st):
     """决策点键: SimState 去掉 face/drawn(后缀不变性, 见模块注释)。"""
     return (st.mana, st.hand, st.sp, st.disc_hand, st.disc_next,
-            st.engines, st.known_draws)
+            st.disc_next_cat, st.engines, st.known_draws)

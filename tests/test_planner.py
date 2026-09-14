@@ -37,7 +37,11 @@ CARDS = [
     {"id": "HAND_DISC", "name": "生命缚誓者的礼物", "type": "SPELL", "cost": 2,
      "text": "使你手牌中法术牌的法力值消耗减少（1）点。"},
     {"id": "NEXT_DISC", "name": "建造水晶塔", "type": "SPELL", "cost": 0,
+     "set": "SPACE",
      "text": "在本回合中，你的下一张星灵牌法力值消耗减少（2）点。"},
+    {"id": "PROTOSS", "name": "星灵守卫", "type": "MINION", "cost": 2,
+     "set": "SPACE",
+     "text": "<b>嘲讽</b>", "mechanics": ["TAUNT"]},
     {"id": "CHOOSE_SP", "name": "顺水漂流", "type": "SPELL", "cost": 1,
      "text": "选择一个随从。使其获得法术伤害+1。"},
     {"id": "VANILLA", "name": "白板嘲讽", "type": "MINION", "cost": 2,
@@ -46,6 +50,8 @@ CARDS = [
      "text": "造成$2点伤害。"},
     {"id": "BIG_SPELL", "name": "大伤害法术", "type": "SPELL", "cost": 4,
      "text": "对一个敌人造成$3点伤害两次。"},
+    {"id": "SP3", "name": "三费箭", "type": "SPELL", "cost": 3,
+     "text": "造成$1点伤害。"},
     {"id": "AOE_MIN", "name": "扫场", "type": "SPELL", "cost": 4,
      "text": "对所有敌方随从造成$3点伤害。"},
     {"id": "RAND_SPLIT", "name": "随机火", "type": "SPELL", "cost": 2,
@@ -54,7 +60,8 @@ CARDS = [
 
 # (card_id, 实际费) 池: 供随机交叉验证使用
 POOL = [("MOON", 1), ("TWO_HIT", 2), ("INNERVATE", 0), ("GADGET", 3),
-        ("AUCTION", 5), ("HAND_DISC", 2), ("NEXT_DISC", 0), ("VANILLA", 2)]
+        ("AUCTION", 5), ("HAND_DISC", 2), ("NEXT_DISC", 0), ("VANILLA", 2),
+        ("PROTOSS", 2)]
 
 
 def _db(tmp_path, cards):
@@ -169,13 +176,70 @@ def test_play_mana_cap_ten(analyzer):
 
 
 def test_play_disc_next_consumed_once(analyzer):
-    """next: 减费 = 面值一次性(2026-09-14 审计修正): 下一张全额减, 用后清零。"""
-    pieces = _mk_pieces(analyzer, [("NEXT_DISC", 0), ("VANILLA", 2)])
-    st = initial_state(5, (("NEXT_DISC", 0), ("VANILLA", 2)), 0)
-    st2 = play(st, 0, pieces)           # 打出水晶塔(-2): 余额 2
-    assert st2.disc_next == 2
-    st3 = play(st2, 0, pieces)          # 下一张 2 费随从: 全额 -2 → 0 费
+    """next: 减费 = 面值一次性(2026-09-14 审计修正): 下一张全额减, 用后清零。
+    (initial_state 直给的不带类目余额视为不限类目: 任意有剩余费的牌都
+    作用并消耗 —— 带类目余额的作用/保留语义见下方三枚新钉子。)"""
+    pieces = _mk_pieces(analyzer, [("VANILLA", 2)])
+    st = initial_state(5, (("VANILLA", 2),), 0, disc_next=2)
+    st2 = play(st, 0, pieces)           # 下一张 2 费随从: 全额 -2 → 0 费
+    assert st2.mana == 5 and st2.disc_next == 0
+
+
+def test_build_piece_next_disc_category_and_card_cats(analyzer):
+    """2026-09-14 实测(g16 T5 最优线把水晶塔-2送给礼物): Piece 记录
+    next: 减费的类目词与自身类目 —— 水晶塔 next:星灵 → next_cat=星灵,
+    自身是星灵(set=SPACE); 普通法术 card_cats=法术 且 next_cat 空。"""
+    tower = build_piece("NEXT_DISC", 0, analyzer)
+    assert tower.discount_next == 2 and tower.next_cat == "星灵"
+    assert "星灵" in tower.card_cats and "法术" in tower.card_cats
+    moon = build_piece("MOON", 1, analyzer)
+    assert moon.next_cat == "" and moon.card_cats == frozenset({"法术"})
+    minion = build_piece("VANILLA", 2, analyzer)
+    assert "随从" in minion.card_cats and "星灵" not in minion.card_cats
+
+
+def test_play_disc_next_category_mismatch_not_consumed(analyzer):
+    """类目不符: 下一张星灵牌-2 不得作用也不得消耗在非星灵牌上
+    (2026-09-14 实测: 旧语义白送给礼物/月光射线 → 线内虚减费, 误报可斩)。"""
+    pieces = _mk_pieces(analyzer, [("NEXT_DISC", 0), ("HAND_DISC", 2)])
+    st = initial_state(5, (("NEXT_DISC", 0), ("HAND_DISC", 2)), 0)
+    st2 = play(st, 1, pieces)                    # 打出水晶塔: 余额 2(星灵)
+    assert st2.disc_next == 2 and st2.disc_next_cat == "星灵"
+    st3 = play(st2, 0, pieces)                   # 礼物(2费, 非星灵): 原价 2
+    assert st3.mana == 3                         # 5-2: 一分不减
+    assert st3.disc_next == 2 and st3.disc_next_cat == "星灵"   # 余额保留
+
+
+def test_play_disc_next_zero_cost_not_consumed(analyzer):
+    """0 费的牌不需要/不消耗减费(用户裁决 2026-09-14): 原费已 0 的牌既不
+    被作用也不吃掉一次性余额(旧语义 0 费牌白吃面值 → 线内少一张可用减费)。"""
+    pieces = _mk_pieces(analyzer, [("NEXT_DISC", 0), ("INNERVATE", 0)])
+    st = initial_state(5, (("NEXT_DISC", 0), ("INNERVATE", 0)), 0)
+    st2 = play(st, 0, pieces)                    # 打出水晶塔: 余额 2
+    st3 = play(st2, 0, pieces)                   # 激活(0费): 不消耗
+    assert st3.disc_next == 2 and st3.disc_next_cat == "星灵"
+    assert st3.mana == 6                         # 5-0费+激活回费1
+
+
+def test_play_disc_next_applies_to_starcraft_card(analyzer):
+    """类目相符: 水晶塔-2 作用于星灵随从(2费→0费)后清零。"""
+    pieces = _mk_pieces(analyzer, [("NEXT_DISC", 0), ("PROTOSS", 2)])
+    st = initial_state(5, (("NEXT_DISC", 0), ("PROTOSS", 2)), 0)
+    st2 = play(st, 0, pieces)
+    st3 = play(st2, 0, pieces)
     assert st3.mana == 5 and st3.disc_next == 0
+
+
+def test_best_line_no_fake_discount_line_for_gift(analyzer):
+    """g16 T5 回归钉(标定版): mana=2, 手牌=水晶塔(0)+礼物(2)+3费法术($1)。
+    旧语义: 塔→礼物(白吃-2 按0费打出, 还给手牌法术-1)→3费法术(3-1=2费)
+    → face 1 —— 虚减费多打了一张; 新语义礼物按原价 2, 线打不出伤害
+    → face_det=0(宁漏勿错: 绝不为虚减费多算伤害)。"""
+    pieces = _mk_pieces(analyzer, [("NEXT_DISC", 0), ("HAND_DISC", 2),
+                                   ("SP3", 3)])
+    st = initial_state(2, (("NEXT_DISC", 0), ("HAND_DISC", 2), ("SP3", 3)), 0)
+    plan = best_line(st, pieces)
+    assert plan.face_det == 0
 
 
 def test_play_disc_hand_discounts_every_spell(analyzer):
