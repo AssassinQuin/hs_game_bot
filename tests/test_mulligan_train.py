@@ -312,3 +312,61 @@ def test_train_saves_digest_and_advise_shows_matched(tmp_path, capsys):
                    ["--vs", "圣骑士", "--first", "--explore", "--seed", "3",
                     "--hand", "GOOD,BAD"]) == 0
     assert "Thompson 探索局" in capsys.readouterr().out
+
+
+# ── material_v2(v3 素材) ──
+
+_FIXTURE_MULLIGAN_DRAW = "mulligan_draw.log"
+
+
+def _corpus_with_fixture(tmp_path):
+    corpus = tmp_path / "corpus" / "奇迹德"
+    corpus.mkdir(parents=True)
+    (corpus / "mulligan_draw.power.log").write_text(
+        (ROOT / "tests" / "fixtures" / _FIXTURE_MULLIGAN_DRAW)
+        .read_text(encoding="utf-8"), encoding="utf-8")
+    return tmp_path / "corpus"
+
+
+def test_material_v2_rows_from_fixture(tmp_path):
+    """v3 素材: 重放推导 决策行(含 replaced_in——旧 jsonl meta 缺字段的补法)、
+    回合行 drawn_this_turn(排除换入窗口/对手抽牌)、结果行。
+    断言值 = 夹具真值(2026-09-14 探针冻结, 真实切片裁剪+注入一张 T2 抽牌)。"""
+    from trainer.material import build_material_v2
+    corpus = _corpus_with_fixture(tmp_path)
+    stats = build_material_v2(corpus, "奇迹德", tmp_path / "out",
+                              NO_DB, "湫然#51704")
+    rows = [json.loads(ln) for ln in
+            (tmp_path / "out" / "material_v2.jsonl").read_text(encoding="utf-8")
+            .splitlines() if ln.strip()]
+    mull = [r for r in rows if r["row"] == "mulligan"]
+    turns = [r for r in rows if r["row"] == "turn"]
+    results = [r for r in rows if r["row"] == "result"]
+    assert stats["mulligan_rows"] == 1 and len(mull) == 1
+    m = mull[0]
+    assert m["offered"] == ["JAIL_718", "SCH_427", "CS2_008"]
+    assert m["kept"] == ["JAIL_718", "SCH_427"]
+    assert m["replaced_in"] == ["CORE_AT_037", "TID_001"]
+    assert m["coin"] == 0 and m["result"] == 1
+    assert m["opp_class"] == "UNKNOWN"          # NO_DB: 英雄无 CLASS → 兜底
+    assert m["decklist"] is None                # 无同 stem jsonl → 缺卡组
+    assert m["game"].endswith("#g1")
+    t2 = [r for r in turns if r["snap"]["turn"] == 2]
+    assert len(t2) == 1
+    assert t2[0]["drawn_this_turn"] == ["CS2_037", "JAIL_718"]  # 注入+局内真实抽牌
+    assert all(r["snap"]["my_turn"] for r in turns)      # 对手回合不产行
+    assert all(r["snap"]["turn"] >= 1 for r in turns)    # 留牌阶段(T0)不立行
+    assert len(results) == 1 and results[0]["result"] == 1
+
+
+def test_material_v1_output_untouched_by_v2(tmp_path):
+    """v3 扩展不动 v1: build_material 的 material.jsonl 行结构零变化。"""
+    from trainer.material import build_material, build_material_v2
+    corpus = _corpus_with_fixture(tmp_path)
+    build_material_v2(corpus, "奇迹德", tmp_path / "out", NO_DB, "湫然#51704")
+    build_material(corpus, "奇迹德", tmp_path / "out", NO_DB, "湫然#51704")
+    rows = [json.loads(ln) for ln in
+            (tmp_path / "out" / "material.jsonl").read_text(encoding="utf-8")
+            .splitlines() if ln.strip()]
+    assert rows and all(set(r) == {"snap", "actions", "src", "result"}
+                        for r in rows)
