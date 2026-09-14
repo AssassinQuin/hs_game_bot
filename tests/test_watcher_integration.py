@@ -127,6 +127,7 @@ def test_training_includes_raw_log_slice(tmp_path):
     # training_dir 必须隔离: 缺省是相对仓库的真实语料目录 —— 本测试曾把合成
     # 的 mini_game 样本写进 data/training/未知卡组/live_g01.*(审计 2026-09-14 低#8)
     cfg = Config.load({"overlay_enabled": False, "auto_training": True,
+                       "auto_train_models": False,   # 模型链会带真实 config 起子进程写 trainer/data
                        "data_dir": str(tmp_path),
                        "training_dir": str(tmp_path / "training"),
                        "battletag": "湫然#51704"})
@@ -220,6 +221,7 @@ def test_live_training_export_dedup(tmp_path):
     from hsbot.corpus import CorpusExporter
 
     cfg = Config.load({"overlay_enabled": False, "auto_training": True,
+                       "auto_train_models": False,   # 模型链会带真实 config 起子进程写 trainer/data
                        "data_dir": str(tmp_path),
                        "training_dir": str(tmp_path / "training")})
     ex = CorpusExporter(cfg, CardDB("/nonexistent.json"))
@@ -250,6 +252,7 @@ def test_two_games_one_batch_exports_each_game(tmp_path):
     from hsbot.persist import SessionStore
 
     cfg = Config.load({"overlay_enabled": False, "auto_training": True,
+                       "auto_train_models": False,   # 模型链会带真实 config 起子进程写 trainer/data
                        "data_dir": str(tmp_path),
                        "training_dir": str(tmp_path / "training"),
                        "battletag": "湫然#51704"})

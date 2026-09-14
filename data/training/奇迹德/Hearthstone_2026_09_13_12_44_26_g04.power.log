@@ -15225,3 +15225,103 @@ D 13:02:19.4603702 PowerProcessor.DoTaskListForCard() - unhandled BlockType PLAY
 D 13:02:19.4603702 PowerProcessor.EndCurrentTaskList() - m_currentTaskList=517
 D 13:02:19.4603702 PowerTaskList.DebugDump() - ID=518 ParentID=511 PreviousID=0 TaskCount=35
 D 13:02:19.4603702 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=POWER Entity=[entityName=月光射线 id=66 zone=PLAY zonePos=0 cardId=TID_001 player=2] EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=0 Target=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] SubOption=-1 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     META_DATA - Meta=TARGET Data=0 InfoCount=1
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -                 Info[0] = [entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1]
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=2187 value=66 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=PREDAMAGE value=5 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=1173 value=104 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=2187 value=0 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=PREDAMAGE value=0 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=1173 value=0 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=PREDAMAGE value=5 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=PREDAMAGE value=0 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     META_DATA - Meta=DAMAGE Data=5 InfoCount=1
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -                 Info[0] = [entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1]
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=4741 value=14 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=LAST_AFFECTED_BY value=66 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=DAMAGE value=43 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=湫然#51704 tag=4587 value=51 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=464 value=51 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=1853 value=53 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=4453 value=9 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=DAMAGE_DEALT_TO_HERO_LAST_TURN value=51 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     META_DATA - Meta=TARGET Data=0 InfoCount=1
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -                 Info[0] = [entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1]
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=2187 value=66 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=PREDAMAGE value=5 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=1173 value=104 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=2187 value=0 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=PREDAMAGE value=0 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=1173 value=0 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=PREDAMAGE value=5 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=PREDAMAGE value=0 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     META_DATA - Meta=DAMAGE Data=5 InfoCount=1
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -                 Info[0] = [entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1]
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=4741 value=15 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=DAMAGE value=48 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=湫然#51704 tag=4587 value=56 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=464 value=56 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=1853 value=58 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=4453 value=10 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=DAMAGE_DEALT_TO_HERO_LAST_TURN value=56 
+D 13:02:19.4603702 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 13:02:19.4603702 PowerProcessor.PrepareHistoryForCurrentTaskList() - m_currentTaskList=518
+D 13:02:20.5318230 PowerProcessor.EndCurrentTaskList() - m_currentTaskList=518
+D 13:02:20.5368287 PowerTaskList.DebugDump() - ID=519 ParentID=0 PreviousID=517 TaskCount=3
+D 13:02:20.5368287 PowerTaskList.DebugDump() - Block Start=(null)
+D 13:02:20.5368287 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=月光射线 id=66 zone=PLAY zonePos=0 cardId=TID_001 player=2] tag=1068 value=4 
+D 13:02:20.5368287 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=月光射线 id=66 zone=PLAY zonePos=0 cardId=TID_001 player=2] tag=1068 value=0 
+D 13:02:20.5368287 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=月光射线 id=66 zone=PLAY zonePos=0 cardId=TID_001 player=2] tag=ZONE value=GRAVEYARD 
+D 13:02:20.5368287 PowerTaskList.DebugDump() - Block End=(null)
+D 13:02:20.5368287 PowerProcessor.PrepareHistoryForCurrentTaskList() - m_currentTaskList=519
+D 13:02:20.5368287 PowerProcessor.DoTaskListForCard() - unhandled BlockType PLAY for sourceEntity [entityName=月光射线 id=66 zone=PLAY zonePos=0 cardId=TID_001 player=2]
+D 13:02:20.5449863 PowerProcessor.EndCurrentTaskList() - m_currentTaskList=519
+D 13:02:20.5516995 PowerTaskList.DebugDump() - ID=520 ParentID=511 PreviousID=0 TaskCount=7
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=DEATHS Entity=GameEntity EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=0 Target=0 SubOption=-1 
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=1068 value=4 
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=1068 value=0 
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=PLAY zonePos=0 cardId=HERO_06a player=1] tag=ZONE value=GRAVEYARD 
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=雷纳索尔的活力 id=111 zone=PLAY zonePos=0 cardId=REV_018e player=1] tag=1234 value=104 
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=雷纳索尔的活力 id=111 zone=PLAY zonePos=0 cardId=REV_018e player=1] tag=ZONE value=PLAY
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=雷纳索尔的活力 id=111 zone=PLAY zonePos=0 cardId=REV_018e player=1] tag=ZONE value=REMOVEDFROMGAME 
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=PLAYSTATE value=LOSING 
+D 13:02:20.5516995 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 13:02:20.5516995 PowerProcessor.PrepareHistoryForCurrentTaskList() - m_currentTaskList=520
+D 13:02:20.5582619 PowerProcessor.EndCurrentTaskList() - m_currentTaskList=520
+D 13:02:20.5658513 PowerTaskList.DebugDump() - ID=521 ParentID=0 PreviousID=519 TaskCount=3
+D 13:02:20.5658513 PowerTaskList.DebugDump() - Block Start=(null)
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=露娜拉 id=104 zone=GRAVEYARD zonePos=0 cardId=HERO_06a player=1] tag=HEALTH value=30 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=1323 value=41 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=湫然#51704 tag=NUM_OPTIONS_PLAYED_THIS_TURN value=25 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 13:02:20.5658513 PowerProcessor.PrepareHistoryForCurrentTaskList() - m_currentTaskList=521
+D 13:02:20.5658513 PowerProcessor.DoTaskListForCard() - unhandled BlockType PLAY for sourceEntity [entityName=月光射线 id=66 zone=GRAVEYARD zonePos=0 cardId=TID_001 player=2]
+D 13:02:20.5658513 PowerProcessor.EndCurrentTaskList() - m_currentTaskList=521
+D 13:02:20.5658513 PowerTaskList.DebugDump() - ID=522 ParentID=0 PreviousID=0 TaskCount=8
+D 13:02:20.5658513 PowerTaskList.DebugDump() - Block Start=(null)
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     META_DATA - Meta=SLUSH_TIME Data=1000 InfoCount=1
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -                 Info[0] = [entityName=月光射线 id=66 zone=GRAVEYARD zonePos=0 cardId=TID_001 player=2]
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=浙大毕业太爽了#5903 tag=PLAYSTATE value=LOST 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=湫然#51704 tag=PLAYSTATE value=WON 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=米斯塔·维斯塔 id=68 zone=HAND zonePos=1 cardId=VAC_519 player=2] tag=NUM_TURNS_IN_HAND value=12 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=占领冷齿矿洞 id=81 zone=HAND zonePos=2 cardId=AV_295 player=2] tag=NUM_TURNS_IN_HAND value=2 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=黑市拍卖师 id=93 zone=HAND zonePos=3 cardId=JAIL_718 player=2] tag=NUM_TURNS_IN_HAND value=2 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=FINAL_WRAPUP 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=STEP value=FINAL_WRAPUP 
+D 13:02:20.5658513 PowerTaskList.DebugDump() - Block End=(null)
+D 13:02:20.5658513 PowerProcessor.PrepareHistoryForCurrentTaskList() - m_currentTaskList=522
+D 13:02:20.5658513 PowerProcessor.EndCurrentTaskList() - m_currentTaskList=522
+D 13:02:20.5658513 PowerTaskList.DebugDump() - ID=523 ParentID=0 PreviousID=0 TaskCount=1
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=GameEntity EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=FINAL_GAMEOVER 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 13:02:20.5658513 PowerProcessor.PrepareHistoryForCurrentTaskList() - m_currentTaskList=523
+D 13:02:20.5658513 PowerProcessor.EndCurrentTaskList() - m_currentTaskList=523
+D 13:02:20.5658513 PowerTaskList.DebugDump() - ID=524 ParentID=0 PreviousID=0 TaskCount=2
+D 13:02:20.5658513 PowerTaskList.DebugDump() - Block Start=(null)
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=STEP value=FINAL_GAMEOVER 
+D 13:02:20.5658513 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=STATE value=COMPLETE 
+D 13:02:20.5658513 PowerTaskList.DebugDump() - Block End=(null)
+D 13:02:20.5658513 PowerProcessor.PrepareHistoryForCurrentTaskList() - m_currentTaskList=524
+D 13:02:20.5658513 PowerProcessor.EndCurrentTaskList() - m_currentTaskList=524
+D 13:03:02.8311693 GameState.DebugPrintPowerList() - Count=141

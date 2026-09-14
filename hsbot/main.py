@@ -41,6 +41,12 @@ def run_import_all(cfg, carddb) -> None:
     CorpusExporter(cfg, carddb).import_all()
 
 
+def run_import_slices(cfg, carddb) -> None:
+    """语料自带 .power.log 切片回放导入(原日志已被客户端轮转删除的会话)。"""
+    from .corpus import CorpusExporter
+    CorpusExporter(cfg, carddb).import_slices()
+
+
 def run_parse_cards(cfg, carddb) -> None:
     """批量增量编译"出现过的卡牌" → 效果 IR 缓存。
     扫描全集 = live 日志目录 + 训练语料切片(客户端会轮转删除老会话日志,
@@ -83,6 +89,8 @@ def build_config(argv: list[str] | None) -> tuple[Config, argparse.Namespace]:
     p_replay = sub.add_parser("replay", help="重放静态日志(开发/验收用, 自动关悬浮窗)")
     p_replay.add_argument("log", help="Power.log 路径")
     sub.add_parser("import-all", help="批量解析 logs_dir 下所有会话日志 -> 训练语料")
+    sub.add_parser("import-slices",
+                   help="语料自带 .power.log 切片回放导入(原日志已删的会话)")
     sub.add_parser("parse-cards", help="批量增量编译出现过的卡牌 -> 效果 IR 缓存")
     args = ap.parse_args(argv)
 
@@ -103,6 +111,9 @@ def main(argv=None) -> None:
 
     if args.cmd == "import-all":
         run_import_all(cfg, carddb)
+        return
+    if args.cmd == "import-slices":
+        run_import_slices(cfg, carddb)
         return
     if args.cmd == "parse-cards":
         run_parse_cards(cfg, carddb)

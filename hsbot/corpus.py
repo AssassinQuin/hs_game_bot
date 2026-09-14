@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 
 _UNSAFE = re.compile(r'[\\/:*?"<>|]')
 _CREATE_GAME_MARK = "GameState.DebugPrintPower() - CREATE_GAME"
+_SLICE_NAME_RE = re.compile(r"^(.+)_g(\d+)\.power\.log$")
 
 
 def _safe_dirname(name: str) -> str:
@@ -69,11 +70,13 @@ class CorpusExporter:
     # ---------- 单局导出 ----------
     def export_game(self, tree, *, session: str, idx: int,
                     decks_path=None, source: str = "live",
-                    store=None, player_manager=None) -> Path | None:
+                    store=None, player_manager=None, carry=None) -> Path | None:
         """store(唯一状态权威)提供对局事实; 未提供时内部构建一个。
 
         事件体保留原始 packet payload(最高保真); 对局事实(玩家/英雄/
         胜负/留牌/回合)只从 store 读 —— 不再平行推导。
+        carry: 切片回放导入用 —— Decks.log 已随会话被客户端删除, 卡组归因
+        是导出时刻记录的历史事实, 从旧样本 meta 携带(现场归因结果优先)。
         """
         st = store
         if st is None:
@@ -112,6 +115,9 @@ class CorpusExporter:
         except ValueError:
             game_time = datetime.now()
         deck_name, deck_code = self._attribute(entries, game_time)
+        carry = carry or {}
+        deck_name = deck_name or carry.get("deck_name")
+        deck_code = deck_code or carry.get("deck_code")
         decklist = None
         if deck_code:
             try:
@@ -124,6 +130,8 @@ class CorpusExporter:
                         decklist[cid] = decklist.get(cid, 0) + n
             except Exception as exc:  # noqa: BLE001
                 log.warning("训练样本 deck code 解析失败: %s", exc)
+        if decklist is None:
+            decklist = carry.get("decklist")
 
         # 对局事实唯一来源 = store(玩家/英雄/胜负/留牌/回合), 不再平行推导
         facts = st.mulligan_facts()
@@ -236,3 +244,58 @@ class CorpusExporter:
                 n = len(list(d.glob("*.jsonl")))
                 size = sum(f.stat().st_size for f in d.glob("*.jsonl")) // 1024
                 print(f"  {d.name}: {n} 局, {size} KB")
+
+    # ---------- 切片回放导入(原始日志已被客户端轮转删除的会话) ----------
+    def import_slices(self) -> None:
+        """扫描语料自带的 .power.log 切片, 重建缺失/旧 schema 的 jsonl。
+
+        与 import-all 的分工: logs_dir 下还留有原始日志的会话不插手
+        (原始日志权威, 那是 import-all 的地盘); 这里只救"原始日志已删、
+        语料切片是唯一幸存原始文本"的历史样本。已索引且 jsonl 在盘的
+        (session|idx) 与 import-all 同纪律跳过; 卡组归因从旧样本 meta
+        携带(Decks.log 已随会话删除, 见 export_game carry)。"""
+        done = self._load_index()
+        total = 0
+        for slice_path in sorted(self.dir.glob("*/*.power.log")):
+            m = _SLICE_NAME_RE.match(slice_path.name)
+            if m is None:
+                continue
+            session, idx = m.group(1), int(m.group(2))
+            if (Path(self.cfg.logs_dir) / session / "Power.log").exists():
+                continue
+            key = f"{session}|{idx}"
+            jsonl_path = slice_path.with_name(
+                slice_path.name[:-len(".power.log")] + ".jsonl")
+            if key in done and jsonl_path.exists():
+                continue
+            try:
+                carry = None
+                if jsonl_path.exists():
+                    try:
+                        carry = json.loads(jsonl_path.read_text(
+                            encoding="utf-8").splitlines()[0])
+                    except Exception:  # noqa: BLE001
+                        log.warning("旧样本 meta 不可读, 归因无法携带: %s",
+                                    jsonl_path.name)
+                parser = new_parser()
+                for line in slice_path.read_text(
+                        encoding="utf-8", errors="replace").splitlines():
+                    feed_line(parser, line)
+                if len(parser.games) != 1:
+                    log.warning("切片含 %s 局(应为 1), 跳过 %s",
+                                len(parser.games), slice_path.name)
+                    continue
+                path = self.export_game(parser.games[0], session=session,
+                                        idx=idx, source="import",
+                                        player_manager=parser.player_manager,
+                                        carry=carry)
+            except Exception as exc:  # noqa: BLE001
+                log.error("切片导入失败 %s: %s", slice_path.name, exc)
+                continue
+            if path is not None:
+                done.add(key)
+                total += 1
+        self._save_index(done)
+        if total:
+            self.report()
+        print(f"── 切片回放导入: 重建 {total} 局 ──")
