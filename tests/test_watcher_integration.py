@@ -124,8 +124,12 @@ def test_second_game_with_swapped_sides_keeps_turn_flow(tmp_path):
 
 def test_training_includes_raw_log_slice(tmp_path):
     """当局 Power.log 完整切片随训练样本落盘(回放验收/复现用)。"""
+    # training_dir 必须隔离: 缺省是相对仓库的真实语料目录 —— 本测试曾把合成
+    # 的 mini_game 样本写进 data/training/未知卡组/live_g01.*(审计 2026-09-14 低#8)
     cfg = Config.load({"overlay_enabled": False, "auto_training": True,
-                       "data_dir": str(tmp_path), "battletag": "湫然#51704"})
+                       "data_dir": str(tmp_path),
+                       "training_dir": str(tmp_path / "training"),
+                       "battletag": "湫然#51704"})
     carddb = CardDB(cfg.cache_dir / "cards.zh.json")
     from hsbot.persist import SessionStore
     w = Watcher(cfg, carddb, out=lambda m: None)
@@ -235,6 +239,120 @@ def test_live_training_export_dedup(tmp_path):
     assert done == ["S|1", "S|2"]
 
 
-def test_gamestate_module_deleted():
-    import hsbot
-    assert not (Path(hsbot.__file__).parent / "gamestate.py").exists()
+def test_two_games_one_batch_exports_each_game(tmp_path):
+    """审计 2026-09-14 一#2: 上一局终局行与下一局 CREATE_GAME 同批(attach 追平
+    常见)时, 每局的终局导出/切片/事件必须仍按"该局自己的树与行"结算:
+      a) 中间局的 store 不得用被边界重置的 player manager 建(玩家解析失败→事件全灭);
+      b) 局的 .power.log 原始切片不得被下一局头部行覆写/污染;
+      c) jsonl 的对局 hash 逐局各得其所(不得两局都导成 games[-1])。
+    回放入口按 CREATE_GAME 切段永不跨局, 故直接 _feed_many 一批喂入复现。
+    """
+    from hsbot.persist import SessionStore
+
+    cfg = Config.load({"overlay_enabled": False, "auto_training": True,
+                       "data_dir": str(tmp_path),
+                       "training_dir": str(tmp_path / "training"),
+                       "battletag": "湫然#51704"})
+    carddb = CardDB(cfg.cache_dir / "cards.zh.json")
+    msgs: list = []
+    w = Watcher(cfg, carddb, out=msgs.append)
+    w.store = SessionStore(cfg.sessions_dir)
+    w.session_name = "two_games_one_batch"
+    w.decks_path = None
+    w.model_trainer.request = lambda: None          # 测试不起训练子进程
+    w._live = True                                  # 模拟实时来源(才走自动导出)
+    w._feed_many((FIXTURE.parent / "two_games_one_batch.log")
+                 .read_text(encoding="utf-8").splitlines())
+    w._after_batch()
+    w._fire_pending_game_end()                      # 第二局的终局(批内未到下一边界)
+
+    ui = "\n".join(m.ui for m in msgs)
+    gids = re.findall(r"── 新对局 ([0-9a-f]{8})", ui)
+    assert len(gids) == 2 and gids[0] != gids[1]    # 两局各自建作用域
+    ends = re.findall(r"([0-9a-f]{8})(?: 快照)?\(终局\)", ui)
+    assert sorted(set(ends)) == sorted(set(gids)), ui  # 每局都发出自己的终局快照
+    # 中间局的友方绑定不等批尾(作用域将被下一局替换) —— 终局快照须已解析"我"
+    assert len(re.findall(r"\(终局\) 我:", ui)) == 2
+    # 每局的 jsonl 各自落盘, 且 hash 与各自终局行对齐(不得两局同 hash)
+    jsonls = {}
+    for p in sorted(cfg.training_dir.glob("**/*_g*.jsonl")):
+        meta = json.loads(p.read_text(encoding="utf-8").splitlines()[0])
+        jsonls[meta["game_id"]] = p
+    assert set(jsonls) == set(gids), f"jsonl hash 集合不符: {sorted(jsonls)} vs {sorted(gids)}"
+    # 原始切片逐局各含自己的行, 不串局
+    raws = sorted(cfg.training_dir.glob("**/*.power.log"),
+                  key=lambda p: p.read_text(encoding="utf-8"))
+    assert len(raws) == 2, f"应有两局切片, 实得 {[p.name for p in raws]}"
+    g1_text, g2_text = (r.read_text(encoding="utf-8") for r in raws)
+    assert "21:00:00" in g1_text and "21:01:00" not in g1_text   # 第1局切片无第2局行
+    assert "21:01:00" in g2_text and "21:00:00" not in g2_text   # 第2局切片无第1局行
+    assert g1_text.count("CREATE_GAME") == 1 and g2_text.count("CREATE_GAME") == 1
+
+
+# ================= AutoModelTrainer(审计 2026-09-14 一#7) =================
+
+class _NoopThread:
+    def start(self): pass
+
+
+def test_auto_trainer_disabled_by_config(tmp_path, monkeypatch):
+    """auto_train_models=False → 不起训练线程(修复死开关: 旧键名不在 config
+    schema, getattr 恒真, 无法关闭)。"""
+    from hsbot.watcher import AutoModelTrainer
+    spawned = []
+    monkeypatch.setattr("hsbot.watcher.threading.Thread",
+                        lambda *a, **k: spawned.append(1) or _NoopThread())
+    cfg = Config.load({"data_dir": str(tmp_path), "auto_train_models": False})
+    AutoModelTrainer(cfg, None).request()
+    assert spawned == []
+    # 键在 schema 里(未知键会被白名单静默丢弃的旧行为已修, 见 config 测试)
+
+
+def test_auto_trainer_absolute_data_dir():
+    """子进程 --data-dir 必须绝对路径: bot 从非仓库目录启动时相对路径会让
+    trainer 与 bot 各对一套语料/模型目录(全链路静默错位)。"""
+    from hsbot.watcher import AutoModelTrainer
+    t = AutoModelTrainer(Config.load({}), None)      # 缺省相对 "data"
+    for cmd in t.commands():
+        i = cmd.index("--data-dir")
+        assert Path(cmd[i + 1]).is_absolute(), cmd
+
+
+def test_auto_trainer_failure_visible(tmp_path, monkeypatch):
+    """失败 ≠ 无变化: 子命令失败必须显性上报, 不得以"完成/无变化"收尾。"""
+    from hsbot.watcher import AutoModelTrainer
+
+    class _P:
+        returncode = 1
+
+        def communicate(self, timeout=None):
+            return ("", "boom")
+
+    monkeypatch.setattr("hsbot.watcher.subprocess.Popen", lambda *a, **k: _P())
+    msgs: list = []
+    AutoModelTrainer(Config.load({"data_dir": str(tmp_path)}),
+                     msgs.append)._run()              # 直接跑(不起线程)
+    assert msgs and any("失败" in m for m in msgs), msgs
+    assert not any("完成" in m or "无变化" in m for m in msgs)
+
+
+def test_auto_trainer_exit_cleanup(tmp_path, monkeypatch):
+    """退出清理: atexit 注册 + 清理会终止在跑的子进程(孤儿最长 900s)。"""
+    import atexit
+    from hsbot.watcher import AutoModelTrainer
+    reg = []
+    monkeypatch.setattr(atexit, "register", lambda fn: reg.append(fn))
+    t = AutoModelTrainer(Config.load({"data_dir": str(tmp_path)}), None)
+    assert t._cleanup in reg                          # 已注册退出钩子
+    killed = []
+
+    class _P:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            killed.append(1)
+
+    t._proc = _P()
+    t._cleanup()
+    assert killed == [1]

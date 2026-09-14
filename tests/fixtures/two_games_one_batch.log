@@ -1,0 +1,45 @@
+D 21:00:00.0000000 GameState.DebugPrintPower() - CREATE_GAME
+D 21:00:00.0000000 GameState.DebugPrintPower() -     GameEntity EntityID=1
+D 21:00:00.0000000 GameState.DebugPrintPower() -         tag=TURN value=1
+D 21:00:00.0000000 GameState.DebugPrintPower() -     Player EntityID=2 PlayerID=1 GameAccountId=[hi=2 lo=1]
+D 21:00:00.0000000 GameState.DebugPrintPower() -     Player EntityID=3 PlayerID=2 GameAccountId=[hi=2 lo=2]
+D 21:00:00.0000000 GameState.DebugPrintGame() - PlayerID=1, PlayerName=湫然#51704
+D 21:00:00.0000000 GameState.DebugPrintGame() - PlayerID=2, PlayerName=对手甲#11111
+D 21:00:00.0000001 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=4 CardID=HERO_01a
+D 21:00:00.0000001 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO
+D 21:00:00.0000001 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 21:00:00.0000001 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 21:00:00.0000001 GameState.DebugPrintPower() -     tag=HEALTH value=30
+D 21:00:00.0000002 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=5 CardID=HERO_02a
+D 21:00:00.0000002 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO
+D 21:00:00.0000002 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 21:00:00.0000002 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 21:00:00.0000002 GameState.DebugPrintPower() -     tag=HEALTH value=30
+D 21:00:00.0000003 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=RESOURCES value=1
+D 21:00:00.0000003 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=CURRENT_PLAYER value=1
+D 21:00:00.0000004 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=CURRENT_PLAYER value=0
+D 21:00:00.0000005 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=CURRENT_PLAYER value=1
+D 21:00:00.0000006 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=PLAYSTATE value=WON
+D 21:00:00.0000006 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=PLAYSTATE value=LOST
+D 21:01:00.0000000 GameState.DebugPrintPower() - CREATE_GAME
+D 21:01:00.0000000 GameState.DebugPrintPower() -     GameEntity EntityID=1
+D 21:01:00.0000000 GameState.DebugPrintPower() -         tag=TURN value=1
+D 21:01:00.0000000 GameState.DebugPrintPower() -     Player EntityID=2 PlayerID=1 GameAccountId=[hi=2 lo=9]
+D 21:01:00.0000000 GameState.DebugPrintPower() -     Player EntityID=3 PlayerID=2 GameAccountId=[hi=2 lo=8]
+D 21:01:00.0000000 GameState.DebugPrintGame() - PlayerID=1, PlayerName=对手乙#22222
+D 21:01:00.0000000 GameState.DebugPrintGame() - PlayerID=2, PlayerName=湫然#51704
+D 21:01:00.0000001 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=4 CardID=HERO_01a
+D 21:01:00.0000001 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO
+D 21:01:00.0000001 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 21:01:00.0000001 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 21:01:00.0000001 GameState.DebugPrintPower() -     tag=HEALTH value=30
+D 21:01:00.0000002 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=5 CardID=HERO_02a
+D 21:01:00.0000002 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO
+D 21:01:00.0000002 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 21:01:00.0000002 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 21:01:00.0000002 GameState.DebugPrintPower() -     tag=HEALTH value=30
+D 21:01:00.0000003 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=RESOURCES value=1
+D 21:01:00.0000003 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=CURRENT_PLAYER value=1
+D 21:01:00.0000004 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=CURRENT_PLAYER value=0
+D 21:01:00.0000005 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=PLAYSTATE value=WON
+D 21:01:00.0000005 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=PLAYSTATE value=LOST

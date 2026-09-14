@@ -188,22 +188,67 @@ def _tab_payload(auc=0.9, n=16):
             "X": X, "y": y, "metrics": {"test_auc": auc}}
 
 
-def test_tabpfn_wrap_gating():
+def test_tabpfn_wrap_gating(tmp_path):
+    """data_dir 用 tmp_path: tabpfn_env 会 setdefault 环境变量指向该目录并
+    滞留整个 pytest 进程, 不能指向仓库工作区(审计 2026-09-14 测试卫生)。"""
     from hsbot.mulligan_ai import TabPFNWrap
-    assert not TabPFNWrap.usable(None, ROOT / "data")
-    assert not TabPFNWrap.usable(_tab_payload(auc=0.30), ROOT / "data")  # 未过门控
+    assert not TabPFNWrap.usable(None, tmp_path)
+    assert not TabPFNWrap.usable(_tab_payload(auc=0.30), tmp_path)  # 未过门控
     try:
         import tabpfn  # noqa: F401
     except ImportError:
-        return                                   # 未装包: 门控路径已验证
-    assert TabPFNWrap.usable(_tab_payload(auc=0.90), ROOT / "data")
+        import pytest
+        pytest.skip("tabpfn 未安装: 门控路径已验证")   # 不再静默 return(空绿灯)
+    assert TabPFNWrap.usable(_tab_payload(auc=0.90), tmp_path)
 
 
 def test_tabpfn_wrap_best_set(tmp_path):
     import pytest
     pytest.importorskip("tabpfn")
     from hsbot.mulligan_ai import TabPFNWrap
-    payload = dict(_tab_payload(auc=0.90), data_dir=str(ROOT / "data"))
-    wrap = TabPFNWrap(payload, ROOT / "data")
+    payload = dict(_tab_payload(auc=0.90), data_dir=str(tmp_path))
+    wrap = TabPFNWrap(payload, tmp_path)
     assert wrap.best_set(["GOOD"], False, "PALADIN") == ["GOOD"]
     assert wrap.best_set(["BAD"], False, "PALADIN") in ([], ["BAD"])  # 无证据卡不妄断
+
+
+# ---------------- 审计 2026-09-14: LR 门控 / coin 三态 ----------------
+
+def test_advise_lr_gate_reads_meta_metrics(tmp_path):
+    """审计 高#5: _save_version 把 metrics 剥进 meta.json, 旧 advise 从
+    model.json 读 test_auc 恒 None → LR 拍板权永不生效(死代码)。"""
+    stats = {"GOOD": {"*|*": _cell(4, 0, 1, 1)}}
+    lr = {"vocab": ["GOOD"], "classes": ["PALADIN"], "pairs": [],
+          "coef": [3.0, 3.0, 0.0, 0.0], "intercept": 0.0}   # 真实落盘形态: 无 metrics
+    root = _mk_model(tmp_path / "data", stats, lr=lr)
+    (root / "v001" / "meta.json").write_text(
+        json.dumps({"lr_metrics": {"test_auc": 0.70}}), encoding="utf-8")
+    r = MulliganAdvisor(root, "奇迹德", NO_DB).advise(["GOOD"], "PALADIN", False)
+    assert r["scorer"] == "lr" and r["auc"] == 0.70
+
+
+def test_advise_coin_none_is_not_first(tmp_path):
+    """审计 中#15: coin=None(不限先/后手)不得压成先手 —— 统计表走本职业
+    级联(设计 §6), 显式先手才命中同先手格。"""
+    stats = {"GOOD": {"PALADIN|0": _cell(9, 0, 0, 0),
+                      "PALADIN|*": _cell(1, 0, 0, 4),
+                      "*|*": _cell(1, 0, 0, 4)}}
+    root = _mk_model(tmp_path / "data", stats)
+    r_none = MulliganAdvisor(root, "奇迹德", NO_DB).advise(["GOOD"], "PALADIN", None)
+    assert r_none["coin"] is None
+    assert r_none["per_card"]["GOOD"]["src"] == "class"
+    r_first = MulliganAdvisor(root, "奇迹德", NO_DB).advise(["GOOD"], "PALADIN", False)
+    assert r_first["per_card"]["GOOD"]["src"] == "coin"
+
+
+def test_opponent_mulligan_offer_not_advice_colored():
+    """审计 2026-09-14 低#7: 对手的留牌信息行不吃金色 advice 高亮 ——
+    金色语义专属"我方建议"。"""
+    from hsbot.overlay import KIND_ADVICE, KIND_CHAIN
+    from hsbot.watcher import _msg_kind_for
+
+    mine = {"kind": "mulligan_offer", "actor": 1, "friendly": 1}
+    opp = {"kind": "mulligan_offer", "actor": 2, "friendly": 1}
+    assert _msg_kind_for(mine) == KIND_ADVICE
+    assert _msg_kind_for(opp) == KIND_CHAIN
+    assert _msg_kind_for({"kind": "play", "actor": 1, "friendly": 1}) == KIND_CHAIN

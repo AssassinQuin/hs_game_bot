@@ -128,16 +128,19 @@ def feed_line(parser: LogParser, line: str) -> None:
         log.debug("skip line: %.80r (%s)", line, exc)
 
 
-def resolve_friendly(parser: LogParser, battletag: str = "") -> int | None:
+def resolve_friendly(parser: LogParser, battletag: str = "",
+                     tree=None) -> int | None:
     """链路级友方探测。
 
     战网名优先: exporter 的"第一条 SHOW_ENTITY 属于友方"启发式在镜像对局/
     对手手牌被提前揭示时会翻转(实测同一会话内不同局可能给出不同答案),
     而本机战网名是跨局稳定的硬事实。exporter 仅作未配置时的兜底。
+    tree 参数: 同批多局时对"非末局"绑定友方(默认末局, 与旧行为一致)。
     """
-    if not parser.games:
-        return None
-    tree = parser.games[-1]
+    if tree is None:
+        if not parser.games:
+            return None
+        tree = parser.games[-1]
     if battletag:
         for p in tree.packets:
             if isinstance(p, packets.CreateGame):

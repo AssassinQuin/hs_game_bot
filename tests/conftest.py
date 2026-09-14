@@ -38,16 +38,25 @@ def mk_create_game() -> packets.CreateGame:
     return p
 
 
+def _tag(name: str):
+    """GameTag 成员名 → 枚举; 旧版包缺名时回退 consts 数值(PREPARE 族)。"""
+    try:
+        return GameTag[name]
+    except KeyError:
+        from hsbot.consts import TAG_PREPARE, TAG_PREPARING
+        return {"PREPARING": TAG_PREPARING, "PREPARE": TAG_PREPARE}[name]
+
+
 def mk_full(eid: int, cid: str | None, **tags: int) -> packets.FullEntity:
     """tags 关键字 = GameTag 成员名(如 ZONE=1 / CARDTYPE=4), 值为裸 int。"""
     p = packets.FullEntity(TS, eid, cid)
-    p.tags = [(GameTag[k], v) for k, v in tags.items()]
+    p.tags = [(_tag(k), v) for k, v in tags.items()]
     return p
 
 
 def mk_show(eid: int, cid: str, **tags: int) -> packets.ShowEntity:
     p = packets.ShowEntity(TS, eid, cid)
-    p.tags = [(GameTag[k], v) for k, v in tags.items()]
+    p.tags = [(_tag(k), v) for k, v in tags.items()]
     return p
 
 

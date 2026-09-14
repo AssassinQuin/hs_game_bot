@@ -118,3 +118,39 @@ def test_apply_hints_and_progress():
     assert st.cid_of(77) == "TTN_001"
     st.note_progress(42)
     assert st.lines_consumed == 42
+
+
+def test_prepare_tag_constants_match_official_enum():
+    """PREPARE 族标签兜底常量: 官方 9.20.12 数值, 旧版包无枚举名也能走通。
+
+    store 的 TagChange 分支引用 PREPARING/PREPARE, 而 requirements 下限
+    hearthstone>=9.20(如 9.20.2)无此枚举名——常量按数值兜底(先例
+    TAG_START_OF_GAME_KEYWORD); 装了新版时必须与枚举等值。
+    """
+    from hsbot.consts import TAG_PREPARING, TAG_PREPARE
+    assert (TAG_PREPARING, TAG_PREPARE) == (4726, 4354)
+    if hasattr(GameTag, "PREPARING"):          # 新版包: 常量与枚举等值
+        assert GameTag.PREPARING == TAG_PREPARING
+        assert GameTag.PREPARE == TAG_PREPARE
+
+
+def test_board_face_attack_legality():
+    """斩杀口径场攻(审计 2026-09-14 高#2, 宁漏勿错): 敌方嘲讽在场 → 0;
+    我方剔除 冻结/本回合已攻击/本回合进战场且无冲锋(标签与区转双信号)。"""
+    st, _ = _store()
+    _heroes(st)
+    M = dict(CARDTYPE=CardType.MINION.value, ZONE=Zone.PLAY.value)
+    st.apply(mk_full(60, "M_OK", CONTROLLER=1, ZONE_POSITION=1, ATK=5, **M))
+    st.apply(mk_full(61, "M_FROZEN", CONTROLLER=1, ZONE_POSITION=2, ATK=4,
+                     FROZEN=1, **M))
+    st.apply(mk_full(62, "M_TIRED", CONTROLLER=1, ZONE_POSITION=3, ATK=3,
+                     NUM_ATTACKS_THIS_TURN=1, **M))
+    st.apply(mk_full(63, "M_SICK", CONTROLLER=1, ZONE_POSITION=4, ATK=3, **M))
+    st.apply(mk_tag(63, GameTag.ZONE, Zone.PLAY.value))   # 本回合入场(区转信号)
+    st.apply(mk_full(64, "M_CHARGE", CONTROLLER=1, ZONE_POSITION=5, ATK=2,
+                     CHARGE=1, **M))
+    st.apply(mk_tag(64, GameTag.ZONE, Zone.PLAY.value))
+    assert st.board_face_attack(1) == 5 + 2              # 健康5 + 冲锋2
+    st.apply(mk_full(65, "T_TAUNT", CONTROLLER=2, ZONE_POSITION=1, ATK=2,
+                     TAUNT=1, **M))
+    assert st.board_face_attack(1) == 0                   # 敌方嘲讽挡脸

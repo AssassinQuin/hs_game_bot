@@ -62,6 +62,7 @@ class _StubPiece:
         self.base = analyzer.burst_damage(card_id, 0) or 0
         self.spell_scaled = (self.base > 0 and
                              analyzer.carddb.cardtype(card_id) in SPELLPOWER_TYPES)
+        self.engine = analyzer.has_mechanic(card_id, "cast_draw")
 
     def damage_at(self, sp):
         return (self.base + sp) if self.spell_scaled else self.base
@@ -80,13 +81,14 @@ def planner_stub(monkeypatch):
     m_sim.initial_state = (lambda mana, hand_cards, sp, known_draws=(), disc_hand=0,
                            disc_next=0, engines=0: SimpleNamespace(
                                mana=mana, hand=tuple(sorted(hand_cards)), sp=sp,
-                               known_draws=tuple(known_draws)))
+                               known_draws=tuple(known_draws), engines=engines,
+                               disc_hand=disc_hand, disc_next=disc_next))
 
     def best_line(state, pieces, *, board_atk=0, enemy_total=None,
-                  exp_per_draw=0.0, deck_left=0, deck_max_seg=0):
+                  exp_per_draw=0.0):
         calls.append({"state": state, "pieces": pieces, "board_atk": board_atk,
                       "enemy_total": enemy_total, "exp_per_draw": exp_per_draw,
-                      "deck_left": deck_left, "deck_max_seg": deck_max_seg})
+                      "engines": getattr(state, "engines", None)})
         mana, sp, face, actions = state.mana, state.sp, 0, []
         for cid, cost in state.hand:
             piece = pieces.get((cid, cost))
@@ -98,7 +100,7 @@ def planner_stub(monkeypatch):
         total = face + board_atk
         return SimpleNamespace(
             actions=tuple(actions), total=total, face_det=face,
-            face_exp=int(round(exp_per_draw)) if deck_left else 0,
+            face_exp=int(round(exp_per_draw)),
             lethal=enemy_total is not None and total >= enemy_total,
             enemy_total=enemy_total, board_atk=board_atk, uncovered_n=0,
             mana_trace=())
@@ -162,8 +164,6 @@ def test_ledger_known_draws_and_deck_bounds(tmp_path, planner_stub):
     plan = _lethal_plan(st, k, a)
     call = planner_stub[0]
     assert call["state"].known_draws == (("TST_BOLT", 1),)
-    assert call["deck_left"] == 5
-    assert call["deck_max_seg"] == 7                 # 火球 sp+1=1 → (6+1)×1
     assert call["exp_per_draw"] == pytest.approx((2 * 6 + 3 * 2) / 5)
     assert plan["enemy_total"] == 30 and plan["lethal"] is False
     # 全库已知(middle==0): 顶→浅底→深底 才是全确定队列
@@ -181,10 +181,9 @@ def test_deterministic_lethal_excludes_expectation(tmp_path, planner_stub):
     k.ledger.remaining = Counter({"TST_FIRE": 2})    # 库内期望 > 0
     plan = _lethal_plan(st, k, a)
     assert plan["face_exp"] > 0                      # 期望注记存在
-    assert plan["lethal"] == (plan["face_det"] + plan["board_atk"]
-                              >= plan["enemy_total"])
-    assert plan["face_det"] + plan["face_exp"] + plan["board_atk"] \
-        > plan["enemy_total"]                        # 期望若计入会虚报, 判定没用它
+    assert plan["lethal"] is True and plan["total"] == 8   # 确定伤恰 8: 可斩但
+    # total 仍 8 —— 期望分量(face_exp>0)没被加进 total/lethal(旧桩曾把
+    # 桩自己的公式当被测语义断言, 审计 2026-09-14 弱测试#改写)
 
 
 def test_no_damage_hand_empty_actions(tmp_path, planner_stub):
@@ -228,3 +227,78 @@ def test_facts_dict_matches_contract(tmp_path, planner_stub):
         assert isinstance(plan[key], int), key
     assert isinstance(plan["lethal"], bool)
     assert plan["enemy_total"] is None or isinstance(plan["enemy_total"], int)
+
+
+# ---------------- 审计 2026-09-14: 台账队列去重 / engines 接线 / 场攻合法性 ----------------
+
+def _add_card(db_cards, cid, name, ctype, text):
+    db_cards.append({"id": cid, "name": name, "type": ctype, "text": text})
+
+
+def test_known_draws_queue_no_top_duplication(tmp_path, planner_stub):
+    """审计 中#4: rebuild 的 bottom_map 收录 pos=1 顶牌 → 全库已知时
+    queue=[top]+reversed(bottom) 把顶牌计两遍, 引擎抽牌时同一张牌两次入手
+    (实测 3 张库双引擎算出 12 伤, 真实上限 6)。修正: 底牌队列剔除顶牌,
+    牌位升序=抽牌序。"""
+    st, db, a = _scene(tmp_path, mana=5, enemy=30)
+    for eid, cid, pos in ((20, "TST_BOLT", 1), (21, "TST_BOLT", 2),
+                          (22, "TST_FIRE", 3)):
+        st.apply(mk_full(eid, cid, ZONE=Zone.DECK.value, CONTROLLER=1,
+                         ZONE_POSITION=pos))
+    k = DeckKnowledge({"TST_FIRE": 3, "TST_BOLT": 5}, db, "测试")
+    k.rebuild(st)
+    assert k.ledger.unknown_middle == 0            # 前提: 全库已知
+    _lethal_plan(st, k, a)
+    assert planner_stub[-1]["state"].known_draws == (
+        ("TST_BOLT", 1), ("TST_BOLT", 1), ("TST_FIRE", 4))   # 3 张库 3 个抽位
+
+
+def test_engines_wired_from_board_cast_draw(tmp_path, planner_stub):
+    """审计 高#1: engines 从未接线(恒 0)——拍卖师在场施法不抽牌, 台账顶牌
+    队列永不消耗, 奇迹德引擎线整条死。修正: 我方场上 cast_draw 随从数传入
+    initial_state(engines=...)。"""
+    cards = [
+        {"id": "TST_FIRE", "name": "测试火球", "type": "SPELL", "cost": 4,
+         "text": "造成$6点伤害。"},
+        {"id": "TST_AUC", "name": "测试拍卖师", "type": "MINION", "cost": 5,
+         "text": "每当你施放一个法术后，抽一张牌。"},
+    ]
+    p = tmp_path / "cards2.json"
+    p.write_text(json.dumps(cards, ensure_ascii=False), encoding="utf-8")
+    db2 = CardDB(p)
+    st, db, a = _scene(tmp_path, mana=5)
+    st.apply(mk_full(30, "TST_AUC", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.MINION.value, ZONE_POSITION=1))
+    a2 = EffectAnalyzer(db2)
+    _lethal_plan(st, None, a2)
+    assert planner_stub[0]["state"].engines == 1
+    # 双拍卖师 → 2
+    st.apply(mk_full(31, "TST_AUC", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.MINION.value, ZONE_POSITION=2))
+    _lethal_plan(st, None, a2)
+    assert planner_stub[-1]["state"].engines == 2
+
+
+def test_board_atk_conservative_when_enemy_taunt(tmp_path, planner_stub):
+    """审计 高#2: 敌方嘲讽在场时随从打不了脸 —— 斩杀线场攻必须为 0
+    (旧: 场攻全额计入, "直伤8+场攻8≥12"式误报)。"""
+    st, db, a = _scene(tmp_path, mana=1, enemy=30)
+    st.apply(mk_full(32, "TST_MIN", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.MINION.value, ZONE_POSITION=1, ATK=8))
+    _lethal_plan(st, None, a)
+    assert planner_stub[0]["board_atk"] == 8        # 无嘲讽: 场攻计入
+    st.apply(mk_full(33, "TST_MIN", ZONE=Zone.PLAY.value, CONTROLLER=2,
+                     CARDTYPE=CardType.MINION.value, ZONE_POSITION=1,
+                     ATK=2, TAUNT=1))
+    _lethal_plan(st, None, a)
+    assert planner_stub[-1]["board_atk"] == 0       # 敌方嘲讽: 必须先解嘲
+
+
+def test_uncovered_counts_missing_carddb_cards(tmp_path, planner_stub):
+    """审计 低#9: 卡表缺牌 = 效果未知, 计入 facts 的 uncovered_n
+    (缺牌 inert 进不了出牌线, 但属于斩杀线可信度的诚实计数)。"""
+    st, db, a = _scene(tmp_path, mana=5)
+    st.apply(mk_full(12, "TST_GHOST", ZONE=Zone.HAND.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value, ZONE_POSITION=3))
+    plan = _lethal_plan(st, None, a)
+    assert plan["uncovered_n"] == 1                    # 桩报 0, 缺牌 +1

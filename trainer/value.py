@@ -24,6 +24,23 @@ def build_matrix(rows: list[dict]) -> tuple[list, list, list]:
     return X, y, names
 
 
+def _game_level_split(rows: list[dict], test_frac: float = 0.2) -> int:
+    """组级(按局)时序切分: 返回测试段起始下标 —— 同局的行绝不跨训练/验证
+    (行级切分会把同局近重复行同时放两侧, test_auc 虚高; backtest 同款口径,
+    审计 2026-09-14 中#12)。rows 按局连续排列(material 逐切片顺序产出)。"""
+    games: list[str] = []
+    for r in rows:
+        k = str(r.get("src", "")).split("#")[0]
+        if not games or games[-1] != k:
+            games.append(k)
+    n_test_games = max(1, round(len(games) * test_frac))
+    if n_test_games >= len(games):
+        return 0
+    split_key = games[-n_test_games]
+    return next(i for i, r in enumerate(rows)
+                if str(r.get("src", "")).split("#")[0] == split_key)
+
+
 def train(material_dir: Path | str, out_dir: Path | str) -> dict:
     from sklearn.ensemble import GradientBoostingClassifier
 
@@ -31,15 +48,15 @@ def train(material_dir: Path | str, out_dir: Path | str) -> dict:
     if len(rows) < 20:
         raise SystemExit(f"素材不足({len(rows)} 行 < 20): 先多打几局再训")
     X, y, names = build_matrix(rows)
-    n_test = max(1, int(len(rows) * 0.2))
-    xtr, ytr = X[:-n_test], y[:-n_test]
-    xte, yte = X[-n_test:], y[-n_test:]
+    cut = _game_level_split(rows)              # 组级时序留出(防同局泄漏)
+    xtr, ytr = X[:cut], y[:cut]
+    xte, yte = X[cut:], y[cut:]
 
     def new_model():
         return GradientBoostingClassifier(max_depth=2, n_estimators=150,
                                           learning_rate=0.05, random_state=0)
 
-    metrics = {"n_rows": len(rows), "n_train": len(xtr), "n_test": n_test,
+    metrics = {"n_rows": len(rows), "n_train": len(xtr), "n_test": len(xte),
                "n_features": len(names), "features": names}
     if len(set(ytr)) == 2 and len(set(yte)) == 2:
         m = new_model().fit(xtr, ytr)

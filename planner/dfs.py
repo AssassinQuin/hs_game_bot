@@ -23,14 +23,12 @@ from .simstate import play
 
 
 def best_line(state, pieces: dict, *, board_atk: int = 0,
-              enemy_total: int | None = None, exp_per_draw: float = 0.0,
-              deck_left: int = 0, deck_max_seg: int = 0) -> Plan:
+              enemy_total: int | None = None,
+              exp_per_draw: float = 0.0) -> Plan:
     """从 state 出发搜索最优线, 返回 Plan(机读事实, 措辞零)。
 
-    deck_left/deck_max_seg/exp_per_draw 只进期望注记与 Plan 输出, 不参与
-    分支裁剪(见模块注释); 保留形参以稳定调用方接口。
+    exp_per_draw 只进期望注记(face_exp), 不参与分支裁剪(见模块注释)。
     """
-    del deck_left, deck_max_seg      # 剪枝 retired: 见模块注释(接口兼容保留)
     memo: dict = {}                  # 七元组决策点 -> (后缀伤害, 后续动作)
 
     def search(st):
@@ -65,7 +63,9 @@ def best_line(state, pieces: dict, *, board_atk: int = 0,
     # 期望注记 = 消耗的未知抽牌数 × 单抽期望, 四舍五入取整(绝不进 lethal/total)
     face_exp = int(st.drawn * exp_per_draw + 0.5)
 
-    # uncovered_n: 线中打出过的 is_spell 且 segments==() 的张数(按 (cid,cost) 去重)
+    # uncovered_n: 线中打出过的"效果未覆盖/未知"张数(按 (cid,cost) 去重)。
+    # 2026-09-14 审计修正: 卡表缺牌(pieces 无键, 走 inert)也计 —— 缺牌=效果
+    # 未知, 诚实计数; 有表但无伤害段的法术照旧计
     seen = set()
     uncovered = 0
     for key in actions:
@@ -73,7 +73,7 @@ def best_line(state, pieces: dict, *, board_atk: int = 0,
             continue
         seen.add(key)
         p = pieces.get(key)
-        if p is not None and p.is_spell and not p.segments:
+        if p is None or (p.is_spell and not p.segments):
             uncovered += 1
 
     total = face + board_atk

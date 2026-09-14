@@ -148,13 +148,14 @@ class SimState:                   # 记忆化 key 即本结构(全 tuple/frozen)
 
 ### 6.3 算法规格
 
-- **转移**（`simstate.play(state, i)`）：扣费 `max(0, cost − disc)`（disc 消耗、`Piece.discount_hand` 追加 disc_hand 余额）；`is_spell and engines>0` → 引擎抽牌（`known_draws` 非空则弹出队头为新可支付牌，否则 `drawn+=1`）；伤害段结算 `(base + sp·spell_scaled) × len(segments)` 累进 face；`spellpower_gain` 加 sp；`mana_gain` 加 mana。
-- **抽牌两态**（2026-09-14 审计修正）：台账顶牌恒为确定抽；**底牌仅在 `unknown_middle==0`（全库已知）时进确定队列**，否则该抽位实际是未知牌，底牌降级走期望通道（remaining 仍含底牌；宁漏勿错——否则引擎多抽时会把底牌当确定第 2/3 抽，可致误报可斩）。未知牌 v1 **期望折算**——`E[dmg]=Σ(remaining×burst)/Σremaining`，只在 Plan 注记为期望分量，**不计入可斩判定**（确定性可斩只用已知牌；现有信息区粗估口径不动，两者并存）。
-- **记忆化**：dict[SimState → (best_face, best_plan)]；状态数上界 = 手牌多重集组合 × mana(≤10) × drawn(≤牌库) × known_draws 队列，预估 <10k 状态。
-- **上界剪枝**：`face + Σ剩余手牌最大段伤(按 sp+剩余法强增益上限) + 已知待抽最大伤 + 可抽库牌×库内单卡最大伤 ≤ 当前最优 → 砍`。
-- **场攻**：`st.board_attack(me)` 作常量加进 total（不进 DFS 分支——攻击不耗费、无目标交换语义）。
+- **转移**（`simstate.play(state, i)`）：扣费 `max(0, cost − disc_hand(若法术) − disc_next)`；**disc_next 是一次性面值**（2026-09-14 审计修正：伺机待发"下一法术-3"=下一张全额减 3、溢出浪费、用后清零；旧实现按"-1×N 张"会让线内多打一张，误报可斩）；`is_spell and engines>0` → 引擎抽牌（`known_draws` 非空则弹出队头为新可支付牌，否则 `drawn+=1`）；伤害段结算 `(base + sp·spell_scaled) × len(segments)` 累进 face；`spellpower_gain` 加 sp；`mana_gain` 加 mana。
+- **抽牌两态**（2026-09-14 审计修正）：台账顶牌恒为确定抽；**底牌仅在 `unknown_middle==0`（全库已知）时进确定队列**（且队列剔除顶牌、按牌位升序——rebuild 的 bottom_map 含 pos=1 顶牌，直接拼会双计），否则该抽位实际是未知牌，底牌降级走期望通道（remaining 仍含底牌；宁漏勿错）。未知牌 v1 **期望折算**——`E[dmg]=Σ(remaining×burst)/Σremaining`，只在 Plan 注记为期望分量，**不计入可斩判定**（确定性可斩只用已知牌；现有信息区粗估口径不动，两者并存）。
+- **记忆化**：dict[七元组决策点 → (后缀伤害, 后续动作)]（face/drawn 不进键，后缀不变性）；实测 10 异牌 28703 → 5631 状态。
+- **上界剪枝**：已退役（2026-09-13 落地时裁定：incumbent 型上界与记忆化组合会投毒或退化为重算；毫秒级出线由键坍缩达成，dfs.py 模块注释有论证）。
+- **场攻**：`st.board_face_attack(me)` ——**可直击脸的场攻**（2026-09-14 审计修正：敌方嘲讽在场 → 0；剔除冻结/本回合已攻击/本回合下场无冲锋；旧 `board_attack` 全额计入会在"有嘲讽"局面误报可斩。粗估行的"场Z"仍用 board_attack 总攻，两者并存）。不进 DFS 分支（攻击不耗费、无目标交换语义）。
+- **效果口径**（2026-09-14 审计修正）：随从-only AoE（scope=all_minions）打不了脸不进 segments；random_split 段进但不吃法强（§8 定版）；临时法强（"下一个法术伤害+N"）与"双方玩家的法术伤害+N"不编译（宁漏勿错）。
 - **终止**：手牌无可支付 → 叶；`total = face + board_atk`；`lethal = total ≥ 敌血+甲`。
-- **输出 Plan**：`actions[(card_id, 实付费)], total, face_det(确定), face_exp(期望注记), lethal, uncovered_n(无伤害路径张数), mana_trace`——推理层只回结构，措辞归 render。
+- **输出 Plan**：`actions[(card_id, 实付费)], total, face_det(确定), face_exp(期望注记), lethal, uncovered_n(无伤害路径张数+卡表缺牌), mana_trace`——推理层只回结构，措辞归 render。
 
 ### 6.4 接入与输出
 
@@ -205,6 +206,15 @@ class SimState:                   # 记忆化 key 即本结构(全 tuple/frozen)
 
 T1 落地：`planner/`（pieces/simstate/dfs/plan，纯记忆化+平手取短，engines 循环抽牌）、
 `analysis.lethal_plan`（facts dict）、watcher 信息区批尾接线、`render.plan_line` 第三行+
-overlay 面板行、config `lethal_plan`(默认开)。测试 146→187（planner 27+接线 7+渲染 7）。
+overlay 面板行、config `lethal_plan`(默认开)。
+
+2026-09-14 审计修正波（细节见 AUDIT_2026-09-14 与 §6.3 更新）：
+- **engines 接线补全**：`lethal_plan` 从场面统计我方 cast_draw 随从数传入
+  `initial_state(engines=…)`（审计发现该通道曾整体未接线，引擎线不可达）；
+- **board_atk 合法性**：`board_face_attack`（嘲讽→0、冻结/已攻击/召唤失调剔除）；
+- **disc_next 面值语义、AoE scope 消费、临时法强守卫、顶牌双计修正**（§6.3）；
+- COMPILER_VERSION 7→8（语法规则序+守卫变更，缓存全量重编译）。
+测试 187→207。
+
 遗留（deferred minors）：exp_per_draw 用当前法强口径待注释固化、`_carddb` 活对象进机读
 dict 的序列化负债、cast_draw 触发句被 Draw 族误标一条 Draw(1)（T1 不消费，无害）。

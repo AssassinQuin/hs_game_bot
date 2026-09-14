@@ -1,7 +1,7 @@
 # MULLIGAN_AI —— 起手留牌 AI(离线训练)
 
 > 目标: 从 `data/training/` 语料学习「**按对手职业 × 先/后手**」的起手留牌策略,
-> 回答"这手牌该留哪几张"。训练器 = [trainer/mulligan.py(`python -m trainer mulligan`)](../trainer/mulligan.py(`python -m trainer mulligan`)),
+> 回答"这手牌该留哪几张"。训练器 = [python -m trainer mulligan](../python -m trainer mulligan),
 > 全部产物落 `data/models/mulligan/<卡组>/`, 供 `report`/`advise` 复用,
 > 也是后续军师(M4)开局自动建议的数据源。
 >
@@ -153,11 +153,11 @@ data/models/mulligan/<卡组>/
 ## 6. 用法
 
 ```bash
-python trainer/mulligan.py(`python -m trainer mulligan`)                    # 训练+报告(config 默认卡组)
-python trainer/mulligan.py(`python -m trainer mulligan`) report             # 查看已保存模型
-python trainer/mulligan.py(`python -m trainer mulligan`) advise --vs 圣骑士 --coin \
+python python -m trainer mulligan                    # 训练+报告(config 默认卡组)
+python python -m trainer mulligan report             # 查看已保存模型
+python python -m trainer mulligan advise --vs 圣骑士 --coin \
     --hand 水栖形态,黑市拍卖师,顺水漂流              # 建议(集合枚举)
-python trainer/mulligan.py(`python -m trainer mulligan`) advise --explore --seed 7 \
+python python -m trainer mulligan advise --explore --seed 7 \
     --hand 水栖形态,黑市拍卖师                       # Thompson 探索局
 ```
 
@@ -182,7 +182,7 @@ store   发结构化事件 mulligan_offer{actor, offered[cid], msg兜底文本}
 
 输出形态: `[3f9a12cd·T1·我] 【留牌建议·vs牧师·后手】留 黑市拍卖师(+20.0%)、顺水漂流(+8.3%) │ 换 月火术(+4.0%)`(行首含对局 hash)。
 开关 `mulligan_advice`(config.yaml, 默认开); 推理零 sklearn 依赖 ——
-`hsbot/mulligan_ai.py` 是纯 stdlib 推理层, 训练器(trainer/mulligan.py(`python -m trainer mulligan`))
+`hsbot/mulligan_ai.py` 是纯 stdlib 推理层, 训练器(python -m trainer mulligan)
 与实时军师共用同一份结论函数与先验文件, 训练出新版本即自动生效。
 
 ## 8. 业界参照

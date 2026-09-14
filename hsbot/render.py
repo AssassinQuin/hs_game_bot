@@ -442,7 +442,7 @@ def snapshot_line(st: GameStore, game_id: str, reason: str) -> str:
 
 def snapshot_block(st: GameStore, led: Ledger | None, *, knowledge: DeckKnowledge | None,
                    deck_name: str, generic: bool, game_id: str,
-                   chain_lines: list[str], chain_summary: list[str],
+                   chain_summary: list[str],
                    carddb: CardDB, reason: str) -> str:
     me, opp = st.friendly_key, st.opponent_key()
     generic = generic or knowledge is None

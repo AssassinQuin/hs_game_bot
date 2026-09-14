@@ -59,6 +59,9 @@ class StreamContext:
         self.pend_names: list[str] = []             # 真名缓冲
         self.pend_draws: list[tuple[int, str, int]] = []   # 行级抽牌 hint(批尾派发)
         self.game_lines: list | None = None         # 当局原始行(训练切片)
+        # 已终结局的冻结切片, 键 = parser 局下标(0 基)。边界(CREATE_GAME)时交接:
+        # 上一局的导出发生在批尾, 而切片缓冲届时已被新局头部行占据 → 边界先冻结
+        self.frozen_game_lines: dict[int, list[str]] = {}
 
 
 class LineHandler:

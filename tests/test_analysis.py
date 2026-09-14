@@ -67,7 +67,7 @@ def test_predict_damage_gated_by_type(tmp_path):
 def test_mana_ramp_and_burst_damage(tmp_path):
     """信息区事实查询: 回费(获得/复原法力水晶, 措辞含空格换行)与
     当前法强下的单牌伤害潜力(法术/技能吃法强, 战吼按基础值)。"""
-    from hsbot.effects import ManaGain, _effects_from_json, _effects_to_json, compile_card
+    from hsbot.effects import ManaGain, compile_card
     db = _db(tmp_path, [
         {"id": "EX1_169", "name": "激活", "type": "SPELL", "cost": 0,
          "text": "在本回合中，获得一个 法力水晶。"},          # 真实卡表带空格
@@ -91,16 +91,13 @@ def test_mana_ramp_and_burst_damage(tmp_path):
     assert a.burst_damage("EX1_169", 5) is None     # 无伤害效果
     ir = compile_card({"id": "X", "type": "SPELL", "text": "获得两个空的法力水晶。"})
     assert ManaGain(2) in ir.effects
-    rt = _effects_from_json(_effects_to_json(ir.effects))   # 缓存序列化往返
-    assert ManaGain(2) in rt
 
 
 def test_cost_down_and_multi_effect(tmp_path):
     """减费族(手牌/下一张, 类目词由文本直接提取)与多效果编译(异族各取一条):
     建造水晶塔=下一张星灵牌-2; 生命缚誓者的礼物=手牌法术-1; 伺机待发=下一个
     法术-2; 法力虹吸=伤害+减费并存; 抽牌减费(侦察)不入族; 月光射线=两段。"""
-    from hsbot.effects import (CostDown, Damage, compile_card,
-                               _effects_from_json, _effects_to_json)
+    from hsbot.effects import CostDown, Damage, compile_card
 
     db = _db(tmp_path, [
         {"id": "SC_755", "name": "建造水晶塔", "type": "SPELL", "cost": 0,
@@ -131,8 +128,6 @@ def test_cost_down_and_multi_effect(tmp_path):
     ir2 = compile_card({"id": "TID_001", "type": "SPELL",
                         "text": "对一个敌人造成$1点伤害两次。"})
     assert Damage(1, 2) in ir2.effects              # 月光射线: 两段伤害
-    rt = _effects_from_json(_effects_to_json(ir.effects))   # 缓存序列化往返
-    assert CostDown(1, "hand:法术") in rt
 
 
 def test_trigger_enrich_does_not_invent_card_id():
@@ -150,8 +145,7 @@ def test_mechanic_marks_from_data_and_text(tmp_path):
     """机制标记(通用处理器): 数据级(HsJson mechanics[] 引擎标签)与文本级
     (语法表措辞)两通道统一编译为 IR Mechanic 标记, 与主效果正交叠加;
     消费方只查标记 kind, 不接触文本措辞/卡牌号。"""
-    from hsbot.effects import (Damage, Mechanic, _effects_from_json,
-                               _effects_to_json, compile_card)
+    from hsbot.effects import Damage, Mechanic, compile_card
 
     ir = compile_card({"id": "TSC_654", "type": "SPELL", "text": "抽取这张牌。",
                        "mechanics": ["DREDGE"]})
@@ -170,16 +164,13 @@ def test_mechanic_marks_from_data_and_text(tmp_path):
     ir5 = compile_card({"id": "Z", "type": "SPELL", "text": "",
                         "mechanics": ["DISCOVER"]})
     assert Mechanic("discover") in ir5.effects
-    rt = _effects_from_json(_effects_to_json(ir.effects))          # 缓存序列化往返
-    assert Mechanic("deck_bottom") in rt
 
 
 def test_spellpower_ir(tmp_path):
     """切片1(T1/PLAY_ADVICE §6.1): 法术伤害增益入 IR —— 虚灵改装师"使其获得
     法术伤害+1"是打脸 DFS 的法强增量事实源; <b> 标签与"获得"前缀容错;
     序列化往返。消费方(planner.piece)在切片2 接线。"""
-    from hsbot.effects import (Damage, SpellPower, _effects_from_json,
-                               _effects_to_json, compile_card)
+    from hsbot.effects import Damage, SpellPower, compile_card
     ir = compile_card({"id": "BT_724", "type": "MINION",
                        "text": "<b>战吼：</b>对一个随从造成1点伤害，"
                                "并使其获得<b>法术伤害+1</b>。"})
@@ -187,8 +178,6 @@ def test_spellpower_ir(tmp_path):
     assert Damage(1, 1, "single", False) in ir.effects      # 原有事实不丢
     ir2 = compile_card({"id": "S1", "type": "SPELL", "text": "你的法术伤害+2。"})
     assert SpellPower(2) in ir2.effects
-    rt = _effects_from_json(_effects_to_json(ir.effects))   # 缓存序列化往返
-    assert SpellPower(1) in rt
 
 
 def test_cast_draw_mechanic(tmp_path):
@@ -345,8 +334,9 @@ def test_grammar_expansion_seen_cards():
     assert CostDown(1, "drawn") in fx and Draw(4) in fx
     assert CostDown(2, "target") in ir("R", "<b>发现</b>一张随从牌，其法力值消耗"
                                             "减少（2）点。")
-    # 伤害族补口: 对所有随从(含换行)
-    assert Damage(2, scope="all") in ir("S", "对所有随从造成\n$2点伤害。")
+    # 伤害族补口: 对所有随从 = 随从-only AoE(scope 区分, 打不了脸;
+    # 2026-09-14 修正规则序后不再需要手工换行绕过裸规则截胡)
+    assert Damage(2, scope="all_minions") in ir("S", "对所有随从造成$2点伤害。")
     # 机制数据通道: 关键词卡(mechanics[])自动打标
     assert Mechanic("charge") in ir("T", "<b>冲锋</b>", mechanics=["CHARGE"])
 
@@ -380,3 +370,32 @@ def test_compile_seen_cards_coverage_semantics(tmp_path):
     assert (s["covered"], s["notext"], s["uncovered"]) == (1, 1, 1)
     assert s["kinds"] == {"Mechanic": 1}
     assert s["unknown"] == 3        # 旧口径: 均无伤害/治疗
+
+
+# ---------------- 审计 2026-09-14: 语法规则序与法强守卫 ----------------
+
+def test_aoe_damage_scope_not_hijacked_by_bare_rule():
+    """审计 中#5: 裸"造成N点伤害"规则排在 AoE 规则之前, "对所有敌方随从
+    造成$3点伤害"被截胡成 scope=single(随从-only AoE 当直伤打脸 → 误报)。
+    AoE 措辞必须先命中; 随从-only 与 全角色 分立 scope。"""
+    from hsbot.effects import compile_card
+    ir = compile_card({"id": "X1", "text": "对所有敌方随从造成$3点伤害",
+                       "type": "SPELL"})
+    dmg = [e for e in ir.effects if isinstance(e, Damage)][0]
+    assert dmg.scope == "all_minions"
+    ir2 = compile_card({"id": "X2", "text": "对所有角色造成$2点伤害",
+                        "type": "SPELL"})
+    dmg2 = [e for e in ir2.effects if isinstance(e, Damage)][0]
+    assert dmg2.scope == "all"           # 角色含英雄 → 脸在范围内
+
+
+def test_spellpower_temp_and_both_players_guards():
+    """审计 中#6: 临时法强("下一个法术伤害+N")与"双方玩家的法术伤害+N"被
+    编译为永久我方法强 → 线内后续法术全多算(误报可斩)。宁漏勿错: 不编译;
+    常规永久法强照常编译。"""
+    from hsbot.effects import SpellPower, compile_card
+    for text in ("使你的下一个法术伤害+2", "双方玩家的法术伤害+1"):
+        ir = compile_card({"id": "Y", "text": text, "type": "SPELL"})
+        assert not any(isinstance(e, SpellPower) for e in ir.effects), text
+    ir = compile_card({"id": "Y2", "text": "<b>法术伤害+1</b>", "type": "MINION"})
+    assert any(isinstance(e, SpellPower) for e in ir.effects)

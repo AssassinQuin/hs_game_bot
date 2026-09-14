@@ -12,13 +12,15 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from hsbot.adapter import feed_line, new_parser, walk_packets
+from hsbot.adapter import (feed_line, new_parser, reset_player_manager,
+                           resolve_friendly, walk_packets)
 from hsbot.store import GameStore
 
 from .states import snapshot
 
 ACTION_KINDS = {"play", "attack", "hero_power"}   # 计入"本回合动作"的事件
 _META = "_meta.json"
+_CREATE_GAME_MARK = "GameState.DebugPrintPower() - CREATE_GAME"
 
 
 def _replay_slice(path: Path, carddb, battletag: str) -> list[dict]:
@@ -28,6 +30,10 @@ def _replay_slice(path: Path, carddb, battletag: str) -> list[dict]:
     对手回合只冲账不立新行(素材 = 我的决策点)。"""
     parser = new_parser()
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        # 跨局边界重置 manager(同 watcher 边界协议): 换边局的 名字→pid 映射
+        # 会撞 InconsistentPlayerIdError 被逐行吞掉, 友方解析随之下错位
+        if _CREATE_GAME_MARK in line and parser.games:
+            reset_player_manager(parser)
         feed_line(parser, line)
     done: list[dict] = []                        # 已收口、待补胜负的行
     out_rows: list[dict] = []
@@ -53,8 +59,13 @@ def _replay_slice(path: Path, carddb, battletag: str) -> list[dict]:
             actions.append({"k": kind, "cid": cid, "cost": carddb.cost(cid)})
 
     for gi, tree in enumerate(parser.games, 1):
+        pend = None            # 审计 2026-09-14 中#14: 局间残留会把上局尾
+        actions = []           # 回合行挤进下局 done、被下局胜负覆写/重复入列
         st = GameStore(carddb=carddb, battletag=battletag, tree=tree,
                        player_manager=parser.player_manager)
+        # 友方解析与 watcher 同源(战网名优先, 逐局自己的树): 不依赖"恰好
+        # 广播过留牌"才定主客, 也不受后续局换边影响
+        st.note_friendly(resolve_friendly(parser, battletag, tree=tree))
         st_holder.clear()
         st_holder.append(st)
         done.clear()

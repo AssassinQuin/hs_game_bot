@@ -49,3 +49,5 @@ mulligan_advice: true     # 留牌环节高亮建议: 留X换Y(依据对手+留/
 # ── 训练语料 ──
 training_dir: data/training
 auto_training: true       # 每局结束自动导出训练样本(也可 import-all 子命令批量回填)
+auto_train_models: true   # 语料落盘后局终后台增量训练(mulligan/material/value 三连
+                          # 子进程, 失败会在输出显性报错; false = 只导语料不训练)

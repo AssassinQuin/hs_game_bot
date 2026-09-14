@@ -161,3 +161,66 @@ def test_cli_flags_before_subcommand(monkeypatch, tmp_path):
                    "material"])
     assert rc == 0
     assert seen == {"corpus": "C", "deck": "测试卡组", "out": "O"}
+
+
+def test_save_version_atomic_and_lock(tmp_path, monkeypatch):
+    """审计 2026-09-14 中: 模型产物全部原子写 + 版本分配带锁(局终自动训练
+    与手动 CLI 并发时不至于同写一个 vNNN 交错损坏); 保存后锁释放。"""
+    from collections import Counter as C
+    from trainer import mulligan as M
+
+    writes = []
+    monkeypatch.setattr(M, "atomic_write_text",
+                        lambda p, s: writes.append(Path(p).name)
+                        or Path(p).write_text(s, encoding="utf-8"))
+    root = tmp_path / "models"
+    g = M.Game(path="s_g01", result=1, coin=False, opp_class="PRIEST",
+               cards=["A"], kept=["A"], mtime=1.0, size=10)
+    ver = M._save_version(root, "测试", {"A": {}}, None, None, [g], 1, C())
+    assert ver == "v001" and (root / "v001" / "meta.json").exists()
+    assert (root / "LATEST.json").exists()
+    assert not (root / ".lock").exists()          # 锁已释放
+    assert {"stats.json", "games_seen.json",
+            "games_digest.json", "meta.json", "LATEST.json"} <= set(writes)
+
+
+def test_material_multigame_file_no_cross_game_leak(tmp_path):
+    """审计 2026-09-14 中#14: 单文件多局时 pend/actions 跨局残留 —— 上局
+    尾回合行会被下局首个 turn_start 挤进下局的 done, 被下局胜负覆写。"""
+    from hsbot.carddb import CardDB
+    from trainer.material import _replay_slice
+    p = Path(__file__).parent / "fixtures" / "two_games_win_loss.log"
+    rows = _replay_slice(p, CardDB("/nonexistent.json"), "湫然#51704")
+    g1 = [r for r in rows if "#g1" in r["src"]]
+    g2 = [r for r in rows if "#g2" in r["src"]]
+    assert g1 and g2, [r["src"] for r in rows]
+    srcs = [r["src"] for r in rows]
+    assert len(srcs) == len(set(srcs))            # 上局尾行不被下局重复入列
+    assert all(r["result"] == 1 for r in g1)      # 第1局胜: 不被第2局覆写
+    assert all(r["result"] == 0 for r in g2)      # 第2局负
+
+
+def test_value_game_level_split():
+    """审计 2026-09-14 中#12: 价值模型时序留出必须按局切(同局行绝不跨
+    训练/验证), 行级切分会因同局近重复行虚高 test_auc。"""
+    from trainer.value import _game_level_split
+    rows = [{"src": f"s_g{i}#T{t}"} for i, n in ((1, 2), (2, 3), (3, 2), (4, 3))
+            for t in range(n)]
+    cut = _game_level_split(rows, test_frac=0.2)
+    train_games = {r["src"].split("#")[0] for r in rows[:cut]}
+    test_games = {r["src"].split("#")[0] for r in rows[cut:]}
+    assert test_games and not (train_games & test_games)   # 无同局跨组
+    assert len(test_games) == 1                             # 4 局 → 留出 1 局
+
+
+def test_save_version_keeps_recent_only(tmp_path, monkeypatch):
+    """审计 2026-09-14 低: 版本目录无清理 → 磁盘无界增长; 保留最近 N 版。"""
+    from collections import Counter as C
+    from trainer import mulligan as M
+    monkeypatch.setattr(M, "_KEEP_VERSIONS", 3)
+    root = tmp_path / "models"
+    g = M.Game(path="s_g01", result=1, coin=False, opp_class="PRIEST",
+               cards=["A"], kept=["A"], mtime=1.0, size=10)
+    for _ in range(4):
+        M._save_version(root, "测试", {"A": {}}, None, None, [g], 1, C())
+    assert sorted(d.name for d in root.glob("v*")) == ["v002", "v003", "v004"]

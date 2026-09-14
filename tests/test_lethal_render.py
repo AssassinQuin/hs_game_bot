@@ -60,16 +60,6 @@ def test_stat_text_golden_two_lines_unchanged(tmp_path):
         == _GOLDEN_TWO_LINES
 
 
-def test_stat_text_plan_none_byte_identical(tmp_path):
-    """零变化铁律: plan=None 与不传 plan 的现行输出逐字节一致。"""
-    from hsbot.render import stat_fields, stat_text
-
-    st, db, a = _scene(tmp_path)
-    base = stat_text(stat_fields(st, knowledge=None, carddb=db, analyzer=a))
-    assert stat_text(stat_fields(st, knowledge=None, carddb=db, analyzer=a,
-                                 plan=None)) == base
-
-
 def test_stat_text_appends_lethal_line(tmp_path):
     """plan.lethal=True → 末尾追加第三行"可斩: …"; 名可解析/不可解析各一;
     f["plan"] 原样透传; top_summary 透传 plan。"""

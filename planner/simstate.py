@@ -19,7 +19,7 @@ class SimState:
     hand: tuple                  # ((card_id, cost), ...) 升序排序规范化
     sp: int                      # 当前法强
     disc_hand: int               # 在身的手牌法术减费余额(每张法术都减, 不耗尽)
-    disc_next: int               # "下一张"减费剩余张数(每次打出消费 1)
+    disc_next: int               # "下一张"减费面值(一次性: 全额作用下一张, 用后清零)
     engines: int                 # 在场施法抽牌引擎数
     drawn: int                   # 已消耗的未知抽牌数(Plan.face_exp 期望折算用)
     known_draws: tuple           # ((cid, cost), ...) 队头=最先抽到(消耗式)
@@ -38,14 +38,15 @@ def initial_state(mana: int, hand_cards, sp: int, known_draws=(), disc_hand: int
 def play(state: SimState, index: int, pieces: dict) -> SimState:
     """打出 state.hand[index] 并返回新状态(纯函数)。
 
-    语义(契约口径):
-    - 实付费 eff = max(0, 费 − (disc_hand 若法术) − (1 若 disc_next>0));
+    语义(契约口径, 2026-09-14 审计修正 disc_next):
+    - 实付费 eff = max(0, 费 − (disc_hand 若法术) − disc_next);
       eff > mana → raise ValueError(不可支付)。
     - mana' = min(10, mana − eff + mana_gain)。
     - face' = face + Σ((b+sp) 若 spell_scaled 否则 b for b in segments) ——
       法强逐段结算 (base+sp)×hits。
-    - disc_next 每次打出消费 1(对任意牌生效); disc_hand 只减法术且不耗尽,
-      打出的减费牌追加余额。
+    - disc_next 是一次性面值(伺机待发"下一法术-3"= 下一张全额减 3, 溢出
+      浪费), 任意一张牌打出后清零; disc_hand 只减法术且不耗尽, 打出的
+      减费牌追加余额。
     - 抽牌: p.is_spell 且打牌前 engines>0 → 每个在场引擎各自触发一次(循环
       engines 次): known_draws 非空则队头入手并弹出, 否则 drawn+1;
       hand' 永远排序规范化。
@@ -59,8 +60,7 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
     eff = p.cost
     if p.is_spell and state.disc_hand:
         eff -= state.disc_hand
-    if state.disc_next:
-        eff -= 1
+    eff -= state.disc_next            # next: 面值一次性全额(任意牌消耗)
     if eff < 0:
         eff = 0
     if eff > state.mana:
@@ -88,8 +88,7 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
     st.__dict__.update(mana=min(10, state.mana - eff + p.mana_gain), hand=hand,
                        sp=state.sp + p.spellpower_gain,
                        disc_hand=state.disc_hand + p.discount_hand,
-                       disc_next=(state.disc_next - 1 if state.disc_next > 0
-                                  else 0) + p.discount_next,
+                       disc_next=p.discount_next,   # 旧余额已全额消耗, 清零
                        engines=state.engines + (1 if p.engine else 0),
                        drawn=drawn, known_draws=known,
                        face=state.face + sum((b + state.sp) if p.spell_scaled

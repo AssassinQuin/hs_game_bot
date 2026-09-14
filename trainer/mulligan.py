@@ -13,11 +13,11 @@ hsbot/mulligan_ai.py —— 训练器与实时军师(hsbot)共用; 本脚本只�
 MulliganAdvisor 按_mtime 自动切换新版本。
 
 用法:
-  python scripts/train_mulligan.py                     # 训练+报告(config 默认卡组)
-  python scripts/train_mulligan.py report              # 查看已保存模型
-  python scripts/train_mulligan.py advise --vs 圣骑士 --coin \
+  python -m trainer mulligan train                     # 训练+报告(config 默认卡组)
+  python -m trainer mulligan report                    # 查看已保存模型
+  python -m trainer mulligan advise --vs 圣骑士 --coin \
       --hand 交易馆长,危机,JAIL_718                     # 给一个起手出建议
-  python scripts/train_mulligan.py advise --explore --seed 7 ...   # Thompson 探索局
+  python -m trainer mulligan advise --explore --seed 7 ...  # Thompson 探索局
 """
 from __future__ import annotations
 
@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from hsbot.carddb import CardDB
 from hsbot.config import Config
+from hsbot.persist import atomic_write_text
 from hsbot.consts import CLASS_ZH, class_zh
 from hsbot.mulligan_ai import (MulliganAdvisor, UNKNOWN, best_keep_set,
                                card_advice, cell_n, hero_class, is_coin,
@@ -339,47 +340,95 @@ def _load_latest(root: Path) -> tuple[str | None, dict]:
     return read_latest(root)
 
 
+_KEEP_VERSIONS = 10            # 版本目录保留数(磁盘有界; 更旧的删除, 审计 低#13)
+
+
+class _VersionLock:
+    """版本目录分配锁(审计 2026-09-14 中): O_EXCL 锁文件互斥, 持有者崩溃
+    留下的陈锁按过期时间接管; 等待超时显性抛错(不静默串版本)。"""
+
+    def __init__(self, root: Path, stale_seconds: float = 600) -> None:
+        root.mkdir(parents=True, exist_ok=True)
+        self.path = root / ".lock"
+        self.stale = stale_seconds
+
+    def __enter__(self) -> "_VersionLock":
+        import os
+        import time as _time
+        for _ in range(120):                     # 最多等 60s
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                return self
+            except FileExistsError:
+                try:
+                    if _time.time() - self.path.stat().st_mtime > self.stale:
+                        self.path.unlink()       # 陈锁: 接管
+                        continue
+                except OSError:
+                    pass
+                _time.sleep(0.5)
+        raise TimeoutError(f"模型版本锁等待超时: {self.path}")
+
+    def __exit__(self, *exc) -> None:
+        try:
+            self.path.unlink()
+        except OSError:
+            pass
+
+
 def _save_version(root: Path, deck: str, stats: dict, lr: dict | None,
                   tab: dict | None, games: list, n_new: int,
                   skip: Counter) -> str:
-    versions = [d.name for d in root.glob("v*") if d.is_dir()]
-    ver = f"v{max((int(v[1:]) for v in versions), default=0) + 1:03d}"
-    out = root / ver
-    out.mkdir(parents=True, exist_ok=True)
-    wins = sum(g.result for g in games)
-    lr_out = None
-    if lr is not None:
-        lr_out = dict(lr)
-        lr_out.pop("metrics", None)
-        (out / "model.json").write_text(
-            json.dumps(lr_out, ensure_ascii=False), encoding="utf-8")
-    (out / "stats.json").write_text(
-        json.dumps({"deck_wr": wins / len(games), "cards": stats},
-                   ensure_ascii=False), encoding="utf-8")
-    (out / "games_seen.json").write_text(
-        json.dumps({g.path: [g.mtime, g.size] for g in games},
-                   ensure_ascii=False), encoding="utf-8")
-    if tab is not None:
-        (out / "tabpfn.json").write_text(
-            json.dumps(tab, ensure_ascii=False), encoding="utf-8")
-    (out / "games_digest.json").write_text(
-        json.dumps([{"c": g.opp_class, "o": int(g.coin),
-                     "f": sorted(set(g.cards)), "k": sorted(set(g.final)),
-                     "r": g.result} for g in games],
-                   ensure_ascii=False), encoding="utf-8")
-    metrics = (lr or {}).get("metrics") or {}
-    (out / "meta.json").write_text(
-        json.dumps({"version": ver, "deck": deck,
-                    "trained_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "n_games": len(games), "n_new": n_new, "wins": wins,
-                    "skipped": dict(skip), "lr_metrics": metrics,
-                    "tabpfn_metrics": (tab or {}).get("metrics") or {},
-                    "class_counts": dict(Counter(g.opp_class for g in games)),
-                    "coin_games": sum(g.coin for g in games)},
-                   ensure_ascii=False, indent=1), encoding="utf-8")
-    (root / "LATEST.json").write_text(
-        json.dumps({"version": ver}, ensure_ascii=False), encoding="utf-8")
-    return ver
+    with _VersionLock(root):                     # 并发(局终自动+手动 CLI)串行化
+        versions = [d.name for d in root.glob("v*") if d.is_dir()]
+        ver = f"v{max((int(v[1:]) for v in versions), default=0) + 1:03d}"
+        out = root / ver
+        out.mkdir(parents=True, exist_ok=True)
+        wins = sum(g.result for g in games)
+        lr_out = None
+        if lr is not None:
+            lr_out = dict(lr)
+            lr_out.pop("metrics", None)
+            atomic_write_text(out / "model.json",
+                              json.dumps(lr_out, ensure_ascii=False))
+        atomic_write_text(out / "stats.json",
+                          json.dumps({"deck_wr": wins / len(games),
+                                      "cards": stats}, ensure_ascii=False))
+        atomic_write_text(out / "games_seen.json",
+                          json.dumps({g.path: [g.mtime, g.size] for g in games},
+                                     ensure_ascii=False))
+        if tab is not None:
+            atomic_write_text(out / "tabpfn.json",
+                              json.dumps(tab, ensure_ascii=False))
+        atomic_write_text(out / "games_digest.json",
+                          json.dumps([{"c": g.opp_class, "o": int(g.coin),
+                                       "f": sorted(set(g.cards)),
+                                       "k": sorted(set(g.kept)),
+                                       "r": g.result} for g in games],
+                                     ensure_ascii=False))
+        metrics = (lr or {}).get("metrics") or {}
+        atomic_write_text(out / "meta.json",
+                          json.dumps({"version": ver, "deck": deck,
+                                      "trained_at": datetime.now().strftime(
+                                          "%Y-%m-%d %H:%M:%S"),
+                                      "n_games": len(games), "n_new": n_new,
+                                      "wins": wins, "skipped": dict(skip),
+                                      "lr_metrics": metrics,
+                                      "tabpfn_metrics": (tab or {}).get(
+                                          "metrics") or {},
+                                      "class_counts": dict(
+                                          Counter(g.opp_class for g in games)),
+                                      "coin_games": sum(g.coin for g in games)},
+                                     ensure_ascii=False, indent=1))
+        atomic_write_text(root / "LATEST.json",
+                          json.dumps({"version": ver}, ensure_ascii=False))
+        # 保留最近 _KEEP_VERSIONS 版, 更旧的删除(磁盘有界; 审计 低#13)
+        import shutil
+        for old_dir in sorted((d for d in root.glob("v*") if d.is_dir()),
+                              key=lambda d: int(d.name[1:]))[:-_KEEP_VERSIONS]:
+            shutil.rmtree(old_dir, ignore_errors=True)
+        return ver
 
 
 # ════════════════════ 4. 报告渲染 ════════════════════
@@ -524,7 +573,9 @@ def cmd_advise(cfg: Config, deck: str, hand: list, opp_class: str,
 
     advisor = MulliganAdvisor(root, deck, carddb,
                               prior_path=prior_path(cfg))
-    r = advisor.advise(cards, cls, coin=bool(coin) if coin is not None else False,
+    # coin 三态透传(审计 2026-09-14 中#15): None=不限先/后手, 不再压成先手
+    r = advisor.advise(cards, cls,
+                       coin=None if coin is None else bool(coin),
                        explore=explore, seed=seed)
     if r is None:
         print("(模型无可用数据)")

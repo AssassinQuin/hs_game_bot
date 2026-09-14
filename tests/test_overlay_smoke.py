@@ -28,10 +28,18 @@ def _run_with_auto_close(monkeypatch, q, after_ms=800, data_dir="."):
     cfg = Config.load({"overlay_enabled": True, "overlay_topmost": False,
                        "data_dir": data_dir})
     orig = tk.Tk.mainloop
+    holder: dict = {}          # 销毁前抓取已渲染文本(mainloop 退出后 Tk 命令失效)
 
     def mainloop_with_close(self, n=0):
         self.withdraw()
-        self.after(after_ms, self.destroy)
+
+        def _close():
+            win = holder.get("win")
+            if win is not None:
+                holder["body"] = win._txt.get("1.0", "end")
+            self.destroy()
+
+        self.after(after_ms, _close)
         orig(self, n)
 
     monkeypatch.setattr(tk.Tk, "mainloop", mainloop_with_close)
@@ -41,8 +49,10 @@ def _run_with_auto_close(monkeypatch, q, after_ms=800, data_dir="."):
         if i:
             time.sleep(0.5)
         try:
-            OverlayWindow(cfg, q).run()
-            return
+            win = OverlayWindow(cfg, q)
+            holder["win"] = win
+            win.run()
+            return win, holder.get("body", "")
         except tk.TclError as exc:
             last = exc
     raise last
@@ -69,7 +79,10 @@ def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch, tmp_path):
             "cost_list": 45, "cost_deck": 33, "cost_hand": 12,
             "discount": {"cards": 1, "total": 2,
                          "sources": ["生命缚誓者的礼物"]}}))
-    _run_with_auto_close(monkeypatch, q, data_dir=str(tmp_path))
+    _, body = _run_with_auto_close(monkeypatch, q, data_dir=str(tmp_path))
+    assert q.empty(), "消息队列应被消费完"
+    for text in ("起手可留", "对局结束", "监控线程已退出"):
+        assert text in body, f"未渲染: {text}"
 
 
 def test_stat_panel_fields_and_kill_gold(ensure_display):
@@ -116,7 +129,10 @@ def test_overlay_survives_bad_message(ensure_display, monkeypatch, tmp_path):
     q.put(("chain", "[T1·我] 正常行"))
     q.put((None, None))                        # 坏形态: insert 时 TypeError
     q.put(("chain", "[T1·我] 坏消息之后的正常行"))
-    _run_with_auto_close(monkeypatch, q, data_dir=str(tmp_path))
+    _, body = _run_with_auto_close(monkeypatch, q, data_dir=str(tmp_path))
+    # 坏消息只丢自己: 之后的正常行必须已渲染(否则刷新链断了 → 冻结)
+    assert "坏消息之后的正常行" in body
+    assert q.empty()
 
 
 def test_overlay_classify_lines():

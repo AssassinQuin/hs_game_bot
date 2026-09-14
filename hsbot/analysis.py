@@ -238,7 +238,6 @@ def lethal_plan(st, knowledge, analyzer, *, enabled: bool = True) -> dict | None
         return None
     sp = st.spellpower(me)
     known_draws: list[tuple[str, int]] = []
-    deck_left = deck_max_seg = 0
     exp_per_draw = 0.0
     if knowledge is not None:
         led = knowledge.ledger
@@ -248,35 +247,45 @@ def lethal_plan(st, knowledge, analyzer, *, enabled: bool = True) -> dict | None
         # 2026-09-14 审计修正, 见 tests/test_lethal_plan.py 台账侧用例)
         queue = [led.known_top]
         if led.unknown_middle == 0:
-            queue += [cid for cid, _pos in reversed(led.known_bottom)]
+            # 2026-09-14 审计修正: 底牌队列剔除顶牌(rebuild 的 bottom_map 含
+            # pos=1 顶牌, 直接拼会双计), 且按牌位升序 = 抽牌序
+            queue += [cid for cid, pos in sorted(
+                ((c, p) for c, p in led.known_bottom if p > 1),
+                key=lambda cp: cp[1])]
         for cid in queue:
             if cid:
                 known_draws.append((cid, analyzer.carddb.cost(cid) or 0))
         remaining = led.remaining
         deck_left = sum(remaining.values())
-        # 牌库单卡段伤上界按 sp+1(线内法强增益上界近似), 负值/缺失一律取 0
-        deck_max_seg = max((max(analyzer.burst_damage(cid, sp + 1) or 0, 0)
-                            for cid in remaining), default=0)
         # 期望注记(不进可斩判定): 当前实际法强的单卡伤害 × 台账剩余组成
         exp_per_draw = (sum(n * (analyzer.burst_damage(cid, sp) or 0)
                             for cid, n in remaining.items()) / max(1, deck_left))
     from planner.dfs import best_line          # 延迟 import(测试可打桩)
     from planner.pieces import build_piece
     from planner.simstate import initial_state
+    # 场上引擎接线(审计 2026-09-14 高#1): 我方 cast_draw 随从数 = engines
+    # ——拍卖师在场施法抽牌, known_draws 队列随之消耗(奇迹德 OTK 核心通道)
+    board_cids = [e.card_id for e in st.board(me) if e.card_id]
+    engines = sum(board_cids.count(cid)
+                  for cid in {c for c in board_cids
+                              if build_piece(c, 0, analyzer).engine})
     pieces = {(cid, cost): build_piece(cid, cost, analyzer)
               for cid, cost in dict.fromkeys(hand + known_draws)}
     opp = st.opponent_key()
     enemy_total = st.hero_total_hp(opp) if opp is not None else None
     plan = best_line(
         initial_state(st.mana_now(me), tuple(sorted(hand)), sp,
-                      known_draws=tuple(known_draws)),
-        pieces, board_atk=st.board_attack(me), enemy_total=enemy_total,
-        exp_per_draw=exp_per_draw, deck_left=deck_left,
-        deck_max_seg=deck_max_seg)
+                      known_draws=tuple(known_draws), engines=engines),
+        pieces, board_atk=st.board_face_attack(me), enemy_total=enemy_total,
+        exp_per_draw=exp_per_draw)
     return {"actions": list(plan.actions), "total": plan.total,
             "face_det": plan.face_det, "face_exp": plan.face_exp,
             "lethal": plan.lethal, "enemy_total": plan.enemy_total,
-            "board_atk": plan.board_atk, "uncovered_n": plan.uncovered_n}
+            "board_atk": plan.board_atk,
+            # 缺牌(卡表无条目)=效果未知: 与线内未覆盖张合并诚实计数
+            # (缺牌 inert 进不了线, 但它是斩杀线可信度的一部分; 审计 低#9)
+            "uncovered_n": plan.uncovered_n
+            + sum(1 for cid, _c in hand if analyzer.carddb.raw(cid) is None)}
 
 
 def collect_card_ids(log_paths) -> set:

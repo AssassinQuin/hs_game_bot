@@ -145,14 +145,20 @@ GRAMMAR_FAMILIES: list[tuple[str, list]] = [
         (re.compile(r"对所有敌人造成(\$?)(\d+)点伤害"),
          lambda m: Damage(int(m.group(2)), scope="all_enemies",
                           scaled=bool(m.group(1)))),
+        # 对所有随从/角色(VAC_953 奉献形): scope 区别于打脸系, 供斩杀口径细分。
+        # 2026-09-14 审计修正: 这两条必须排在裸"造成N点伤害"之前 —— 裸规则
+        # search 会命中 AoE 句尾子串, 把随从-only AoE 截胡成 single(误报可斩);
+        # 且随从-only 与 含角色(英雄) 必须分立 scope
+        (re.compile(r"对所有(?:敌方)?随从造成\s*(\$?)(\d+)点伤害"),
+         lambda m: Damage(int(m.group(2)), scope="all_minions",
+                          scaled=bool(m.group(1)))),
+        (re.compile(r"对所有角色造成\s*(\$?)(\d+)点伤害"),
+         lambda m: Damage(int(m.group(2)), scope="all", scaled=bool(m.group(1)))),
         (re.compile(r"造成(\$?)(\d+)点伤害，随机"),
          lambda m: Damage(int(m.group(2)), scope="random_split",
                           scaled=bool(m.group(1)))),
         (re.compile(r"造成(\$?)(\d+)点伤害"),
          lambda m: Damage(int(m.group(2)), scaled=bool(m.group(1)))),
-        # 对所有随从/角色(VAC_953 奉献形): scope 区别于打脸系, 供斩杀口径细分
-        (re.compile(r"对所有(?:敌方随从|随从|角色)造成\s*(\$?)(\d+)点伤害"),
-         lambda m: Damage(int(m.group(2)), scope="all", scaled=bool(m.group(1)))),
     ]),
     ("heal", [
         (re.compile(r"恢复\$(\d+)点生命"),
@@ -225,9 +231,12 @@ GRAMMAR_FAMILIES: list[tuple[str, list]] = [
          lambda m: Buff(0, int(m.group(1)))),
     ]),
     # 法强增益族: <b> 标签/「使其获得」前缀容错(虚灵改装师战吼附魔);
-    # 抉择分支(顺水漂流)照常打标, 消费方按 choose_one 取舍(见类注释)
+    # 抉择分支(顺水漂流)照常打标, 消费方按 choose_one 取舍(见类注释)。
+    # 2026-09-14 审计守卫(宁漏勿错): 临时法强("下一个法术伤害+N")与
+    # "双方玩家的法术伤害+N"(归属不明)不编译 —— 被当永久我方法强会
+    # 让线内后续法术全多算, 误报可斩
     ("spellpower", [
-        (re.compile(r"法术伤害\s*[+＋]\s*(\d+)"),
+        (re.compile(r"(?<!下一个)(?<!双方玩家的)法术伤害\s*[+＋]\s*(\d+)"),
          lambda m: SpellPower(int(m.group(1)))),
     ]),
     # 召唤族: 数量=单字数词+量词, 属性模板 N/M 可省(复制/图腾类)
@@ -309,7 +318,8 @@ MECHANIC_MARKS = {
 }
 
 # 编译语义版本: 语法表/机制表语义变化时 +1, 强制缓存全量重编译
-COMPILER_VERSION = "7"
+COMPILER_VERSION = "8"   # 8: damage 族规则序修正(AoE 先于裸规则)+随从/角色
+                         #    scope 分立; spellpower 临时/双方守卫(2026-09-14)
 
 
 def source_hash(card: dict) -> str:

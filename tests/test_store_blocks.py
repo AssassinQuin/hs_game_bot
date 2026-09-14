@@ -2,6 +2,8 @@
 from hearthstone.enums import BlockType, CardType, ChoiceType, GameTag, Zone
 from hslog import packets
 
+from hsbot.consts import TAG_PREPARING
+
 from .conftest import (TS, _ref, mk_block, mk_choices_general,
                        mk_choices_mulligan, mk_create_game, mk_full, mk_hide,
                        mk_heroes as _heroes, mk_send_general, mk_send_mulligan,
@@ -110,7 +112,7 @@ def _prepare_sequence(st):
     st.apply(mk_full(84, "JAIL_907e02", ZONE=Zone.SETASIDE.value, CONTROLLER=1,
                      CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=83), depth=1)
     st.apply(mk_tag(84, GameTag.ZONE, Zone.PLAY.value), depth=1)
-    st.apply(mk_tag(83, GameTag.PREPARING, 1), depth=1)   # 触发+预备完成在此发出
+    st.apply(mk_tag(83, TAG_PREPARING, 1), depth=1)   # 触发+预备完成在此发出
     st.apply(mk_full(85, "JAIL_907e", ZONE=Zone.SETASIDE.value, CONTROLLER=1,
                      CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=83), depth=1)
     st.apply(mk_tag(83, GameTag.COST, 4), depth=1)   # 块内: 预备减费 9→4
@@ -309,7 +311,7 @@ def test_enchantment_chain_links():
     assert links["JAIL_430e"]["creator"] is None     # 无 CREATOR: 诚实留空
 
 
-def test_cosmetic_pet_triggers_ignored():
+def test_cosmetic_pet_triggers_ignored(tmp_path):
     """宠物(PET/COSMETIC)是装饰实体, 其触发不报事件、不入训练语料。"""
     st, log = _store()
     _heroes(st)
@@ -323,9 +325,7 @@ def test_cosmetic_pet_triggers_ignored():
     from hsbot.carddb import CardDB
     from hsbot.corpus import CorpusExporter
     from hsbot.config import Config
-    import tempfile
-    from pathlib import Path as _P
-    tmp = _P(tempfile.mkdtemp())
+    tmp = tmp_path
     cfg = Config.load({"overlay_enabled": False, "auto_training": False,
                        "data_dir": str(tmp),
                        "training_dir": str(tmp / "training")})

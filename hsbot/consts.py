@@ -25,6 +25,9 @@ UNKNOWN_HUMAN_PLAYER = "UNKNOWN HUMAN PLAYER"   # 对局创建时对手的占位
 
 # ---- 英雄技能(灌注/替换) ----
 TAG_START_OF_GAME_KEYWORD = 1724         # 旧版 hearthstone 枚举缺名, 日志写数字
+# ---- 预备(Forge)族标签: hearthstone 9.20.12 才有枚举名, 数值与官方一致 ----
+TAG_PREPARING = 4726                     # 旧版包(如 9.20.2)无 PREPARING 枚举名
+TAG_PREPARE = 4354                       # 同上; IntEnum 与 int 等值可比/可查 dict
 
 # ---- 费用归因 ----
 SPELLPOWER_TYPES = ("SPELL", "HERO_POWER")   # 只有法术/英雄技能吃法强

@@ -9,43 +9,34 @@
 
 ```text
 hs_game_bot/
-├─ README.md                        # 已有
-├─ requirements.txt                 # 已有（hslog, hearthstone）
-├─ .gitignore                       # 已有，需补 data/ 生成物规则（见 §6）
-├─ docs/
-│  ├─ DESIGN.md                     # 总设计（已有）
-│  ├─ M1_MONITOR.md                 # M1 施工图（已有）
-│  └─ PROJECT.md                    # 本文档
-├─ examples/                        # 已有：解析教学样本；Power.log 留作回归素材
+├─ README.md / requirements.txt / config.yaml / 启动hsbot.bat
+├─ docs/                            # 设计/施工图/审计报告(本目录全部入库)
+├─ examples/                        # 解析教学样本；Power.log 留作回归素材
+├─ scripts/                         # fetch_cards(卡表) / replay_capture(零变化验收)
 ├─ data/                            # 运行时数据（git 策略见 §6）
-│  ├─ burn_overlay.json             # [M2] 组件效果表——人工维护，入库
-│  ├─ decks/decklist.json           # [M2] 由 deck code 生成，忽略
-│  ├─ cache/cards.zh.json           # [M2] hearthstonejson 缓存，忽略
-│  └─ sessions/<时间戳>/game_NNN.jsonl  # [M1] 每局快照，忽略
-└─ hsbot/
-   ├─ __init__.py
-   ├─ config.py                     # [M1] 路径/卡组名/节流，纯数据
-   ├─ gamestate.py                  # [M1] Entity / GameState（协议忠实，DESIGN §3.1）
-   ├─ adapter.py                    # [M1] packet树→GameState；全项目唯一 import hslog 的模块
-   ├─ watcher.py                    # [M1] tail + packet游标 + FSM(IDLE/IN_GAME/GAME_END) + 事件
-   ├─ knowledge.py                  # [M1] 组件台账 + 牌库序（known_top/known_bottom/中段）
-   ├─ overlay.py                    # [M1] 半透明置顶日志窗(tkinter) + OutputHub 三路输出
-   ├─ corpus.py                     # [M1] 训练语料: packet→JSONL 归一化, 按卡组分目录, import-all 子命令
-   ├─ render.py                     # [M1] 链路行 + 快照块；[M2]台账渲染；[M4]建议渲染
-   ├─ persist.py                    # [M1] sessions jsonl 追加
-   ├─ main.py                       # [M1] 入口：python -m hsbot
-   ├─ deck.py                       # [M2] Decks.log 监听 + deckstrings 解码 → decklist.json
-   ├─ carddb.py                     # [M2] cards.zh.json 加载 + burn_overlay 效果表
-   ├─ planner/
-   │  ├─ probability.py             # [M2] 超几何缺件概率
-   │  ├─ simstate.py                # [M3] 轻量可哈希状态（mana/手牌多重集/法强/载体/引擎）
-   │  ├─ dfs.py                     # [M3] 启动模式确定性 DFS（记忆化+上界剪枝）
-   │  ├─ montecarlo.py              # [M4] MC 外壳（中途抽牌抽样、已知顶牌确定化）
-   │  ├─ setup.py                   # [M4] 预备模式（候选枚举 × 下回合 P）
-   │  └─ plan.py                    # [M4] Plan / Action / SetupOption / SellNote
-   └─ backtest/
-      └─ replay.py                  # [M5] 快照重放 + 与实际结果对账
+│  ├─ mulligan_prior.yaml           # 留牌专家先验——人工维护，入库
+│  ├─ training/<卡组>/              # 训练语料(jsonl+原始切片)，入库(个人对局数据)
+│  ├─ cache/ decks/ sessions/ models/   # 生成物，忽略
+├─ hsbot/                           # 运行时包（python -m hsbot）
+│  ├─ store.py                      # GameStore: 每局唯一状态权威(实体/事件衍生)
+│  ├─ adapter.py                    # 唯一 import hslog / hearthstone.entities 的模块
+│  ├─ pipeline.py                   # 行处理责任链(尾包判定/边界/切片/线索/喂解析)
+│  ├─ watcher.py                    # 采集外壳 + FSM + 快照/导出/自动训练编排
+│  ├─ analysis.py                   # 卡牌/效果解析层 + lethal_plan 编排($N/预估/富化)
+│  ├─ effects.py                    # 卡牌文本 → 效果 IR 编译器 + 增量缓存
+│  ├─ knowledge.py                  # 台账 + 牌库序 + Decks.log 解析
+│  ├─ carddb.py / consts.py / config.py / persist.py
+│  ├─ corpus.py                     # 训练语料导出(jsonl + 原始切片 + import-all)
+│  ├─ mulligan_ai.py                # 留牌纯推理层(与 trainer 共用结论函数)
+│  ├─ render.py / overlay.py / main.py
+├─ planner/                         # T1 斩杀 DFS(纯函数; 只许 import hsbot.consts)
+│  ├─ pieces.py / simstate.py / dfs.py / plan.py
+└─ trainer/                         # 离线训练系统(单向依赖 trainer→hsbot)
+   ├─ mulligan.py                   # 留牌模型(统计表/LR/TabPFN, 版本化模型库)
+   ├─ material.py / states.py / value.py / backtest.py / __main__.py
 ```
+
+> 2026-09-14 更新：原 M1 骨架(gamestate.py)已由分层化重构取代（store/analysis/render 三层 + 行处理责任链，见 AUDIT_2026-09-13/14）；planner/、trainer/ 为顶层独立包（与 hsbot 单向依赖，接合点=文件）。
 
 演进原则：**每个里程碑只新增文件、不改既有文件的骨架**；`render.py` 是唯一允许跨里程碑持续扩展的模块（输出形态会一直加），`knowledge.py` 在 M2 拆出 `deck.py/carddb.py` 后退化为纯台账+牌库序。
 
@@ -84,36 +75,42 @@ flowchart LR
 ```mermaid
 flowchart TD
     MAIN["main.py 入口"]
-    BT["backtest/replay.py"]
-    W["watcher.py<br/>tail+游标+FSM"]
-    AD["adapter.py<br/>hslog→GameState"]
-    GS["gamestate.py<br/>Entity/GameState"]
-    K["knowledge.py<br/>台账+牌库序"]
-    DK["deck.py<br/>deck code"]
-    C["carddb.py<br/>卡表+overlay"]
+    W["watcher.py<br/>采集外壳+FSM+编排"]
+    PL["pipeline.py<br/>行处理责任链"]
+    AD["adapter.py<br/>唯一 import hslog"]
+    ST["store.py<br/>GameStore 状态权威"]
+    AN["analysis.py<br/>效果解析+富化+lethal_plan"]
+    EF["effects.py<br/>文本→IR 编译器"]
+    K["knowledge.py<br/>台账+牌库序+Decks.log"]
+    DB["carddb.py 卡表"]
     R["render.py"]
     PS["persist.py"]
-    PL["planner/<br/>DFS+MC+预备"]
+    OV["overlay.py"]
+    CO["corpus.py 语料导出"]
+    MA["mulligan_ai.py 留牌推理"]
+    P["planner/ 纯函数 DFS"]
+    T["trainer/ 离线训练"]
 
     MAIN --> W
-    W --> AD
-    AD --> GS
-    W --> K
+    W --> PL --> AD --> ST
+    W --> ST
+    W --> AN --> EF
+    W --> K --> DB
     W --> R
     W --> PS
-    K --> DK
-    K --> C
-    BT --> PL
-    BT --> PS
-    PL --> GS
-    PL --> K
+    W --> OV
+    W --> CO
+    AN --> MA
+    AN --> P
+    T --> MA
+    T --> ST
 
     style AD stroke-width:3px
 ```
 
 两条铁律（违反即架构腐化）：
 
-1. **`adapter.py` 是唯一 import hslog/hearthstone 实体类的模块**（图中加粗边）。第三方升级时只动它一个文件。
+1. **`adapter.py` 是唯一 import hslog 的模块；`hearthstone.entities` 实体类也只许 adapter 碰**（图中加粗边）。第三方升级时只动它一个文件。`hearthstone.enums` 枚举视为全项目共享词表，允许各层 import（状态语义的通用语言，不属实体类）。
 2. 依赖方向永远 `watcher → knowledge/planner`，规划器绝不反向调用渲染/持久化——它是纯函数（DESIGN §5"纯函数核心"）。
 
 实时主循环细节见 [M1_MONITOR.md §4.2](M1_MONITOR.md)，此处不重复。
@@ -152,6 +149,6 @@ IR 覆盖率不足，达 T5 门槛才议）。M2 知识层的缺件概率曲线�
 
 | 类别 | 处理 |
 |---|---|
-| 入库 | `docs/`、`hsbot/`、`examples/`、`data/burn_overlay.json`（人工维护的组件效果表，是"代码"不是数据） |
-| 忽略 | `data/sessions/`、`data/cache/`、`data/decks/`（全部为生成物）；`.gitignore` 补三条规则 |
+| 入库 | `docs/`、`hsbot/`、`planner/`、`trainer/`、`examples/`、`scripts/`、`data/mulligan_prior.yaml`（人工维护的专家先验，是"代码"不是数据）、`data/training/`（个人对局语料：jsonl + 原始切片，用户要求入库，2026-09-13 起） |
+| 忽略 | `data/sessions/`、`data/cache/`、`data/decks/`、`data/models/`、`trainer/data/`（全部为生成物） |
 | 提交节奏 | 每个里程碑一个分支，验收标准全过才合入 main；提交信息建议 `M1: 监控层——链路输出+回合快照` 样式 |

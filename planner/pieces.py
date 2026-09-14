@@ -21,7 +21,9 @@ class Piece:
     """单卡可模拟效果切片(frozen, 纯数据)。"""
     card_id: str
     cost: int                    # 调用方给定的实际费(COST 标签优先)
-    segments: tuple[int, ...] = ()   # 首个 Damage(scaled=True) 效果: (base,)*hits; 无则 ()
+    segments: tuple[int, ...] = ()   # 首个可打脸 Damage(scaled=True): (base,)*hits; 无则 ()
+                                     # 2026-09-14: 随从-only AoE(scope=all_minions)
+                                     # 打不了脸不进; random_split 进但不吃法强(§8 定版)
     spell_scaled: bool = False   # cardtype in SPELLPOWER_TYPES(法术/英雄技能吃法强)
     mana_gain: int = 0           # ManaGain.amount 合计
     spellpower_gain: int = 0     # SpellPower.amount 合计; 文本含"选择一"→强制 0(宁漏勿错)
@@ -48,6 +50,7 @@ def build_piece(card_id: str, cost: int, analyzer) -> Piece:
         return _inert(card_id, cost)
 
     segments: tuple[int, ...] = ()
+    random_split = False           # 该段为随机分配: 计脸但不吃法强(定版口径)
     mana_gain = 0
     spellpower_gain = 0
     discount_hand = 0
@@ -57,9 +60,13 @@ def build_piece(card_id: str, cost: int, analyzer) -> Piece:
         # 依赖方向约束: 不 import hsbot.effects, 按 IR 节点类型名判别
         kind = type(e).__name__
         if kind == "Damage":
-            # 只认首个 scaled=True 的伤害段(裸数字固定伤目标受限, 不进斩杀口径)
-            if not segments and getattr(e, "scaled", False):
+            # 只认首个可打脸的 scaled 伤害段: 裸数字固定伤(目标受限)与
+            # 随从-only AoE(scope=all_minions)都不进斩杀口径(宁漏勿错)
+            scope = getattr(e, "scope", "single")
+            if (not segments and getattr(e, "scaled", False)
+                    and scope != "all_minions"):
                 segments = (getattr(e, "base"),) * getattr(e, "hits", 1)
+                random_split = scope == "random_split"
         elif kind == "ManaGain":
             mana_gain += e.amount
         elif kind == "CostDown":
@@ -77,7 +84,8 @@ def build_piece(card_id: str, cost: int, analyzer) -> Piece:
         spellpower_gain = 0          # 抉择分支未定 → 宁漏勿错
     cardtype = ir.cardtype or ""
     return Piece(card_id=card_id, cost=cost, segments=segments,
-                 spell_scaled=cardtype in SPELLPOWER_TYPES,
+                 spell_scaled=(cardtype in SPELLPOWER_TYPES
+                               and not random_split),
                  mana_gain=mana_gain, spellpower_gain=spellpower_gain,
                  discount_hand=discount_hand, discount_next=discount_next,
                  engine=engine, is_spell=cardtype == "SPELL")

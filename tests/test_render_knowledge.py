@@ -30,7 +30,7 @@ def test_snapshot_block_renders_from_store():
     st, _ = _store()
     _board(st)
     block = snapshot_block(st, None, knowledge=None, deck_name="奇迹德",
-                           generic=True, game_id="a1b2c3d4", chain_lines=[],
+                           generic=True, game_id="a1b2c3d4",
                            chain_summary=[], carddb=st.carddb, reason="turn_end")
     assert "完整快照" in block and "回合T0" in block
     assert "a1b2c3d4" in block                  # 对局 hash 入快照块(合并主键)

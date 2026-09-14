@@ -307,6 +307,7 @@ class OverlayWindow:
                       insertbackground="#b8e6a0", relief="flat",
                       font=("Consolas", self.cfg.overlay_font_size),
                       state="disabled", padx=6, pady=4)
+        self._txt = txt                    # 冒烟测试断言"行已渲染"用
         for name, color in self._colors.items():
             txt.tag_configure(name, foreground=color)
         sb = tk.Scrollbar(frm, command=txt.yview)
@@ -326,16 +327,20 @@ class OverlayWindow:
                 if lines:
                     txt.configure(state="normal")
                     for item in lines:
-                        kind, text = item[0], item[1]
-                        if kind == KIND_STAT:      # 上区: 整体替换, 不进日志流
-                            data = item[3] if len(item) > 3 else None
-                            if data:
-                                self._panel.update(data)
-                            else:                  # 旧形态无机读字段: 原文兜底
-                                self._panel.set_raw(text)
-                            continue
-                        tag = item[2] if len(item) > 2 else ""   # 兼容旧 2 元组
-                        txt.insert("end", text + "\n", self._classify(kind, text, tag))
+                        try:
+                            kind, text = item[0], item[1]
+                            if kind == KIND_STAT:      # 上区: 整体替换, 不进日志流
+                                data = item[3] if len(item) > 3 else None
+                                if data:
+                                    self._panel.update(data)
+                                else:                  # 旧形态无机读字段: 原文兜底
+                                    self._panel.set_raw(text)
+                                continue
+                            tag = item[2] if len(item) > 2 else ""   # 兼容旧 2 元组
+                            txt.insert("end", text + "\n",
+                                       self._classify(kind, text, tag))
+                        except Exception:  # noqa: BLE001  单条坏消息只丢自己,
+                            traceback.print_exc()     # 不拖累同批其余行(2026-09-14)
                     count = int(float(txt.index("end-1c")))
                     if count > _MAX_LINES:
                         txt.delete("1.0", f"{count - _MAX_LINES + 1.0}")

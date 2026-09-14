@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+import atexit
+import copy
 import logging
 import os
 import re
@@ -40,6 +42,17 @@ from .pipeline import (StreamContext, build_line_pipeline,
 
 # store 事件种类 → 输出 Msg 种类(缺省 chain); advice 走独立分色高亮
 _MSG_KIND_BY_EVENT = {"mulligan_offer": KIND_ADVICE}
+
+
+def _msg_kind_for(evt: dict) -> str:
+    """事件 → 输出种类: 专用分色只给我方的事件(对手的留牌信息行走普通
+    链路色 —— 金色 advice 语义专属"我方建议", 审计 2026-09-14 低#7)。"""
+    kind = evt.get("kind")
+    msg_kind = _MSG_KIND_BY_EVENT.get(kind, KIND_CHAIN)
+    if (msg_kind != KIND_CHAIN and kind == "mulligan_offer"
+            and evt.get("actor") != evt.get("friendly")):
+        return KIND_CHAIN
+    return msg_kind
 
 
 @dataclass
@@ -84,10 +97,10 @@ class SnapshotService:
         self._emit = emit
 
     def build_and_emit(self, *, st, led, knowledge, deck_name, generic, game_id,
-                       chain, summary, rich_events, persist, reason) -> None:
+                       summary, rich_events, persist, reason) -> None:
         block = snapshot_block(
             st, led, knowledge=knowledge, deck_name=deck_name, generic=generic,
-            game_id=game_id, chain_lines=chain, chain_summary=summary,
+            game_id=game_id, chain_summary=summary,
             carddb=self.carddb, reason=reason)
         if reason == "game_end":
             end = game_end_line(st)
@@ -153,8 +166,12 @@ class AutoModelTrainer:
     """局终后台自动增量训练(留牌三级评分器 + trainer 价值模型)。
 
     与训练系统解耦: 子进程调用训练入口(python -m trainer mulligan / python -m
-    trainer), 失败只进诊断日志不影响监控; 忙则合并为一次待办, 不堆积线程。
-    产物按版本落盘, MulliganAdvisor 按 mtime 自动切换 —— 下一局即用新模型。"""
+    trainer); 忙则合并为一次待办, 不堆积线程。产物按版本落盘,
+    MulliganAdvisor 按 mtime 自动切换 —— 下一局即用新模型。
+    审计 2026-09-14 一#7 修复: 开关用真配置键 auto_train_models(旧键名不在
+    schema, 恒真=关不掉的死开关); 子命令失败显性上报(不得以"完成/无变化"
+    掩盖); --data-dir/--config 传绝对路径(防 bot 与 trainer 各对一套目录);
+    atexit 终止在跑子进程(防孤儿训练最长再跑 900s)。"""
 
     def __init__(self, cfg, emit=None) -> None:
         self.cfg = cfg
@@ -162,12 +179,21 @@ class AutoModelTrainer:
         self._busy = False
         self._pending = False
         self._lock = threading.Lock()
+        self._proc: subprocess.Popen | None = None
+        atexit.register(self._cleanup)
+
+    def _cleanup(self) -> None:
+        """进程退出: 终止在跑的训练子进程(daemon 线程的子进程不会被自动回收)。"""
+        proc = self._proc
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
 
     def commands(self) -> list:
-        root = Path(__file__).resolve().parents[1]
-        cfg_arg = ["--config", str(self.cfg.source)] \
+        cfg_arg = ["--config", str(Path(self.cfg.source).resolve())] \
             if Path(str(self.cfg.source)).exists() else []
-        data = ["--data-dir", str(self.cfg.data_dir), "--deck", self.cfg.deck_name]
+        # 绝对路径: bot 从任意目录启动, trainer 的语料/模型目录都与 bot 一致
+        data = ["--data-dir", str(Path(self.cfg.data_dir).resolve()),
+                "--deck", self.cfg.deck_name]
         mull = ["-m", "trainer", *cfg_arg, *data]
         return [
             [sys.executable, *mull, "mulligan", "train"],
@@ -176,7 +202,7 @@ class AutoModelTrainer:
         ]
 
     def request(self) -> None:
-        if not getattr(self.cfg, "auto_train_models", True):
+        if not self.cfg.auto_train_models:
             return
         with self._lock:
             if self._busy:
@@ -188,26 +214,37 @@ class AutoModelTrainer:
     def _run(self) -> None:
         while True:
             versions = []
+            failures = []                # (子命令, stderr 尾): 失败必须显性可见
             for argv in self.commands():
                 try:
                     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-                    r = subprocess.run(
-                        argv, capture_output=True, text=True,
-                        encoding="utf-8", errors="replace", timeout=900,
-                        cwd=str(Path(__file__).resolve().parents[1]), env=env)
-                    if r.returncode != 0:
+                    proc = subprocess.Popen(
+                        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True, cwd=str(Path(__file__).resolve().parents[1]),
+                        env=env)
+                    self._proc = proc
+                    try:
+                        out, err = proc.communicate(timeout=900)
+                    finally:
+                        self._proc = None
+                    if proc.returncode != 0:
                         log.warning("自动增量训练失败(%s): %s",
-                                    argv[-1], (r.stderr or "")[-300:])
+                                    argv[-1], (err or "")[-300:])
+                        failures.append((argv[-1], (err or "")[-120:]))
                         continue
-                    m = re.search(r"模型已保存: \S*?(v\d+)", r.stdout or "")
+                    m = re.search(r"模型已保存: \S*?(v\d+)", out or "")
                     if m:
                         versions.append(m.group(1))
                 except Exception as exc:  # noqa: BLE001
                     log.warning("自动增量训练异常(%s): %s", argv[-1], exc)
+                    failures.append((argv[-1], f"{type(exc).__name__}: {exc}"))
             if self._emit is not None:
-                msg = ("后台增量训练完成: 留牌模型 "
-                       + ("→".join(versions) if versions else "无变化"))
-                self._emit(msg)
+                if failures:
+                    detail = "; ".join(f"{c}({t})" for c, t in failures)
+                    self._emit(f"! 后台增量训练失败({len(failures)}/3): {detail}")
+                else:
+                    self._emit("后台增量训练完成: 留牌模型 "
+                               + ("→".join(versions) if versions else "无变化"))
             with self._lock:
                 if self._pending:
                     self._pending = False
@@ -224,7 +261,8 @@ class Watcher:
         # 留牌建议器(mulligan_advice 开关): 读 LATEST 模型, 富化 mulligan_offer 事件
         self.mulligan_ai = MulliganAdvisor(
             models_root_for(cfg.data_dir, cfg.deck_name), cfg.deck_name, carddb,
-            prior_path=Path(cfg.data_dir) / "mulligan_prior.yaml") \
+            prior_path=Path(cfg.data_dir) / "mulligan_prior.yaml",
+            live=True) \
             if getattr(cfg, "mulligan_advice", True) else None
         self.analyzer = EffectAnalyzer(
             carddb, cache=EffectCache(Path(cfg.cache_dir) / "effects.json"),
@@ -250,6 +288,11 @@ class Watcher:
         self.model_trainer = AutoModelTrainer(cfg, self._emit)
         # ---- 日志流状态唯一维护点(责任链的共享上下文) ----
         self.stream = StreamContext()
+        # 已终结局的 player manager 冻结快照, 键 = parser 局下标(0 基)。
+        # hslog 的 manager 是 parser 级共享对象, 边界处必须重置(换边局名字→pid
+        # 映射会撞 InconsistentPlayerIdError); 而上一局的 store 若尚未应用包
+        # (同批多局, attach 追平常见), 建库时用的须是"该局自己的"manager 状态
+        self._mgr_frozen: dict[int, object] = {}
         self.pipeline = build_line_pipeline(
             parser_getter=lambda: self.parser,
             on_create_boundary=self._on_create_boundary,
@@ -259,8 +302,15 @@ class Watcher:
 
     # ---- 责任链回调 ----
     def _on_create_boundary(self) -> None:
-        """CREATE_GAME 边界: 结算上一局切片 + 新局切片缓冲 + 重置 player manager。"""
-        self._finalize_game_log()
+        """CREATE_GAME 边界(喂行时): 冻结上一局切片与 manager, 再重置 manager。
+
+        manager 重置必须发生在下一局 Player 行解析之前(hslog 约束); 上一局的
+        终局导出/收尾在批尾(_detect_game)才执行, 届时消费冻结的这两份状态。
+        """
+        j = len(self.parser.games)          # 已完整解析的局数; 即将开始第 j 局
+        if j > 0:
+            self.stream.frozen_game_lines[j - 1] = self.stream.game_lines or []
+            self._mgr_frozen[j - 1] = copy.deepcopy(self.parser.player_manager)
         reset_player_manager(self.parser)
 
     def _friendly_pid(self):
@@ -403,7 +453,9 @@ class Watcher:
         self.parser = new_parser()
         self.game_count = 0
         self.match = None             # 会话切换: 局作用域整体作废(历史不导训练)
+        self._mgr_frozen = {}         # 边界冻结状态一并作废
         self.stream.game_lines = None  # 旧切片作废
+        self.stream.frozen_game_lines = {}
         self.stream.pend_cid = {}      # 跨会话线索/真名/抽牌hint一并作废
         self.stream.pend_ctrl = {}
         self.stream.pend_names = []
@@ -511,17 +563,33 @@ class Watcher:
     def _detect_game(self) -> None:
         n = len(self.parser.games)
         while self.game_count < n:
-            if self.game_count > 0:      # 把上一局尾部事件冲完再切
-                self._process_tree(self.parser.games[self.game_count - 1], flush=True)
+            gi = self.game_count
+            if gi > 0:      # 把上一局尾部事件冲完再切(终局快照/导出/切片补完整)
+                self._process_tree(self.parser.games[gi - 1], flush=True)
                 self._fire_pending_game_end()   # 上一局终局快照须在 _new_game 重置标志前发出
+                self._finalize_game_log(gi - 1)
+                self._mgr_frozen.pop(gi - 1, None)   # 正常流程: 该局的库早已建, 快照作废
             self.game_count += 1
             self._new_game()
+            # 本局包即刻应用: 中间局(后续局已开)整局冲刷, 末局尊重尾包完整性
+            self._process_tree(self.parser.games[gi], flush=(gi < n - 1))
+            if gi < n - 1 and self.match.gs.friendly_key is None:
+                # 中间局的友方绑定等不到批尾(作用域即将被下一局替换) ——
+                # 用该局自己的树解析, 不受后续局名字/换边影响
+                self.match.gs.note_friendly(
+                    resolve_friendly(self.parser, self.cfg.battletag,
+                                     tree=self.parser.games[gi]))
 
     def _new_game(self) -> None:
         """新局 = 替换整个局作用域(GameScope) —— 重置语义, 不逐字段覆盖。"""
         self.game_no += 1
         self.match = GameScope(no=self.game_no)
-        tree = self.parser.games[-1] if self.parser.games else None
+        gi = self.game_count - 1
+        tree = self.parser.games[gi] if self.parser.games else None
+        # 同批多局(attach 追平): 本局的 manager 已被后续边界重置过 → 用冻结快照;
+        # 末局(无后续边界)用活的 parser manager
+        mgr = (self._mgr_frozen.pop(gi) if gi in self._mgr_frozen
+               else self.parser.player_manager)
         if tree is not None:
             # 对局身份 hash(会话名+开局时刻): 标题/链路/快照/训练 jsonl 四方对齐
             self.match.game_id = game_hash(self.session_name, str(tree.ts))
@@ -531,7 +599,7 @@ class Watcher:
         self.state = "IN_GAME"
         self.match.gs = GameStore(carddb=self.carddb, battletag=self.cfg.battletag,
                                   tree=tree,
-                                  player_manager=self.parser.player_manager,
+                                  player_manager=mgr,
                                   draw_dedup=self.cfg.draw_dedup_seconds)
         self.match.gs.set_meta(game_meta(self.parser))   # 一次会话内不变, 新局注入一次
         self.match.gs.subscribe(self._route)
@@ -643,7 +711,7 @@ class Watcher:
         if line is None:                 # 渲染层判弃(开局未揭示触发): 事实已入
             return                       # rich_events 留档, 只是不出显示行
         self.match.chain.append(line)
-        msg_kind = _MSG_KIND_BY_EVENT.get(kind, KIND_CHAIN)
+        msg_kind = _msg_kind_for(evt)
         if msg_kind == KIND_CHAIN:
             actor, friendly = evt.get("actor"), evt.get("friendly")
             tag = TAG_MY if actor is not None and actor == friendly else \
@@ -668,14 +736,18 @@ class Watcher:
         已导过的 (session|局号) 静默跳过(_imported.json 只导新语义)。"""
         if not (self.cfg.auto_training and self._live and self.parser.games):
             return
+        gi = self.game_count - 1                # 终局的是"当前作用域这一局"
         try:
             path, corpus = self.exporter.export(
-                tree=self.parser.games[-1], store=self.match.gs,
+                tree=self.parser.games[gi], store=self.match.gs,
                 session=self.session_name or "live", idx=self.game_no,
                 decks_path=self.decks_path)
             if path is None:
                 return                     # 重复 attach: 该局已导过
-            raw = corpus.export_raw_log(path, self.stream.game_lines or [])
+            # 切片行: 若下一局 CREATE_GAME 已在本批出现, 边界已冻结本局完整行
+            # (活缓冲此刻装的是新局头部行) —— 冻结优先; 否则用活缓冲
+            gl = self.stream.frozen_game_lines.pop(gi, self.stream.game_lines)
+            raw = corpus.export_raw_log(path, gl or [])
             if self.match:
                 self.match.last_raw_path = raw
             if raw:
@@ -686,10 +758,15 @@ class Watcher:
             log.exception("训练样本导出失败")
             self._emit("! 训练样本导出失败")
 
-    def _finalize_game_log(self) -> None:
-        """新局 CREATE_GAME 到来: 上一局切片已含全部收尾行, 覆写一次补完整。"""
+    def _finalize_game_log(self, gi: int) -> None:
+        """局边界收尾: 用冻结的完整行(含终局后尾行)覆写该局切片一次。
+
+        仅对"早前批次已导出过切片"的局有意义(last_raw_path 在); 同批刚导出的
+        局用的就是冻结行, pop 已消费, 此处自然空转。"""
         last = self.match.last_raw_path if self.match else None
-        gl = self.stream.game_lines
+        gl = self.stream.frozen_game_lines.pop(gi, None)
+        if gl is None:
+            return                          # 同批导出已消费/从未开启切片
         self.exporter.finalize_slice(last_raw_path=last, game_lines=gl)
         if self.match:
             self.match.last_raw_path = None
@@ -709,7 +786,7 @@ class Watcher:
         self.snapshot_service.build_and_emit(
             st=self.gs, led=led, knowledge=self.match.knowledge,
             deck_name=self.cfg.deck_name, generic=self.match.generic,
-            game_id=self.match.game_id, chain=self.match.chain,
+            game_id=self.match.game_id,
             summary=self.match.summary, rich_events=self.match.rich_events,
             persist=self.store, reason=reason)
         self.match.chain, self.match.summary = [], []

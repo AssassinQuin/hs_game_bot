@@ -23,14 +23,14 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Iterator
 
-from hearthstone.entities import Player
 from hearthstone.enums import (BlockType, CardType, ChoiceType, GameTag,
                                PlayState, Zone)
 
 from .adapter import is_play_block, new_store_exporter, packet_payload
 from .carddb import CardDB
 from .consts import (PET_CARD_PREFIX, UNKNOWN_HUMAN_PLAYER,
-                     TAG_START_OF_GAME_KEYWORD, is_coin)
+                     TAG_START_OF_GAME_KEYWORD, TAG_PREPARE, TAG_PREPARING,
+                     is_coin)
 
 PlayerKey = int  # PLAYER_ID: 1=先手, 2=后手(硬币); CONTROLLER 标签值同域
 
@@ -117,6 +117,9 @@ class GameStore:
         # 预备块内暂存的"预备完成" (depth, 块包, 事件, 宿主实体号), 等 PREPARING
         # 翻转时随"触发 正在预备"按因果序一起发(见 _on_preparing_start)
         self._prepare_trigger_eid: int | None = None
+        # 本回合进战场的实体号(召唤失调判定: 无冲锋则打不了脸; 回合开始清空。
+        # JUST_PLAYED 标签的区转兜底信号, 审计 2026-09-14 高#2)
+        self._entered_play: set[int] = set()
         # 已按块结构提前报过的"正在预备"触发实体号: 尾随约1秒的真身 TRIGGER 块去重
         self.hero_power: dict[PlayerKey, int] = {}      # pid → 当前技能实体号
         self.hero_power_cid: dict[PlayerKey, str] = {}  # pid → 当前技能 card_id
@@ -230,6 +233,31 @@ class GameStore:
     def board_attack(self, key: PlayerKey) -> int:
         """场面总攻击力(快照行"对面场攻"/杀伤预估用)。"""
         return sum(atk(e) for e in self.board(key))
+
+    def board_face_attack(self, key: PlayerKey) -> int:
+        """可直击脸的场攻(斩杀线口径, 宁漏勿错; 审计 2026-09-14 高#2)。
+
+        敌方场上有嘲讽随从 → 0(必须先解嘲, 无法证明能过墙就当过不去);
+        否则只计"确定可攻击"的我方随从攻击力, 剔除:
+          冻结(FROZEN) / 本回合已攻击(NUM_ATTACKS_THIS_TURN) /
+          本回合进战场且无冲锋(区转信号 _entered_play 或 JUST_PLAYED 标签)。
+        标签缺失按不可攻击计 —— 漏报方向安全。"""
+        for opp in (p for p in self.player_keys() if p != key):
+            if any(e.tags.get(GameTag.TAUNT) for e in self.board(opp)):
+                return 0
+
+        def _can_hit_face(e) -> bool:
+            if e.tags.get(GameTag.FROZEN):
+                return False
+            if e.tags.get(GameTag.NUM_ATTACKS_THIS_TURN):
+                return False
+            if (e.id in self._entered_play or
+                    e.tags.get(GameTag.JUST_PLAYED)) \
+                    and not e.tags.get(GameTag.CHARGE):
+                return False
+            return True
+
+        return sum(atk(e) for e in self.board(key) if _can_hit_face(e))
 
     def deck_entities(self, key: PlayerKey) -> list:
         return [e for e in self._of(key) if e.zone == Zone.DECK]
@@ -486,7 +514,7 @@ class GameStore:
             if pid is not None:
                 return pid
             e = self.get(entity)
-            if isinstance(e, Player):
+            if getattr(e, "is_ai", None) is not None:   # 玩家实体(duck 判别)
                 return e.player_id
         return None
 
@@ -537,7 +565,7 @@ class GameStore:
             self._on_controller_change(e, old, value)
         elif tag == GameTag.COST:
             self._on_cost_change(e, old, value)
-        elif tag == GameTag.PREPARING and value == 1:
+        elif tag == TAG_PREPARING and value == 1:
             self._on_preparing_start(entity)
         elif tag in (GameTag.DAMAGE, GameTag.ARMOR, GameTag.HEALTH) and is_hero(e):
             self._on_hero_attr(e, old, tag)
@@ -546,6 +574,8 @@ class GameStore:
         old_zone = (old or {}).get(GameTag.ZONE)
         ctrl = self.ctrl_key(e) or self._hint_ctrl.get(e.id)
         cid = self.cid_of(e.id)
+        if value == Zone.PLAY.value:
+            self._entered_play.add(e.id)   # 召唤失调信号(回合开始清空)
         if (value == Zone.DECK.value and old_zone == Zone.SETASIDE.value
                 and ctrl == self.friendly_key and cid):
             self._emit_event({"kind": "back_to_deck", "card_id": cid, "actor": ctrl})
@@ -660,6 +690,7 @@ class GameStore:
     def _on_turn_start(self, key: PlayerKey) -> None:
         prev, self.current = self.current, key
         self._prepare_trigger_eid = None   # 提前报过的"正在预备"触发只在当回合内去重
+        self._entered_play = set()        # 新回合: 上回合进场的随从不再失调
         m = self.mulligan.get(key)
         if m is not None and m.decided:
             m.closed = True                # 决定后的首回合开始: 换牌换入窗口关闭
@@ -746,7 +777,9 @@ class GameStore:
             })
         elif btype == BlockType.TRIGGER and isinstance(p.entity, int):
             e = self.get(p.entity)
-            if (e is None or isinstance(e, Player)
+            # 玩家实体按鸭子判别(is_ai 为 Player 独有): 不 import
+            # hearthstone.entities —— 实体类只许 adapter 碰(铁律 1, 审计 2026-09-14)
+            if (e is None or getattr(e, "is_ai", None) is not None
                     or (self.game is not None and e is self.game)):
                 return          # 玩家/游戏实体上的触发不单独报卡牌事件
             if self.is_cosmetic_entity(e):
@@ -789,7 +822,7 @@ class GameStore:
             # 认定(防其他 DECK_ACTION 误报)。
             e = self.get(p.entity)
             if (e is not None and e.zone == Zone.HAND
-                    and e.tags.get(GameTag.PREPARE) and self.cid_of(p.entity)):
+                    and e.tags.get(TAG_PREPARE) and self.cid_of(p.entity)):
                 if self._pending_prepare is not None:
                     self._flush_prepare()   # 防御: 未决先补发(块不嵌套)
                 self._pending_prepare = (

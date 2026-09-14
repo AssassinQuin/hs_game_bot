@@ -46,6 +46,10 @@ CARDS = [
      "text": "造成$2点伤害。"},
     {"id": "BIG_SPELL", "name": "大伤害法术", "type": "SPELL", "cost": 4,
      "text": "对一个敌人造成$3点伤害两次。"},
+    {"id": "AOE_MIN", "name": "扫场", "type": "SPELL", "cost": 4,
+     "text": "对所有敌方随从造成$3点伤害。"},
+    {"id": "RAND_SPLIT", "name": "随机火", "type": "SPELL", "cost": 2,
+     "text": "造成$4点伤害，随机分配给所有敌人。"},
 ]
 
 # (card_id, 实际费) 池: 供随机交叉验证使用
@@ -165,14 +169,13 @@ def test_play_mana_cap_ten(analyzer):
 
 
 def test_play_disc_next_consumed_once(analyzer):
-    """next: 减费对任意牌 -1, 每次打出消费一次。"""
-    pieces = _mk_pieces(analyzer, [("VANILLA", 3)])
-    st = initial_state(5, (("VANILLA", 3), ("VANILLA", 3)), 0, disc_next=2)
-    st2 = play(st, 0, pieces)
-    assert st2.mana == 5 - 2            # 3-1=2 实付
-    assert st2.disc_next == 1           # 消费一次
-    st3 = play(st2, 0, pieces)
-    assert st3.mana == 5 - 2 - 2 and st3.disc_next == 0
+    """next: 减费 = 面值一次性(2026-09-14 审计修正): 下一张全额减, 用后清零。"""
+    pieces = _mk_pieces(analyzer, [("NEXT_DISC", 0), ("VANILLA", 2)])
+    st = initial_state(5, (("NEXT_DISC", 0), ("VANILLA", 2)), 0)
+    st2 = play(st, 0, pieces)           # 打出水晶塔(-2): 余额 2
+    assert st2.disc_next == 2
+    st3 = play(st2, 0, pieces)          # 下一张 2 费随从: 全额 -2 → 0 费
+    assert st3.mana == 5 and st3.disc_next == 0
 
 
 def test_play_disc_hand_discounts_every_spell(analyzer):
@@ -275,7 +278,7 @@ def test_best_line_matches_bruteforce_on_random_states(tmp_path):
             engines=rng.choice([0, 0, 1]))
         plan = best_line(state, pieces, board_atk=rng.randint(0, 3),
                          enemy_total=None, exp_per_draw=1.5,
-                         deck_left=rng.randint(0, 5), deck_max_seg=2)
+                         )
         assert plan.face_det == _brute_best(state, pieces), \
             f"case {case}: 手牌={hand} state={state}"
 
@@ -299,7 +302,7 @@ def test_lethal_only_by_face_det_and_board_atk(analyzer):
     # 3 张月火, mana 3, 引擎在身 → 3 确定伤 + 3 张未知抽牌
     st = initial_state(3, (("MOON", 1), ("MOON", 1), ("MOON", 1)), 0, engines=1)
     plan = best_line(st, pieces, board_atk=0, enemy_total=4,
-                     exp_per_draw=10.0, deck_left=5, deck_max_seg=5)
+                     exp_per_draw=10.0)
     assert plan.face_det == 3 and plan.face_exp == 30   # 3×10 取整, 仅注记
     assert plan.total == 3                              # 期望不进 total
     assert plan.lethal is False                         # 3 < 4: 期望再高也不斩
@@ -365,7 +368,7 @@ def test_best_line_ten_distinct_cards_worst_case_under_100ms(tmp_path):
     pieces = _mk_pieces(analyzer, hand)
     state = initial_state(10, hand, 1, disc_hand=1, disc_next=1)
     t0 = time.perf_counter()
-    plan = best_line(state, pieces, deck_left=8, deck_max_seg=2)
+    plan = best_line(state, pieces)
     dt = time.perf_counter() - t0
     assert dt < 0.1, f"best_line 耗时 {dt * 1000:.1f}ms 超出 100ms"
     # 下限抽查: 混合线至少要打出多数伤害牌(精确最优由交叉验证测试背书)
@@ -379,3 +382,49 @@ def test_plan_defaults():
     assert p.board_atk == 0 and p.mana_trace == ()
     with pytest.raises(Exception):          # frozen: 不可变
         p.total = 1
+
+
+# ---------------- 审计 2026-09-14 语义修正波 ----------------
+
+def test_disc_next_is_single_use_face_value():
+    """审计 中#3: next: 减费 = 一次性面值(伺机待发"下一法术-3"), 全额作用
+    下一张、用后清零; 不是"-1×N 张"。旧按张数结算会让线内多打一张法术
+    (实测 6 伤局算成可斩, 真实上限 4)。"""
+    prep = Piece(card_id="A_PREP", cost=0, discount_next=3, is_spell=True)
+    d2 = Piece(card_id="D", cost=2, segments=(2,), spell_scaled=False, is_spell=True)
+    pieces = {("A_PREP", 0): prep, ("D", 2): d2}
+    st = initial_state(3, (("A_PREP", 0), ("D", 2), ("D", 2), ("D", 2)), 0)
+    st2 = play(st, 0, pieces)                    # 打出 -3 减费: 余额 3
+    assert st2.disc_next == 3
+    st3 = play(st2, 0, pieces)                   # 下一张全额 -3(下限 0)
+    assert st3.mana == 3 and st3.face == 2 and st3.disc_next == 0
+    st4 = play(st3, 0, pieces)                   # 第二张恢复全价 2 费
+    assert st4.mana == 1 and st4.face == 4
+    plan = best_line(st, pieces, enemy_total=6)  # 整线只打得出 2 张 → 4 伤
+    assert plan.face_det == 4 and plan.lethal is False
+
+
+def test_piece_excludes_minion_only_aoe(analyzer):
+    """审计 中#5: "对所有敌方随从"是随从-only AoE, 打不了脸 —— 不进斩杀
+    segments(宁漏勿错; 旧把裸"造成N点伤害"规则排 AoE 前, 截胡成 single)。"""
+    p = build_piece("AOE_MIN", 4, analyzer)
+    assert p.segments == ()
+
+
+def test_piece_random_split_not_spell_scaled(analyzer):
+    """审计 低#8: random_split 按不放大法强处理(EFFECTS_DESIGN §8 定版):
+    段进 segments(沿粗估口径全计打脸)但 spell_scaled=False。"""
+    p = build_piece("RAND_SPLIT", 2, analyzer)
+    assert p.segments == (4,) and p.spell_scaled is False
+
+
+def test_uncovered_counts_carddb_missing_cards():
+    """审计 低#9: 卡表缺牌 = 效果未知(即便 inert 打出) —— best_line 对线内
+    缺键张照计 uncovered(防御; 缺牌通常进不了线, 事实层的缺牌计数在
+    analysis.lethal_plan 的 facts 口径, 见 test_lethal_plan)。"""
+    d1 = Piece(card_id="VAL", cost=1, segments=(1,), is_spell=True)
+    pieces = {("VAL", 1): d1}
+    plan = best_line(initial_state(2, (("GHOST_A", 1), ("VAL", 1)), 0),
+                     pieces, enemy_total=None)
+    assert plan.face_det == 1
+    assert plan.uncovered_n == 0        # 缺牌无增益进不了线, 线内无未覆盖张

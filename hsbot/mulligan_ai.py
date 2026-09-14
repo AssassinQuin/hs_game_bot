@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import random
@@ -24,6 +25,8 @@ from itertools import combinations
 from pathlib import Path
 
 from .consts import HERO_ID_CLASS, is_coin
+
+log = logging.getLogger(__name__)
 
 # ── 统计机制参数(数据的读法, 非展示; 结论阈值在 render 输出层) ──
 BETA_PRIOR_N = 2.0     # Beta 平滑虚拟样本数(以全局胜率/先验为均值)
@@ -71,7 +74,8 @@ def load_prior(path: Path | str, deck: str, carddb, known_ids: set) -> dict:
     try:
         import yaml
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except Exception:  # noqa: BLE001  坏文件: 先验静默降级为空
+    except Exception as exc:  # noqa: BLE001
+        log.warning("先验文件解析失败(%s): %s —— 本局按纯数据驱动", path, exc)
         return out
     sec = data.get(deck) or data.get("通用") or {}
     name2id = {}
@@ -84,16 +88,24 @@ def load_prior(path: Path | str, deck: str, carddb, known_ids: set) -> dict:
         tok = str(tok).strip()
         return tok if tok in known_ids else name2id.get(tok)
 
+    dropped = []
     for name, ent in (sec.get("cards") or {}).items():
         cid = resolve(name)
         if cid and isinstance(ent, dict):
             out["cards"][cid] = ent
+        else:
+            dropped.append(str(name))          # 卡名拼错/词表未收录: 必须可见
     for ent in sec.get("pairs") or []:
         ids = [resolve(t) for t in ent.get("cards") or []]
         bonus = ent.get("bonus")
         if all(ids) and isinstance(bonus, (int, float)):
             out["pairs"][tuple(sorted(ids))] = float(bonus)
+        else:
+            dropped.append("pair:" + "+".join(map(str, ent.get("cards") or [])))
     out["engine"] = [c for c in (resolve(t) for t in sec.get("engine") or []) if c]
+    if dropped:
+        log.warning("先验条目未命中卡表/统计词汇, 已忽略(%s 卡组): %s",
+                    deck, ", ".join(dropped))
     return out
 
 
@@ -328,7 +340,10 @@ def read_latest(root: Path | str) -> tuple[str | None, dict]:
             p = vdir / name
             art[key] = json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
         return ver, art
-    except (ValueError, KeyError, OSError):
+    except (ValueError, KeyError, OSError) as exc:
+        # 审计 2026-09-14 中: 坏模型静默变"无模型"零日志, 军师哑火无从排查
+        log.warning("留牌模型产物读取失败(%s): %s —— 实时建议回退'起手可留'",
+                    root, exc)
         return None, {}
 
 
@@ -404,10 +419,14 @@ class MulliganAdvisor:
     每次调用检查 LATEST/先验文件的 mtime, 训练器产出新版本后自动切换。"""
 
     def __init__(self, root: Path | str, deck: str, carddb,
-                 prior_path: Path | str | None = None) -> None:
+                 prior_path: Path | str | None = None,
+                 live: bool = False) -> None:
         self.root = Path(root)
         self.deck = deck
         self.carddb = carddb
+        # live=实时监控线程内: 禁 TabPFN(首次 fit 是秒级 CPU 块, 会卡住开局
+        # 事件批; 审计 2026-09-14 低) —— CLI advise/离线不受限
+        self.live = live
         self.prior_path = Path(prior_path) if prior_path else \
             self.root.parents[2] / "mulligan_prior.yaml"   # data/models/mulligan/<卡组> → data/
         self._stamp = None                  # (LATEST mtime, prior mtime) 失配即重读
@@ -431,9 +450,11 @@ class MulliganAdvisor:
             set((self._art.get("lr") or {}).get("vocab", []))
         self._prior = load_prior(prior_path, self.deck, self.carddb, known)
 
-    def advise(self, offered: list, opp_class: str, coin: bool,
+    def advise(self, offered: list, opp_class: str, coin: bool | None,
                explore: bool = False, seed: int | None = None) -> dict | None:
         """起手 card_id 列表 + 对手 CLASS → 事实 dict; 无模型返回 None。
+        coin=None = 不限先/后手(统计表走本职业级联, LR/TabPFN 取先/后手建议
+        的交集, 设计 §6; 审计 2026-09-14 中: 旧实现把 None 压成先手)。
         explore=True 时用 Thompson 采样出探索局(偏离均值的卡列入 deviations)。"""
         self._refresh()
         if self._ver is None or not offered:
@@ -444,23 +465,35 @@ class MulliganAdvisor:
         digest = self._art.get("digest") or []
         cls = opp_class or UNKNOWN
         uniq = sorted(set(offered), key=offered.index)
-        coin_i = 1 if coin else 0
+        coin_i = None if coin is None else (1 if coin else 0)
         advs = {c: card_advice(stats, c, cls, coin_i, deck_wr,
                                self.carddb, self._prior) for c in uniq}
 
-        auc = ((lr or {}).get("metrics") or {}).get("test_auc")
+        # 门控指标以 meta.json 为准(_save_version 会把 metrics 从 model.json
+        # 剥离 —— 旧实现在 model.json 里找恒 None, LR 拍板权永不生效,
+        # 审计 2026-09-14 高; 兼容内联 metrics 的旧产物)
+        auc = (((self._art.get("meta") or {}).get("lr_metrics")
+                or (lr or {}).get("metrics") or {}).get("test_auc"))
         lr_ok = lr is not None and auc is not None and auc >= LR_AUC_GATE
         mean_gains = {c: a["gain"] for c, a in advs.items()}
         pair_bonus = {p: b for p, b in self._prior["pairs"].items()
                       if set(p) <= set(uniq)}
+
+        def _coin_views():
+            return (False, True) if coin_i is None else (bool(coin_i),)
+
         tab_payload = self._art.get("tabpfn")
-        if TabPFNWrap.usable(tab_payload, self.prior_path.parent):
+        if not self.live and TabPFNWrap.usable(tab_payload, self.prior_path.parent):
             if self._tab is None:
                 self._tab = TabPFNWrap(tab_payload, self.prior_path.parent)
-            mean_keep = self._tab.best_set(uniq, bool(coin_i), cls)
+            sets = [self._tab.best_set(uniq, cc, cls) for cc in _coin_views()]
+            mean_keep = sorted(set.intersection(*map(set, sets)), key=uniq.index) \
+                if coin_i is None else sets[0]
             scorer = "tabpfn"
         elif lr_ok:
-            mean_keep = lr_best_set(lr, uniq, bool(coin_i), cls)
+            sets = [lr_best_set(lr, uniq, cc, cls) for cc in _coin_views()]
+            mean_keep = sorted(set.intersection(*map(set, sets)), key=uniq.index) \
+                if coin_i is None else sets[0]
             scorer = "lr"
         else:
             mean_keep = best_keep_set(uniq, mean_gains, pair_bonus)

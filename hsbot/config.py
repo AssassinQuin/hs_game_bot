@@ -50,6 +50,9 @@ DEFAULTS = {
     # 训练语料
     "training_dir": "data/training",
     "auto_training": True,      # 每局结束自动导出训练样本
+    "auto_train_models": True,  # 语料落盘后局终后台增量训练(mulligan/material/
+                                # value 三连子进程; 审计 2026-09-14: 旧键名
+                                # auto_train_model 不在 schema, 是关不掉的死开关)
 }
 
 _FIELDS = tuple(DEFAULTS)  # Config.__init__ 的合法键
@@ -96,8 +99,8 @@ class Config:
     _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha",
               "draw_dedup_seconds")
     _BOOL = ("console_echo", "overlay_enabled", "overlay_topmost",
-             "overlay_borderless", "auto_training", "mulligan_advice",
-             "lethal_plan")
+             "overlay_borderless", "auto_training", "auto_train_models",
+             "mulligan_advice", "lethal_plan")
     _PATH = ("logs_dir", "data_dir", "training_dir")
 
     def __init__(self, **values) -> None:
@@ -128,6 +131,12 @@ class Config:
                 data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
                 picked = {k: data[k] for k in _FIELDS if data.get(k) not in (None, "")}
                 values.update(picked)
+                # 审计 2026-09-14 中: 白名单外的键不再静默丢弃 —— 拼错的键
+                # 曾造成"写了开关却不生效"(如旧 auto_train_model)
+                unknown = [k for k in data if k not in _FIELDS]
+                if unknown:
+                    log.warning("config.yaml 未知键被忽略(不在配置 schema): %s",
+                                ", ".join(map(str, unknown)))
                 source = str(yaml_path)
             except Exception as exc:  # noqa: BLE001
                 log.error("config.yaml 解析失败(%s), 改用内置默认", exc)
