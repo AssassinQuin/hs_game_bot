@@ -218,9 +218,13 @@ class AutoModelTrainer:
             for argv in self.commands():
                 try:
                     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+                    # encoding 必须钉 utf-8 与子进程的 PYTHONIOENCODING 对齐:
+                    # text=True 缺省用 locale(GBK), 解码中文输出即崩
+                    # (_readerthread UnicodeDecodeError, 成功训练被吞成"无变化")
                     proc = subprocess.Popen(
                         argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                        text=True, cwd=str(Path(__file__).resolve().parents[1]),
+                        text=True, encoding="utf-8", errors="replace",
+                        cwd=str(Path(__file__).resolve().parents[1]),
                         env=env)
                     self._proc = proc
                     try:

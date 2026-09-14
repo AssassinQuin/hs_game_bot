@@ -359,3 +359,28 @@ def test_auto_trainer_exit_cleanup(tmp_path, monkeypatch):
     t._proc = _P()
     t._cleanup()
     assert killed == [1]
+
+
+def test_auto_trainer_popen_decodes_utf8(tmp_path, monkeypatch):
+    """子进程输出是 UTF-8(喂了 PYTHONIOENCODING), 但父进程 text=True 未钉
+    encoding → 本机 GBK locale 在 _readerthread 解码崩(实测 2026-09-14 晚),
+    communicate 吞空 → 成功训练被正则漏掉、上报成"无变化"(违 R12)。"""
+    from hsbot.watcher import AutoModelTrainer
+    captured = {}
+
+    class _P:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            return ("模型已保存: data/models/mulligan/测试/v002\n", "")
+
+    def fake_popen(*a, **k):
+        captured.update(k)
+        return _P()
+
+    monkeypatch.setattr("hsbot.watcher.subprocess.Popen", fake_popen)
+    msgs: list = []
+    AutoModelTrainer(Config.load({"data_dir": str(tmp_path)}),
+                     msgs.append)._run()              # 直接跑(不起线程)
+    assert captured.get("encoding") == "utf-8"        # ← 修复前缺失(红)
+    assert any("v002" in m for m in msgs), msgs       # UTF-8 输出能被捕获解析
