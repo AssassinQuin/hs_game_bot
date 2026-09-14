@@ -307,7 +307,7 @@ def test_stat_fields_ramp_discount_capped_by_targets(tmp_path):
 
     a = EffectAnalyzer(db)
     types = {"TTN_955": CardType.SPELL.value, "MOON_0": CardType.SPELL.value,
-             "SPELL_2": CardType.SPELL.value}
+             "SPELL_2": CardType.SPELL.value, "SC_755": CardType.SPELL.value}
 
     def _scene(hand_cids):
         st, _ = _store()
@@ -329,3 +329,10 @@ def test_stat_fields_ramp_discount_capped_by_targets(tmp_path):
     k2.rebuild(st)
     f2 = stat_fields(st, knowledge=k2, carddb=db, analyzer=a)
     assert f2["ramp_hand"] == 1 and f2["ramp_deck"] == 4
+    # 混型回归钉: next: 减费牌在手(水晶塔)+牌库星灵目标——hand 侧目标表曾
+    # 混入 (cid,费) 元组致 max() TypeError(replay 真卡组必崩), 解包修复钉死
+    st = _scene(["SC_755"])
+    k3 = DeckKnowledge({"SC_755": 1, "SC_753": 1}, db, "测试")
+    k3.rebuild(st)
+    f3 = stat_fields(st, knowledge=k3, carddb=db, analyzer=a)
+    assert f3["ramp_hand"] == 2 and f3["ramp_deck"] == 0
