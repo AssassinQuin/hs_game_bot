@@ -118,10 +118,97 @@ def test_plan_degenerate_empty_actions_no_crash(tmp_path):
     assert "可斩: (无动作) 伤?+场? ≥ ?" in out
 
 
+def test_plan_line_optimal_when_not_lethal(tmp_path):
+    """非可斩也出线(输出语义两级契约): `最优: … 伤X+场Y vs 敌Z`,
+    绝不写"可斩"二字(总伤未达敌血); 措辞与可斩行明确区分。"""
+    from hsbot.render import plan_line, stat_fields
+
+    st, db, a = _scene(tmp_path)
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a,
+                    plan={**_PLAN, "lethal": False})
+    line = plan_line(f)
+    assert line == "最优: 火球术(4费)→UNKNOWN_X(0费) 伤6+场0 vs 敌2"
+    assert "可斩" not in line
+
+
+def test_plan_line_optimal_expectation_annotation(tmp_path):
+    """face_exp>0 → 追加 `+期望N` 注记; 期望分量绝不与确定伤合并
+    (伤X 保持确定伤原值, 宁漏勿错口径)。"""
+    from hsbot.render import plan_line, stat_fields
+
+    st, db, a = _scene(tmp_path)
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a,
+                    plan={**_PLAN, "lethal": False, "face_exp": 4})
+    assert plan_line(f) == \
+        "最优: 火球术(4费)→UNKNOWN_X(0费) 伤6+场0+期望4 vs 敌2"
+
+
+def test_plan_line_empty_line_degenerate_hidden(tmp_path):
+    """空线退化: actions 空且 零确定伤 且 零期望 → 不出行(诚实: 无建议可给;
+    契约口径不含 board_atk —— 即便场攻>0 也按无建议隐藏, 宁漏勿错)。"""
+    from hsbot.render import plan_line, stat_fields
+
+    st, db, a = _scene(tmp_path)
+    zeros = {"actions": [], "total": 0, "face_det": 0, "face_exp": 0,
+             "lethal": False, "enemy_total": 2, "board_atk": 0,
+             "uncovered_n": 0}
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a, plan=zeros)
+    assert plan_line(f) is None
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a,
+                    plan={**zeros, "board_atk": 3})
+    assert plan_line(f) is None               # 契约: 三条件全零即隐藏
+
+
+def test_plan_data_line_facts_only():
+    """数据行(支撑数据, dim 小字): 剩费=mana_trace 末位(打完整线后剩余),
+    未覆盖张数=uncovered_n; 机读事实驱动零编造 —— 缺 mana_trace(T1 未下发)/
+    零未覆盖 → 该段省略; 两项全无 → None。"""
+    from hsbot.render import plan_data_line
+
+    assert plan_data_line({"plan": {"mana_trace": (5, 3, 0),
+                                    "uncovered_n": 2}}) \
+        == "剩费0 · 未覆盖2张"
+    assert plan_data_line({"plan": {"uncovered_n": 1}}) == "未覆盖1张"
+    assert plan_data_line({"plan": {"mana_trace": (5, 3)}}) == "剩费3"
+    assert plan_data_line({"plan": {"mana_trace": (), "uncovered_n": 0}}) is None
+    assert plan_data_line({"plan": {}}) is None      # 旧形态无 mana_trace 键
+    assert plan_data_line({"plan": None}) is None
+
+
+def test_plan_rows_composition_and_tone(tmp_path):
+    """plan_rows(推荐区行组装): 首行=线行(可斩金/advice 色, 非可斩最优
+    常规/stat 色), 次行=数据行(dim); 空线退化 → []; 数据行仅在有事实时出。"""
+    from hsbot.render import plan_rows, stat_fields
+
+    st, db, a = _scene(tmp_path)
+    plan = {**_PLAN, "mana_trace": (5, 3), "uncovered_n": 1}
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a, plan=plan)
+    assert plan_rows(f) == [
+        ("可斩: 火球术(4费)→UNKNOWN_X(0费) 伤6+场0 ≥ 2", "advice"),
+        ("剩费3 · 未覆盖1张", "dim")]
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a,
+                    plan={**plan, "lethal": False})
+    rows = plan_rows(f)
+    assert rows[0] == ("最优: 火球术(4费)→UNKNOWN_X(0费) 伤6+场0 vs 敌2",
+                       "stat")
+    assert rows[1] == ("剩费3 · 未覆盖1张", "dim")
+    # 空线退化 / 无 plan → 空行集(诚实)
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a,
+                    plan={**_PLAN, "lethal": False, "actions": [],
+                          "face_det": 0, "face_exp": 0})
+    assert plan_rows(f) == []
+    assert plan_rows({"plan": None, "_carddb": db}) == []
+    # 无支撑数据事实 → 只有线行
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a, plan=_PLAN)
+    assert plan_rows(f) == [
+        ("可斩: 火球术(4费)→UNKNOWN_X(0费) 伤6+场0 ≥ 2", "advice")]
+
+
 def test_advice_panel_plan_line_row(tmp_path):
     """overlay 中上部推荐区(2026-09-14 三区布局): plan.lethal → 推荐区首行
-    "可斩: …"(金/advice 色); 无 plan / 非可斩 → 行隐藏不占位;
-    留牌行共存时可斩线排第一(top1 打法)。"""
+    "可斩: …"(金/advice 色); 非可斩 → "最优: …"(常规/stat 色, 语义两级);
+    无 plan(未解析/无手牌) → 不出新行不编造; 留牌行共存时线行排第一。
+    行值驻留: plan=None 的后续更新(对手回合)不清线, 仅 reset 清空。"""
     tk = pytest.importorskip("tkinter")
     try:
         root = tk.Tk()
@@ -130,22 +217,27 @@ def test_advice_panel_plan_line_row(tmp_path):
         pytest.skip(f"无可用显示: {exc}")
     try:
         from hsbot.overlay import _DEFAULT_COLORS, _AdvicePanel
-        from hsbot.render import plan_line, stat_fields
+        from hsbot.render import plan_rows, stat_fields
 
         st, db, a = _scene(tmp_path)
         f = stat_fields(st, knowledge=None, carddb=db, analyzer=a, plan=_PLAN)
         p = _AdvicePanel(tk, root, dict(_DEFAULT_COLORS), 10)
-        p.set_plan(plan_line({"plan": None}))          # 无 plan → 隐藏
+        p.set_plan(plan_rows({"plan": None}))          # 无 plan → 不编造
         assert all(l.cget("text") == "" for l in p._labels)
-        p.set_plan(plan_line(f))                       # 可斩 → 首行显示
+        p.set_plan(plan_rows(f))                       # 可斩 → 首行金色
         assert p._labels[0].cget("text") == _LINE3
         assert p._labels[0].cget("foreground") == _DEFAULT_COLORS["advice"]
         p.set_advice([("留 火球术(+20.0%)", "advice")])   # 与留牌行共存
         assert [l.cget("text") for l in p._labels][:2] == \
             [_LINE3, "留 火球术(+20.0%)"]
-        p.set_plan(plan_line({**f, "plan": {**_PLAN, "lethal": False}}))
-        assert p._labels[0].cget("text") == "留 火球术(+20.0%)"   # 非可斩: 退位
-        p.reset()
+        opt = plan_rows({**f, "plan": {**_PLAN, "lethal": False}})
+        p.set_plan(opt)                                # 非可斩: 最优行替换
+        assert p._labels[0].cget("text") == \
+            "最优: 火球术(4费)→UNKNOWN_X(0费) 伤6+场0 vs 敌2"
+        assert p._labels[0].cget("foreground") == _DEFAULT_COLORS["stat"]
+        p.set_plan(plan_rows({"plan": None}))          # 对手回合: 值驻留不清
+        assert p._labels[0].cget("text").startswith("最优: ")
+        p.reset()                                      # 仅局终清空
         assert all(l.cget("text") == "" for l in p._labels)
     finally:
         root.destroy()

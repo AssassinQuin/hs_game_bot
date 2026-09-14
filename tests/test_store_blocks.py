@@ -434,6 +434,73 @@ def test_mulligan_replacement_draws_recorded():
     assert st.mulligan_facts()[1]["replaced_in"] == ["EX1_169"]
 
 
+def test_mulligan_replaced_in_first_player_count_gate():
+    """先手局 gotcha 40: 我方 T1 turn_start(CURRENT_PLAYER 翻转驱动)先于留牌
+    决定发生, "决定后首回合开始"关闸失效 —— 换入窗口整个 T1 敞开, T1 常规抽/
+    效果抽被误记进 replaced_in(g12 实证 5 张, 应 3)。数量闸: 换几张补几张,
+    决定后补牌紧随 SendChoices 成批到达, 凑满应补数即关窗。"""
+    st, _log = _store()
+    _heroes(st)
+    for eid, cid in [(10, "TIME_701"), (11, "VAC_519"), (12, "AV_295"),
+                     (13, "EX1_169")]:
+        st.apply(mk_full(eid, cid, ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st._on_turn_start(1)                                   # 先手 T1: 在决定之前!
+    st.apply(mk_choices_mulligan(2, 7, [10, 11, 12]))      # 起手三张
+    st.apply(mk_send_mulligan(7, []))                      # 全换 → 应补 3 张
+    st.hint_draw(20, "TIME_701", 1)                        # 补牌紧随决定成批到达
+    st.hint_draw(21, "VAC_519", 1)
+    st.hint_draw(22, "AV_295", 1)                          # 第 3 张: 凑满 → 关窗
+    facts = st.mulligan_facts()[1]
+    assert facts["replaced_in"] == ["TIME_701", "VAC_519", "AV_295"]
+    st.hint_draw(13, "EX1_169", 1)                         # T1 回合抽: 不入
+    st.hint_draw(23, "SCH_427", 1)                         # T1 效果抽: 不入
+    assert st.mulligan_facts()[1]["replaced_in"] == ["TIME_701", "VAC_519", "AV_295"]
+
+
+def test_mulligan_replaced_in_gate_skips_coin():
+    """后手局数量闸: 硬币不属于补牌(gotcha 9 换掉=offered−kept−硬币),
+    不计应补数也不入 replaced_in; 补牌凑满即关窗, 早于首回合 turn_start。"""
+    st, _log = _store()
+    _heroes(st)
+    st.apply(mk_full(10, "CS2_029", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_full(11, "EX1_169", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_full(12, "GAME_005", ZONE=Zone.HAND.value, CONTROLLER=1))
+    st.apply(mk_choices_mulligan(2, 7, [10, 11, 12]))      # 后手: 可留含硬币
+    st.apply(mk_send_mulligan(7, [10, 12]))                # 留 10+硬币, 换 11
+    st.hint_draw(13, "VAC_519", 1)                         # 唯一补牌 → 凑满关窗
+    st.hint_draw(14, "GAME_005", 1)                        # 硬币换入路径: 不入账
+    st.hint_draw(15, "OG_048", 1)                          # 其后抽牌: 已关
+    assert st.mulligan_facts()[1]["replaced_in"] == ["VAC_519"]
+
+
+def test_mulligan_replaced_in_keep_all_closes_at_decide():
+    """全留(换 0 张): 决定即关窗, 其后任何抽牌(含 T1)不入 replaced_in。"""
+    st, _log = _store()
+    _heroes(st)
+    st.apply(mk_full(10, "CS2_029", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_full(11, "EX1_169", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_choices_mulligan(2, 7, [10, 11]))
+    st.apply(mk_send_mulligan(7, [10, 11]))                # 全留
+    st.hint_draw(12, "OG_048", 1)                          # T1 抽牌
+    assert st.mulligan_facts()[1]["replaced_in"] == []
+
+
+def test_mulligan_replaced_in_underfill_falls_back_to_turn_start():
+    """补牌缺额(隐藏抽牌 cid 空 / 引擎异常, 计不满应补数): 窗口不提前关,
+    turn_start 兜底关窗 —— 不死锁, 缺额局的 T1 抽牌仍被关闸挡住。"""
+    st, _log = _store()
+    _heroes(st)
+    st.apply(mk_full(10, "CS2_029", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_full(11, "EX1_169", ZONE=Zone.DECK.value, CONTROLLER=1, COST=1))
+    st.apply(mk_choices_mulligan(2, 7, [10, 11]))
+    st.apply(mk_send_mulligan(7, [10]))                    # 换 1 张, 补牌未揭示
+    st.hint_draw(12, "", 1)                                # cid 空: 不计数不死锁
+    assert st.mulligan_facts()[1]["replaced_in"] == []
+    st._on_turn_start(1)                                   # 兜底关窗
+    st.hint_draw(13, "OG_048", 1)
+    assert st.mulligan_facts()[1]["replaced_in"] == []
+
+
 def test_discover_flow():
     st, log = _store()
     _heroes(st)

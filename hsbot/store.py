@@ -83,8 +83,9 @@ class MulliganState:
     offered: list = field(default_factory=list)
     kept: list = field(default_factory=list)
     decided: bool = False               # 对手不广播决定 → kept 有值即 decided
-    replaced_in: list = field(default_factory=list)  # 换入的牌(决定后、首回合前抽到)
-    closed: bool = False                # 该玩家首回合开始: 换入窗口关闭
+    replaced_in: list = field(default_factory=list)  # 换入的牌(决定后、窗口关闭前抽到)
+    closed: bool = False                # 换入窗口关闭: 补牌凑满(数量闸)或首回合开始
+    expected_in: int | None = None      # 应补张数=换掉张数(留牌决定时定); None=未决定
 
 
 class GameStore:
@@ -131,6 +132,7 @@ class GameStore:
         self._draw_dedup = draw_dedup       # 同实体多重揭示路径的去重窗口(秒)
         self._ent2pid: dict[int, PlayerKey] = {}
         self._ended = False
+        self._play_offer_due = False    # 我方打出后批尾重发 play_offer 的挂起标记
         self._subs: list[EventCb] = []
         self.unhandled: deque = deque(maxlen=500)   # raw 台账(spec §3.4 全量收录, 上限 500)
 
@@ -693,11 +695,14 @@ class GameStore:
         self._entered_play = set()        # 新回合: 上回合进场的随从不再失调
         m = self.mulligan.get(key)
         if m is not None and m.decided:
-            m.closed = True                # 决定后的首回合开始: 换牌换入窗口关闭
+            m.closed = True                # 决定后的首回合开始: 换入窗口关闭
+                                           # (数量闸缺额时的兜底, 防 T1 后误记)
         if prev is None:
             # 首个行动方(先手的留牌回合)
             self._emit_event({"kind": "turn_start", "actor": key, "prev": None,
                               "first": True, "my_turn_no": 1, "total_turn": 1})
+            if key == self.friendly_key:
+                self._emit_event({"kind": "play_offer", "actor": key})
             return
         if prev == key or self._ended:
             return
@@ -709,6 +714,10 @@ class GameStore:
         total = 2 * n - (1 if first_key == key else 0)
         self._emit_event({"kind": "turn_start", "actor": key, "prev": prev,
                           "first": False, "my_turn_no": n, "total_turn": total})
+        if key == self.friendly_key:
+            # T2 出牌建议时机(我方 turn_start 出主建议): 事件只报时机,
+            # 排序事实由 analysis.enrich 挂建议器产出, 措辞归 render
+            self._emit_event({"kind": "play_offer", "actor": key})
 
     # ---- 实体/揭示衍生(Task 4 实现块/选择; 这两个在本任务即有行为) ----
     def _on_full_entity(self, p) -> None:
@@ -751,13 +760,22 @@ class GameStore:
         self._emit_event({"kind": "draw", "card_id": cid, "actor": actor})
 
     def _note_mulligan_replacement(self, cid: str, actor) -> None:
-        """换牌换入的牌: 该玩家留牌决定之后、其首回合开始之前的抽牌。
-        最终手牌事实, 随留牌训练样本落盘(2026-09-13 用户要求)。"""
+        """换牌换入的牌: 该玩家留牌决定之后、换入窗口关闭之前的抽牌。
+        最终手牌事实, 随留牌训练样本落盘(2026-09-13 用户要求)。
+        关窗双闸(gotcha 40): 数量闸——补牌凑满应补数即关(先手局的
+        "决定后首回合开始"失效, 见 _mulligan_decide); turn_start 兜底——
+        补牌缺额(隐藏/引擎异常)时不死锁, 仍按首回合开始关闭。"""
         if not cid or is_coin(cid):
             return
         m = self.mulligan.get(actor)
         if m is not None and m.decided and not m.closed:
+            if m.expected_in is not None and len(m.replaced_in) >= m.expected_in:
+                m.closed = True        # 已凑满/应补为0: 关窗, 后续抽牌不入
+                return
             m.replaced_in.append(cid)
+            if (m.expected_in is not None
+                    and len(m.replaced_in) >= m.expected_in):
+                m.closed = True        # 补牌到齐: 即刻关窗
 
     # ================= 块(spec §3.4 补全: TRIGGER/疲劳) =================
     def _on_block(self, p, depth: int = 0) -> None:
@@ -847,6 +865,12 @@ class GameStore:
             self._emit_play(p, cost_tag)
         finally:
             self._drain_deferred()
+            if self._play_offer_due:
+                # T2 出牌建议时机(每次我方打出后批尾重发): 抽牌/回费事件已
+                # 到齐(块内扣留事件已冲出), 建议按打完后的局面重算
+                self._play_offer_due = False
+                self._emit_event({"kind": "play_offer",
+                                  "actor": self.friendly_key})
 
     def _emit_play(self, p, cost_tag: int | None) -> None:
         eid = p.entity
@@ -874,6 +898,7 @@ class GameStore:
             # 通用模式判定只看"来自卡组"的牌: 衍生牌/硬币不算卡组不匹配
             if not is_generated(e) and not is_coin(cid):
                 self.played_cids.add(cid)
+        self._play_offer_due = actor == self.friendly_key
 
     def choose_one_buttons(self, eid: int | None) -> list:
         """抉择按钮实体(PARENT_CARD=主卡), 按实体号排序 —— 实体号序即抉择顺序。
@@ -976,6 +1001,16 @@ class GameStore:
         m = self.mulligan.setdefault(key, MulliganState())
         m.kept = kept
         m.decided = True
+        # 数量闸(gotcha 40): 先手局的 T1 turn_start 由 CURRENT_PLAYER 翻转驱动,
+        # 发生在留牌决定之前, "决定后首回合开始"关闸对先手失效。改按数量关窗:
+        # 换几张补几张(补牌紧随 SendChoices 成批到达), 应补数=换掉张数
+        # =offered−kept−硬币(gotcha 9, 硬币不属于补牌)。用引擎实体/数量关系,
+        # 不逐卡硬编码。
+        coins = {e for e in m.offered if is_coin(self.cid_of(e))}
+        m.expected_in = len([e for e in m.offered
+                             if e not in kept and e not in coins])
+        if m.expected_in == 0:
+            m.closed = True            # 无可补(全留): 决定即关窗
         if key not in self._mulligan_emitted:
             self._mulligan_emitted.add(key)
             self._emit_event({"kind": "mulligan", "actor": key,
@@ -983,7 +1018,7 @@ class GameStore:
 
     def mulligan_facts(self) -> dict:
         """留牌事实(唯一推导): {pid: {offered/kept/replaced/replaced_in/decided}}。
-        replaced_in = 换牌换入(决定后、首回合前的抽牌), 即最终手牌的补充。"""
+        replaced_in = 换牌换入(决定后、换入窗口关闭前的抽牌), 即最终手牌的补充。"""
         out = {}
         for pid, m in self.mulligan.items():
             def names(eids):

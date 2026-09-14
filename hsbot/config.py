@@ -53,6 +53,9 @@ DEFAULTS = {
     "lethal_plan": True,        # 斩杀线规划(信息区"可斩"行: DFS 手牌出牌线,
                                 # 见 docs/PLAY_ADVICE.md §6; planner 缺席/未解析
                                 # 时诚实降级, 不影响既有两行)
+    "play_ai": True,            # 出牌建议(T2: 世界节点×价值模型排序, 同款模式:
+                                # 语料<300 局自动静默; false=整条环静默, 见
+                                # docs/PLAY_ADVICE.md §1-T2)
     # 训练语料
     "training_dir": "data/training",
     "auto_training": True,      # 每局结束自动导出训练样本
@@ -107,7 +110,7 @@ class Config:
     _BOOL = ("console_echo", "overlay_enabled", "overlay_topmost",
              "overlay_borderless", "overlay_log_transparent",
              "auto_training", "auto_train_models",
-             "mulligan_advice", "lethal_plan")
+             "mulligan_advice", "lethal_plan", "play_ai")
     _PATH = ("logs_dir", "data_dir", "training_dir")
 
     def __init__(self, **values) -> None:

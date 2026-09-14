@@ -220,9 +220,12 @@ def test_facts_dict_matches_contract(tmp_path, planner_stub):
     st, db, a = _scene(tmp_path)
     plan = _lethal_plan(st, None, a)
     assert set(plan) == {"actions", "total", "face_det", "face_exp",
-                         "lethal", "enemy_total", "board_atk", "uncovered_n"}
+                         "lethal", "enemy_total", "board_atk", "uncovered_n",
+                         "mana_trace"}
     assert isinstance(plan["actions"], list)
     assert all(isinstance(a, tuple) and len(a) == 2 for a in plan["actions"])
+    assert isinstance(plan["mana_trace"], tuple)
+    assert all(isinstance(v, int) for v in plan["mana_trace"])
     for key in ("total", "face_det", "face_exp", "board_atk", "uncovered_n"):
         assert isinstance(plan[key], int), key
     assert isinstance(plan["lethal"], bool)

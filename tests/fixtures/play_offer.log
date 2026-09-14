@@ -1,0 +1,35 @@
+D 20:00:00.0000000 GameState.DebugPrintPower() - CREATE_GAME
+D 20:00:00.0000000 GameState.DebugPrintPower() -     GameEntity EntityID=1
+D 20:00:00.0000000 GameState.DebugPrintPower() -         tag=TURN value=1
+D 20:00:00.0000000 GameState.DebugPrintPower() -     Player EntityID=2 PlayerID=1 GameAccountId=[hi=2 lo=1]
+D 20:00:00.0000000 GameState.DebugPrintPower() -     Player EntityID=3 PlayerID=2 GameAccountId=[hi=2 lo=2]
+D 20:00:00.0000001 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=4 CardID=HERO_01a
+D 20:00:00.0000001 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO
+D 20:00:00.0000001 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 20:00:00.0000001 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 20:00:00.0000001 GameState.DebugPrintPower() -     tag=HEALTH value=30
+D 20:00:00.0000002 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=5 CardID=HERO_02a
+D 20:00:00.0000002 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO
+D 20:00:00.0000002 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 20:00:00.0000002 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 20:00:00.0000002 GameState.DebugPrintPower() -     tag=HEALTH value=30
+D 20:00:00.0000003 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=10 CardID=CS2_029
+D 20:00:00.0000003 GameState.DebugPrintPower() -     tag=ZONE value=HAND
+D 20:00:00.0000003 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 20:00:00.0000003 GameState.DebugPrintPower() -     tag=CARDTYPE value=SPELL
+D 20:00:00.0000003 GameState.DebugPrintPower() -     tag=COST value=4
+D 20:00:00.0000003 GameState.DebugPrintPower() -     tag=ZONE_POSITION value=1
+D 20:00:00.0000006 GameState.DebugPrintGame() - BuildNumber=250339
+D 20:00:00.0000006 GameState.DebugPrintGame() - PlayerID=1, PlayerName=RIVAL#1
+D 20:00:00.0000006 GameState.DebugPrintGame() - PlayerID=2, PlayerName=湫然#51704
+D 20:00:00.0000007 GameState.DebugPrintEntityChoices() - id=1 Player=湫然#51704 TaskList=6 ChoiceType=MULLIGAN CountMin=0 CountMax=3
+D 20:00:00.0000007 GameState.DebugPrintEntityChoices() -   Source=GameEntity
+D 20:00:00.0000007 GameState.DebugPrintEntityChoices() -   Entities[0]=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=DECK zonePos=0 cardId= player=2]
+D 20:00:00.0000007 GameState.DebugPrintEntityChoices() -   Entities[1]=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=78 zone=DECK zonePos=0 cardId= player=2]
+D 20:00:00.0000007 GameState.DebugPrintEntityChoices() -   Entities[2]=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=61 zone=DECK zonePos=0 cardId= player=2]
+D 20:00:00.0000010 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=RESOURCES value=5
+D 20:00:00.0000011 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=CURRENT_PLAYER value=1
+D 20:00:00.0000020 GameState.DebugPrintPower() - BLOCK_START BlockType=PLAY Entity=10 EffectCardId= EffectIndex=-1 Target=0
+D 20:00:00.0000021 GameState.DebugPrintPower() - TAG_CHANGE Entity=10 tag=ZONE value=PLAY
+D 20:00:00.0000021 GameState.DebugPrintPower() - TAG_CHANGE Entity=10 tag=CARDTYPE value=SPELL
+D 20:00:00.0000022 GameState.DebugPrintPower() - BLOCK_END

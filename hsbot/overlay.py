@@ -10,8 +10,9 @@
   三区布局(2026-09-14 用户定版, 上/中上部背景真不透明):
     上区   = 信息面板(KIND_STAT 机读字段驱动, 两行×3格: 敌/理论伤害/法力 +
              回费/减费/法术费);
-    中上部 = 推荐区(KIND_ADVICE 留牌建议 + KIND_STAT.plan 可斩线,
-             render.advice_rows/plan_line 措辞, 推荐打法 top3 封顶);
+    中上部 = 推荐区(KIND_ADVICE 留牌建议 + KIND_STAT.plan 可斩/最优线
+             +数据行, render.advice_rows/plan_rows 措辞, 推荐打法 top3 封顶,
+             值常驻到局终);
     中下   = 日志流(局终清空并重置上两区)。
   不透明实现: 整窗 alpha=1.0, 日志区背景色经 -transparentcolor 镂空
   (游戏透出、面板实底、透明区点击穿透给游戏); 平台不支持或
@@ -27,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .persist import atomic_write_text
-from .render import advice_rows, plan_line
+from .render import advice_rows, plan_rows, play_offer_rows
 
 _MAX_LINES = 1500  # 窗口内保留的最大行数(防止内存/渲染膨胀)
 
@@ -205,10 +206,20 @@ class _AdvicePanel:
     """中上部推荐区(三区布局中上部): 推荐打法 top3 行, 实底不透明。
 
     行来源全部是机读事实, 措辞归 render(悬浮窗不二次格式化):
-      * KIND_STAT.plan → render.plan_line "可斩: …"(确定性最优, 排第一);
-      * KIND_ADVICE.data → render.advice_rows(留牌主行 + 胜率证据行)。
-    行集 = 可斩行 + 留牌行, 封顶 _ADVICE_PANEL_ROWS(用户: top3);
-    保留到被新事实替换或局终重置(留牌建议在留牌阶段后仍可见, 不闪烁)。"""
+      * KIND_STAT.plan → render.plan_rows(可斩/最优线首行 + 支撑数据行);
+      * KIND_ADVICE.data(kind="play_offer") → render.play_offer_rows
+        (出牌建议主行 + 语料/版本证据行, T2);
+      * KIND_ADVICE.data(其余=留牌建议) → render.advice_rows
+        (留牌主行 + 胜率证据行)。
+    行集按 线行 > play_offer 行 > 留牌行 > 数据行 优先级封顶
+    _ADVICE_PANEL_ROWS(用户: top3)。定版依据(2026-09-14 T2): 线行是确定性
+    引擎(可证明、当拍可执行)必须居首; play_offer 主行是本回合的统计最优,
+    时效以回合为限, 优先于早已过期的开局留牌行(留牌只服务 T1, 之后是陈旧
+    事实); 数据行是支撑小字, 恒殿后 —— 恰好 top3 = 线行/play/留牌。
+    常驻语义(2026-09-14 用户实测反馈: 中局推荐区别空着): 线行/play 行/
+    数据行值驻留 —— plan=None / play 空更新的更新不出新行也不清旧值, 持续
+    显示到被新事实替换或局终重置(留牌建议同理, 不闪烁);
+    诚实口径: 没算出过线/建议时本来就空, 绝不编造。"""
 
     _TONE_FG = {"advice": "advice", "dim": "stat_dim"}   # 色调 → 颜色表键
 
@@ -223,7 +234,8 @@ class _AdvicePanel:
         tk.Label(frame, text="推荐打法", bg=bg, fg=colors["stat_dim"],
                  font=(cjk, font_size - 2), anchor="w") \
             .pack(fill="x", padx=8, pady=(2, 0))
-        self._plan: str | None = None
+        self._plan_rows: list[tuple[str, str]] = []
+        self._play: list[tuple[str, str]] = []
         self._advice: list[tuple[str, str]] = []
         self._labels = [tk.Label(frame, text="", bg=bg, fg=colors["stat_dim"],
                                  font=(cjk, font_size - 1), justify="left",
@@ -236,10 +248,19 @@ class _AdvicePanel:
         for lab in self._labels:
             lab.configure(wraplength=w)
 
-    def set_plan(self, line: str | None) -> None:
-        """可斩线机读措辞(plan_line 产物); None = 非 可斩/对手回合 → 隐藏。"""
-        self._plan = line or None
-        self._render()
+    def set_plan(self, rows: list[tuple[str, str]]) -> None:
+        """线行+数据行(plan_rows 产物: (文本, 色调) 列表); 空行集 = 本次
+        更新未携带 plan(对手回合/未解析/无手牌) → 值驻留, 不清旧行。"""
+        if rows:
+            self._plan_rows = list(rows)
+            self._render()
+
+    def set_play(self, rows: list[tuple[str, str]]) -> None:
+        """出牌建议行(play_offer_rows 产物); 空行集 = 本次更新未携带建议
+        (无模型/门槛未达/无候选) → 值驻留, 不清旧行。"""
+        if rows:
+            self._play = list(rows)
+            self._render()
 
     def set_advice(self, rows: list[tuple[str, str]]) -> None:
         """留牌建议行(advice_rows 产物: (文本, 色调) 列表)。"""
@@ -248,12 +269,17 @@ class _AdvicePanel:
 
     def reset(self) -> None:
         """局终重置: 清空全部推荐行。"""
-        self._plan = None
+        self._plan_rows = []
+        self._play = []
         self._advice = []
         self._render()
 
     def _render(self) -> None:
-        rows = ([(self._plan, "advice")] if self._plan else []) + self._advice
+        # 截断优先级(T2 定版): 线行 > play_offer 主行 > 留牌行 > 数据行
+        # (play 证据行与 plan 数据行同为 dim 支撑行, 恒在主行之后让位);
+        # _labels 恰为 _ADVICE_PANEL_ROWS 个, 超出的行自然不渲染(封顶三行内)
+        rows = (self._plan_rows[:1] + self._play[:1] + self._advice
+                + self._play[1:] + self._plan_rows[1:])
         for i, lab in enumerate(self._labels):
             if i < len(rows):
                 text, tone = rows[i]
@@ -426,15 +452,21 @@ class OverlayWindow:
                             kind, text = item[0], item[1]
                             data = item[3] if len(item) > 3 else None
                             if kind == KIND_STAT:      # 上区: 整体替换,
-                                if data:               # 可斩线进推荐区
+                                if data:               # 线行+数据行进推荐区
                                     self._panel.update(data)
-                                    self._advice.set_plan(plan_line(data))
+                                    self._advice.set_plan(plan_rows(data))
                                 else:                  # 旧形态无机读字段
                                     self._panel.set_raw(text)
                                 continue
                             if kind == KIND_ADVICE and data:
-                                # 推荐区: 机读字段驱动(留牌主行+胜率证据行)
-                                self._advice.set_advice(advice_rows(data))
+                                # 推荐区: 机读字段驱动, 按 data.kind 分流
+                                # (play_offer=出牌建议; 其余=留牌建议)
+                                if data.get("kind") == "play_offer":
+                                    self._advice.set_play(
+                                        play_offer_rows(data))
+                                else:
+                                    self._advice.set_advice(
+                                        advice_rows(data))
                             if kind == KIND_GAME_END:
                                 # 局终(打完一局): 清空日志流水 + 重置上两区,
                                 # 终局行本身保留为新一屏的首行

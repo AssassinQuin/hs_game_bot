@@ -101,8 +101,9 @@ def test_stat_panel_new_cells():
 
 
 def test_advice_panel_top3():
-    """推荐区: plan(可斩线)占首行 advice 金色; 留牌行其后的 dim 证据行;
-    总行数封顶 3; reset 清空。"""
+    """推荐区: 线行(plan)占首行(可斩金/advice 色), 留牌行其后的 dim 证据行;
+    总行数封顶 3; reset 清空。行值驻留: plan 空更新不清线(对手回合),
+    仅局终 reset 清空。"""
     root = tk.Tk()
     root.withdraw()
     try:
@@ -113,14 +114,44 @@ def test_advice_panel_top3():
                       ("多余行", "dim")])
         assert [l.cget("text") for l in p._labels] == \
             ["留 好牌", "卡组胜率 54%", "多余行"]
-        p.set_plan("可斩: 火球术(4费) 伤6 ≥ 2")
+        p.set_plan([("可斩: 火球术(4费) 伤6 ≥ 2", "advice")])
         texts = [l.cget("text") for l in p._labels]
         assert texts[0] == "可斩: 火球术(4费) 伤6 ≥ 2"
         assert len(texts) == _ADVICE_PANEL_ROWS          # 封顶 3(用户 top3)
         assert texts[1:] == ["留 好牌", "卡组胜率 54%"]   # 多余行被截断
         assert p._labels[0].cget("foreground") == _DEFAULT_COLORS["advice"]
+        p.set_plan([])                       # 对手回合/未解析: 值驻留不清线
+        assert p._labels[0].cget("text") == "可斩: 火球术(4费) 伤6 ≥ 2"
         p.reset()
         assert all(l.cget("text") == "" for l in p._labels)
+    finally:
+        root.destroy()
+
+
+def test_advice_panel_line_data_advice_priority():
+    """共存截断优先级(用户定版): 线行 > 留牌行 > 数据行, 保持三行内 ——
+    线行+留牌行×2 时数据行让位; 线行+留牌行×1 时数据行保留;
+    非可斩最优线用常规 stat 色(金只给可斩, 语义两级)。"""
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        from hsbot.overlay import _DEFAULT_COLORS, _AdvicePanel
+        p = _AdvicePanel(tk, root, dict(_DEFAULT_COLORS), 10)
+        opt = [("最优: 火球术(4费) 伤6+场0 vs 敌22", "stat"),
+               ("剩费3 · 未覆盖2张", "dim")]
+        p.set_plan(opt)
+        assert [l.cget("text") for l in p._labels[:2]] == \
+            ["最优: 火球术(4费) 伤6+场0 vs 敌22", "剩费3 · 未覆盖2张"]
+        assert p._labels[0].cget("foreground") == _DEFAULT_COLORS["stat"]
+        assert p._labels[1].cget("foreground") == _DEFAULT_COLORS["stat_dim"]
+        p.set_advice([("留 好牌", "advice"), ("卡组胜率 54%", "dim")])
+        assert [l.cget("text") for l in p._labels] == \
+            ["最优: 火球术(4费) 伤6+场0 vs 敌22",
+             "留 好牌", "卡组胜率 54%"]          # 数据行让位(留牌行优先)
+        p.set_advice([("留 好牌", "advice")])
+        assert [l.cget("text") for l in p._labels] == \
+            ["最优: 火球术(4费) 伤6+场0 vs 敌22",
+             "留 好牌", "剩费3 · 未覆盖2张"]       # 三行内全容纳
     finally:
         root.destroy()
 
@@ -187,6 +218,50 @@ def test_game_end_clears_log_and_resets_panels(ensure_display, monkeypatch,
     assert h["enemy"] == "—", "上区敌血未重置"
     assert h["mana"] == "1", "上区法力未回默认 1"
     assert h["advice"] == ["", "", ""], "推荐区未清空"
+
+
+_PLAN_STAT = {"enemy_total": 22, "enemy_hp": 22, "enemy_armor": 0,
+              "lethal": 11, "lethal_hand": 8, "lethal_deck": None,
+              "lethal_board": 3, "can_kill": False, "spellpower": 0,
+              "ramp": 0, "ramp_hand": 0, "ramp_deck": None,
+              "cost_list": None, "cost_deck": None, "cost_hand": 4,
+              "discount": {"cards": 0, "total": 0, "sources": []},
+              "mana": 3, "mana_res": 4,
+              # analysis.lethal_plan 同构(非可斩): 最优线 + 数据行事实
+              "plan": {"actions": [("CS2_029", 4)], "total": 11,
+                       "face_det": 8, "face_exp": 0, "lethal": False,
+                       "enemy_total": 22, "board_atk": 3,
+                       "uncovered_n": 2, "mana_trace": (4, 3)}}
+
+_OPT_LINE = "最优: CS2_029(4费) 伤8+场3 vs 敌22"
+_DATA_ROW = "剩费3 · 未覆盖2张"
+
+
+def test_advice_line_persists_through_opp_turn(ensure_display, monkeypatch,
+                                               tmp_path):
+    """常驻语义(2026-09-14 用户实测反馈): 我方回合算出的 最优线+数据行
+    在后续 stat 更新(plan=None, 对手回合)后持续显示, 不被中途清掉;
+    推荐区值只被新事实替换或局终 reset 清空。"""
+    q = queue.Queue()
+    q.put(("stat", "敌 22 │ 斩杀 11", "stat", dict(_PLAN_STAT)))
+    q.put(("stat", "敌 22 │ 斩杀 11", "stat",
+           {**_PLAN_STAT, "plan": None}))       # 对手回合: 不携带 plan
+    h = _run_capture(monkeypatch, q, str(tmp_path))
+    assert q.empty()
+    assert h["advice"][:2] == [_OPT_LINE, _DATA_ROW], "推荐区被中途清掉"
+
+
+def test_advice_line_cleared_on_game_end(ensure_display, monkeypatch,
+                                         tmp_path):
+    """常驻的唯一出口是局终: game_end 重置推荐区(含线行/数据行),
+    绝不残留上一局的建议。"""
+    q = queue.Queue()
+    q.put(("stat", "敌 22 │ 斩杀 11", "stat", dict(_PLAN_STAT)))
+    end_text = "──── 对局结束 ──── a=WON / b=LOST"
+    q.put(("game_end", end_text))
+    h = _run_capture(monkeypatch, q, str(tmp_path))
+    assert q.empty()
+    assert h["advice"] == ["", "", ""], "局终推荐区未清空"
 
 
 def test_transparent_log_and_opaque_panels(ensure_display, monkeypatch,

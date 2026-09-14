@@ -19,8 +19,8 @@ from hearthstone.enums import GameTag
 
 from .carddb import CardDB
 from .consts import SPELLPOWER_TYPES
-from .effects import (CostDown, Damage, EffectCache, Heal, Mechanic, ManaGain,
-                      Unknown)
+from .effects import (CostDown, Damage, Draw, EffectCache, Heal, Mechanic,
+                      ManaGain, SpellPower, Unknown)
 from .mulligan_ai import UNKNOWN, hero_class, is_coin
 
 _CID_SCAN_RE = re.compile(r"cardId=([A-Za-z0-9_]+)")
@@ -30,10 +30,11 @@ _DMG_TYPES = SPELLPOWER_TYPES          # 只有法术/英雄技能吃法强(随�
 
 class EffectAnalyzer:
     def __init__(self, carddb: CardDB, cache: Optional[EffectCache] = None,
-                 mulligan=None) -> None:
+                 mulligan=None, play=None) -> None:
         self.carddb = carddb
         self.cache = cache or EffectCache()   # 无路径 = 仅内存增量
         self.mulligan = mulligan              # 留牌建议器(MulliganAdvisor), 可选
+        self.play = play                      # 出牌建议器(PlayAdvisor), 可选
 
     # ---------- IR 访问 ----------
     def _compiled(self, card_id: str | None):
@@ -55,11 +56,13 @@ class EffectAnalyzer:
     def predict_damage(self, card_id: str | None, spellpower: int) -> dict | None:
         """预计伤害 {"total": 总伤, "hits": 段数}; 不吃法强的牌返回 None。
         口径(2026-09-13 用户定版): (基础+法强)×段数 —— 每段都含基础值与
-        法强伤害, 法强0 时两段牌=基础×2(不是基础×1)。"""
+        法强伤害, 法强0 时两段牌=基础×2(不是基础×1)。
+        2026-09-14 法伤审计: 裸数字固定伤(scaled=False, 引擎不吃法强, 与
+        burst_damage 同口径)也不预报 —— 预报只许漏方向, 绝不虚高。"""
         if self.carddb.cardtype(card_id) not in _DMG_TYPES:
             return None
         d = self._damage_effect(card_id)
-        if not d:
+        if not d or not d.scaled:
             return None
         return {"total": (d.base + spellpower) * d.hits, "hits": d.hits}
 
@@ -75,6 +78,23 @@ class EffectAnalyzer:
         sp = spellpower if self.carddb.cardtype(card_id) in _DMG_TYPES else 0
         return (d.base + sp) * d.hits
 
+    def spellpower_gain(self, card_id: str | None) -> int:
+        """单牌法强增益(打出后的法强增量, SpellPower IR 合计); 非法强牌返回 0。
+        出牌建议(T2)的"法强牌"判定与差分求值单元。"""
+        ir = self._compiled(card_id)
+        if ir is None:
+            return 0
+        return sum(e.amount for e in ir.effects if isinstance(e, SpellPower))
+
+    def draw_amount(self, card_id: str | None) -> int:
+        """单牌抽牌量(Draw IR 合计); 对手侧抽牌(scope=opponent)不算自己的。
+        cast_draw 触发句的误标 Draw(1) 由调用方按机制标记剔除(见 play_ai)。"""
+        ir = self._compiled(card_id)
+        if ir is None:
+            return 0
+        return sum(e.amount for e in ir.effects
+                   if isinstance(e, Draw) and e.scope != "opponent")
+
     def mana_ramp(self, card_id: str | None) -> int | None:
         """单牌回费(获得/复原法力水晶数); 非回费牌返回 None。"""
         ir = self._compiled(card_id)
@@ -83,20 +103,38 @@ class EffectAnalyzer:
         total = sum(e.amount for e in ir.effects if isinstance(e, ManaGain))
         return total or None
 
-    def mana_ramp_value(self, card_id: str | None) -> int | None:
+    def mana_ramp_value(self, card_id: str | None,
+                        discountable_costs: list | dict | None = None) -> int | None:
         """等效回费 = 水晶(获得/复原) + 减费面值(CostDown: 建造水晶塔"下一张
         星灵牌-2"、生命缚誓者的礼物"手牌法术-1"、无界空宇"本牌自减"等, 按面值
         计); scope="target"(使其/它的, 如侦察给发现牌减费)不算 —— 减的是尚未
         入手的牌, 不属等效回费(2026-09-13 定版沿用"侦察不计数"口径)。
+        discountable_costs(可选)两种形态:
+        * list: 全部减费共用目标费表;
+        * dict: 按减费类目分表 {"hand": [手牌法术费…], "next": [星灵牌费…]},
+          每条减费取自己 scope 前缀("hand:"/"next:")对应的目标费表。
+        给定时按 2026-09-14 用户裁决"0 水晶不需要"计: 每条减费只计
+        min(面值, 最大可减目标费) —— 目标全为 0 费/无目标则该减费是虚的,
+        计 0; 缺省 None 保持旧口径按面值(未接线调用零变化)。
         信息区"回费"格的求值单元; 减费的实时在身状态由 store COST 标签
         (render.stat_fields discount)呈现, 不在此口径内。"""
         ir = self._compiled(card_id)
         if ir is None:
             return None
         total = sum(e.amount for e in ir.effects if isinstance(e, ManaGain))
-        total += sum(e.amount for e in ir.effects if isinstance(e, CostDown)
-                     and not e.scope.startswith("target"))
-        return total or None
+        downs = [e for e in ir.effects if isinstance(e, CostDown)
+                 and not e.scope.startswith("target")]
+        if discountable_costs is not None:
+            def _cap(e):
+                costs = discountable_costs
+                if isinstance(costs, dict):
+                    costs = costs.get(
+                        "hand" if e.scope.startswith("hand:") else "next") or []
+                return max(costs) if costs else 0
+            total += sum(min(e.amount, _cap(e)) for e in downs)
+            return total            # 上下文口径: 0 是有效事实(减费全是虚的)
+        total += sum(e.amount for e in downs)
+        return total or None        # 旧口径: 零回费归 None(既有调用零变化)
 
     def cost_downs(self, card_id: str | None) -> list[CostDown]:
         """单牌全部减费效果(IR); 无则空表。"""
@@ -160,6 +198,14 @@ class EffectAnalyzer:
                 advice = self.mulligan.advise(
                     offered, hero_class(opp_cid, self.carddb) or UNKNOWN,
                     coin=any(is_coin(c) for c in evt.get("offered") or []))
+                if advice:
+                    evt = {**evt, "advice": advice}
+        elif kind == "play_offer":
+            # 出牌建议(T2 责任链的分析环): 只对我方、只富化不改事件事实;
+            # 无建议器/无模型/语料未达门槛 → 事件原样通过(渲染层判弃=静默)。
+            if live and self.play is not None \
+                    and evt.get("actor") == store.friendly_key:
+                advice = self.play.advise(store, self)
                 if advice:
                     evt = {**evt, "advice": advice}
         elif kind == "cost":
@@ -285,7 +331,9 @@ def lethal_plan(st, knowledge, analyzer, *, enabled: bool = True) -> dict | None
             # 缺牌(卡表无条目)=效果未知: 与线内未覆盖张合并诚实计数
             # (缺牌 inert 进不了线, 但它是斩杀线可信度的一部分; 审计 低#9)
             "uncovered_n": plan.uncovered_n
-            + sum(1 for cid, _c in hand if analyzer.carddb.raw(cid) is None)}
+            + sum(1 for cid, _c in hand if analyzer.carddb.raw(cid) is None),
+            # 每步打出后的剩余费(planner 事实原样透传; 悬浮窗数据行"剩费N"用)
+            "mana_trace": plan.mana_trace}
 
 
 def collect_card_ids(log_paths) -> set:

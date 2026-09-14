@@ -346,7 +346,10 @@ def test_material_v2_rows_from_fixture(tmp_path):
     m = mull[0]
     assert m["offered"] == ["JAIL_718", "SCH_427", "CS2_008"]
     assert m["kept"] == ["JAIL_718", "SCH_427"]
-    assert m["replaced_in"] == ["CORE_AT_037", "TID_001"]
+    # 夹具为先手局(3 选无硬币): 换 1 张(CS2_008)补 1 张 CORE_AT_037;
+    # 旧值 ["CORE_AT_037","TID_001"] 系 bug 探针冻结 —— TID_001 是 T1 回合抽
+    # (日志 NUM_CARDS_DRAWN_THIS_TURN=1), gotcha 40 修复后不入 replaced_in
+    assert m["replaced_in"] == ["CORE_AT_037"]
     assert m["coin"] == 0 and m["result"] == 1
     assert m["opp_class"] == "UNKNOWN"          # NO_DB: 英雄无 CLASS → 兜底
     assert m["decklist"] is None                # 无同 stem jsonl → 缺卡组

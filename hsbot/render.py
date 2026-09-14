@@ -65,6 +65,40 @@ def _render_mulligan_offer(evt: dict, carddb: CardDB) -> str:
     return mulligan_advice_text(adv)
 
 
+@chain_renderer("play_offer")
+def _render_play_offer(evt: dict, carddb: CardDB) -> str | None:
+    """出牌建议(T2)链路行; 无 advice(无模型/门槛未达/无候选)→ None 判弃:
+    事件事实已入 rich_events, 显示整环静默(实跑语料不足时输出零变化)。"""
+    adv = evt.get("advice")
+    return play_offer_text(adv) if adv else None
+
+
+def play_offer_text(adv: dict) -> str:
+    """出牌建议事实 → 主行措辞(docs/PLAY_ADVICE.md §2 统计最优级):
+    `推荐: 名A(ΔP +x.x%) > 名B(ΔP +x.x%) > 不动`; ΔP = 相对"不动"基线的
+    P(胜) 增量(机读 delta_p), 结论词"推荐/不动"归 render, 负值照实显示;
+    二连名按出牌序用 → 相连(与可斩行动作同形)。"""
+    def fmt(c):
+        return f"{'→'.join(c['names'])}(ΔP {c['delta_p'] * 100:+.1f}%)"
+
+    parts = [fmt(c) for c in adv.get("candidates") or []]
+    return ("推荐: " + " > ".join(parts) + " > 不动") if parts else "推荐: 不动"
+
+
+def play_offer_rows(adv: dict | None) -> list[tuple[str, str]]:
+    """出牌建议事实 → 推荐区行[(文本, 色调)]: 主行(advice 色, 与链路行同源)
+    + 证据行(dim, 语料局数+模型版本 —— 开口门槛的诚实披露)。缺证据事实只出
+    主行; 无建议/无候选 → [](诚实: 绝不编造)。"""
+    if not adv or not adv.get("candidates"):
+        return []
+    rows = [(play_offer_text(adv), "advice")]
+    n = adv.get("n_games")
+    if n:
+        rows.append((f"语料{n}局 · 依据 价值模型 {adv.get('version') or '?'}",
+                     "dim"))
+    return rows
+
+
 def mulligan_advice_text(adv: dict) -> str:
     """留牌建议事实 → 主行措辞(链路行与悬浮窗推荐区共用, 零平行格式)。"""
     def fmt(cid):
@@ -302,6 +336,39 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
     burst_hand = ramp_hand = cost_hand = 0
     disc_cards = disc_total = 0
     disc_srcs: list[str] = []
+
+    # 减费目标费表(2026-09-14 "0 水晶不需要"): 回费格的减费面值按可减目标
+    # 封顶 —— hand:法术 → 手牌法术实时费; next:星灵(卡表 set=SPACE, 与
+    # planner/pieces 同一判定) → 手牌+牌库剩余星灵牌费。逐实体记 id,
+    # 评估一张牌的回费时不把这张牌自己当减费目标。
+    def _rcost(e, cid) -> int:
+        base = carddb.cost(cid)
+        tag = e.tags.get(GameTag.COST)
+        c = tag if tag is not None else base
+        return c if c is not None else 0
+
+    def _is_space(cid) -> bool:
+        raw = carddb.raw(cid)
+        return raw is not None and raw.get("set") == "SPACE"
+
+    hand_spells: list = []               # [(实体id, 实时费)] 手牌法术
+    hand_space: list = []                # [(实体id, 实时费)] 手牌星灵牌
+    for e in st.hand(me):
+        cid = getattr(e, "card_id", None)
+        if not cid:
+            continue
+        if carddb.cardtype(cid) == "SPELL":
+            hand_spells.append((e.id, _rcost(e, cid)))
+        if _is_space(cid):
+            hand_space.append((e.id, _rcost(e, cid)))
+    # 牌库剩余星灵牌 [(cid, 费)]×张数; 牌库侧评估自身时剔除一张(自己不能
+    # 减自己), 手牌侧不剔(同 cid 的牌库拷贝仍是合法目标)
+    deck_space: list = []
+    if knowledge is not None:
+        deck_space = [(cid, carddb.cost(cid) or 0)
+                      for cid, n in knowledge.ledger.remaining.items()
+                      if _is_space(cid) for _ in range(n)]
+
     for e in st.hand(me):
         cid = getattr(e, "card_id", None)
         if not cid:
@@ -309,7 +376,11 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
         d = analyzer.burst_damage(cid, sp)
         if d:
             burst_hand += d
-        r = analyzer.mana_ramp_value(cid)      # 等效回费: 水晶 + 减费面值
+        # 等效回费: 水晶 + 减费面值(按类目可减目标封顶, 0=减费全虚的有效事实)
+        r = analyzer.mana_ramp_value(
+            cid, {"hand": [c for eid, c in hand_spells if eid != e.id],
+                  "next": [c for eid, c in hand_space if eid != e.id]
+                          + [c for _cid2, c in deck_space]})
         if r:
             ramp_hand += r
         # 费用口径(2026-09-13 用户定版): 只计法术牌的费用总和(手/库/组同规则)
@@ -337,7 +408,16 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
                 burst_deck += d * n
             if carddb.cardtype(cid) == "SPELL":
                 deck_cost += (carddb.cost(cid) or 0) * n
-            r = analyzer.mana_ramp_value(cid)
+            space_t = [c for _eid, c in hand_space]
+            skipped = False
+            for cid2, c2 in deck_space:
+                if cid2 == cid and not skipped:
+                    skipped = True            # 剔除自身一张: 自己不能减自己
+                    continue
+                space_t.append(c2)
+            r = analyzer.mana_ramp_value(
+                cid, {"hand": [c for _eid, c in hand_spells],
+                      "next": space_t})
             if r:
                 ramp_deck += r * n
         for cid, n in knowledge.decklist.items():
@@ -387,26 +467,78 @@ def _plan_act(carddb, action) -> str:
     return f"{_plan_name(carddb, cid)}({cost if cost is not None else '?'}费)"
 
 
-def plan_line(f: dict) -> str | None:
-    """可斩线第三行(plan 事实 → 措辞, 结论词"可斩"归 render):
-    `可斩: 名A(N费)→名B(M费) 伤{face_det}+场{board_atk} ≥ {enemy_total}`。
-    无 plan / 非可斩 → None(调用方输出零变化); 缺失数值以 ? 诚实降级。"""
-    plan = f.get("plan") or {}
-    if not plan.get("lethal"):
-        return None
+def _lethal_line(plan: dict, carddb) -> str:
+    """可斩行措辞(与既有钉子逐字节一致, 不得改动): 名A(N费)→… 伤X+场Y ≥ Z。"""
     acts = plan.get("actions") or []
-    seq = "→".join(_plan_act(f.get("_carddb"), a) for a in acts) \
+    seq = "→".join(_plan_act(carddb, a) for a in acts) \
         if acts else "(无动作)"               # 退化输入: 无可出动作仍报构成
     q = lambda v: "?" if v is None else str(v)               # noqa: E731
     return (f"可斩: {seq} 伤{q(plan.get('face_det'))}"
             f"+场{q(plan.get('board_atk'))} ≥ {q(plan.get('enemy_total'))}")
 
 
+def plan_line(f: dict) -> str | None:
+    """plan 事实 → 推荐打法主行(输出语义两级契约, 结论词归 render):
+    lethal=True → `可斩: 名A(N费)→名B(M费) 伤{face_det}+场{board_atk}
+    ≥ {enemy_total}`(与控制台 stat_text 第三行同源, 金色调);
+    非可斩 → `最优: … 伤X+场Y vs 敌Z`(总伤未达敌血绝不写"可斩"二字),
+    face_exp>0 时追加 `+期望N` 注记(期望分量绝不与确定伤合并);
+    空线退化(actions 空 且 零确定伤 且 零期望) → None(诚实: 无建议可给)。
+    缺失数值以 ? 诚实降级。"""
+    plan = f.get("plan") or {}
+    carddb = f.get("_carddb")
+    if plan.get("lethal"):
+        return _lethal_line(plan, carddb)
+    acts = plan.get("actions") or []
+    if not acts and not plan.get("face_det") and not plan.get("face_exp"):
+        return None
+    seq = "→".join(_plan_act(carddb, a) for a in acts) \
+        if acts else "(无动作)"
+    q = lambda v: "?" if v is None else str(v)               # noqa: E731
+    exp = plan.get("face_exp")
+    exp_txt = f"+期望{exp}" if exp else ""
+    return (f"最优: {seq} 伤{q(plan.get('face_det'))}"
+            f"+场{q(plan.get('board_atk'))}{exp_txt}"
+            f" vs 敌{q(plan.get('enemy_total'))}")
+
+
+def plan_data_line(f: dict) -> str | None:
+    """线行支撑数据(dim 小字): 剩费=mana_trace 末位(打完整线后剩余法力,
+    T1 契约字段, 旧形态缺失时整段省略), 未覆盖张数=uncovered_n。
+    机读事实驱动零编造: 零值/缺失不占位, 两项全无 → None(不出数据行)。"""
+    plan = f.get("plan") or {}
+    parts = []
+    trace = plan.get("mana_trace") or ()
+    if trace and trace[-1] is not None:
+        parts.append(f"剩费{trace[-1]}")
+    unc = plan.get("uncovered_n")
+    if unc:
+        parts.append(f"未覆盖{unc}张")
+    return " · ".join(parts) if parts else None
+
+
+def plan_rows(f: dict) -> list[tuple[str, str]]:
+    """plan 事实 → 推荐区行[(文本, 色调)](悬浮窗"推荐打法"区, 常驻建议):
+    首行 = plan_line(可斩金/advice 色; 非可斩最优行常规/stat 色 —— 与
+    _StatPanel"可斩才转金"同一语义两级); 次行 = plan_data_line(dim)。
+    空线退化/无 plan → [](诚实: 无建议可给, 绝不编造)。"""
+    line = plan_line(f)
+    if line is None:
+        return []
+    tone = "advice" if (f.get("plan") or {}).get("lethal") else "stat"
+    rows = [(line, tone)]
+    data = plan_data_line(f)
+    if data:
+        rows.append((data, "dim"))
+    return rows
+
+
 def stat_text(f: dict) -> str:
     """信息区字段 → 两行文本(控制台/会话文件用; 悬浮窗走分格面板)。
     手牌减费在身时行尾追加 减N(来源) 段; 无减费保持两段。
     plan.lethal 时末尾追加第三行"可斩: 线 伤X+场Y ≥ Z"(措辞归 render);
-    无 plan/非可斩 → 与两行版逐字节一致(零变化铁律)。"""
+    无 plan/非可斩 → 与两行版逐字节一致(零变化铁律: 非可斩的"最优"行
+    只进悬浮窗推荐区(render.plan_rows), 绝不漏进控制台输出)。"""
     q = lambda v: "?" if v is None else str(v)               # noqa: E731
     if f["enemy_total"] is None:
         enemy_txt = "?"
@@ -423,7 +555,8 @@ def stat_text(f: dict) -> str:
            f"(手{f['lethal_hand']}+库{q(f['lethal_deck'])}"
            f"+场{f['lethal_board']}{kill_mark})"
            f" │ 法强 {f['spellpower']}\n{line2}")
-    line3 = plan_line(f)
+    plan = f.get("plan") or {}
+    line3 = _lethal_line(plan, f.get("_carddb")) if plan.get("lethal") else None
     if line3:
         txt += f"\n{line3}"
     return txt

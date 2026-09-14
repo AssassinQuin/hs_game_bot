@@ -64,6 +64,73 @@ def test_predict_damage_gated_by_type(tmp_path):
     assert a.predict_damage("MINION_DMG", 4) is None      # 随从战吼不吃法强
 
 
+def test_predict_damage_gated_by_scaled(tmp_path):
+    """固定伤(裸数字, scaled=False)不吃法强 —— 预计伤害与斩杀口径
+    (burst_damage)对齐: 引擎不加法强的伤害绝不预报成 (基础+法强)
+    (2026-09-14 法伤审计: 预报只许漏方向不许虚高)。"""
+    db = _db(tmp_path, [
+        {"id": "VAN_MOON", "name": "旧版月火", "type": "SPELL",
+         "text": "造成2点伤害。"},
+        {"id": "CS2_008", "name": "月火术", "type": "SPELL",
+         "text": "造成$1点伤害。"},
+    ])
+    a = EffectAnalyzer(db)
+    assert a.predict_damage("VAN_MOON", 3) is None
+    assert a.predict_damage("CS2_008", 3) == {"total": 4, "hits": 1}
+
+
+def test_mana_ramp_value_discount_needs_discountable_target(tmp_path):
+    """等效回费-减费部分按可减目标计(2026-09-14 用户裁决"0 水晶不需要"):
+    给定 discountable_costs(减费类目当前可减的牌费)时, 面值只计入
+    min(面值, 最大可减目标费) —— 目标全为 0 费则该减费是虚的, 计 0;
+    缺省(None)保持旧口径按面值计(调用方未接线时行为不变)。"""
+    db = _db(tmp_path, [
+        {"id": "TTN_955", "name": "生命缚誓者的礼物", "type": "SPELL", "cost": 2,
+         "text": "使你手牌中法术牌的法力值消耗减少（1）点。"},
+        {"id": "SC_755", "name": "建造水晶塔", "type": "SPELL", "cost": 0,
+         "text": "在本回合中，你的下一张星灵牌法力值消耗减少（2）点。"},
+        {"id": "EX1_169", "name": "激活", "type": "SPELL", "cost": 0,
+         "text": "在本回合中，获得两个\n法力水晶。"},
+    ])
+    a = EffectAnalyzer(db)
+    # 礼物(手牌法术-1): 手牌法术全 0 费 → 虚, 计 0; 有 1 费法术 → 计 1
+    assert a.mana_ramp_value("TTN_955", discountable_costs=[]) == 0
+    assert a.mana_ramp_value("TTN_955", discountable_costs=[0, 0]) == 0
+    assert a.mana_ramp_value("TTN_955", discountable_costs=[0, 1]) == 1
+    assert a.mana_ramp_value("TTN_955", discountable_costs=[4]) == 1  # 面值封顶
+    # 水晶塔(下一张星灵-2): 星灵目标只有 0 费水晶塔 → 虚; 有 2 费光子炮台 → 计 2
+    assert a.mana_ramp_value("SC_755", discountable_costs=[0]) == 0
+    assert a.mana_ramp_value("SC_755", discountable_costs=[0, 2]) == 2
+    # 回费(ManaGain)不受上下文影响
+    assert a.mana_ramp_value("EX1_169", discountable_costs=[]) == 2
+    # 缺省: 旧口径(面值), 既有调用零变化
+    assert a.mana_ramp_value("TTN_955") == 1
+    assert a.mana_ramp_value("SC_755") == 2
+    assert a.mana_ramp_value(None) is None
+
+
+def test_mana_ramp_value_per_scope_context(tmp_path):
+    """dict 分表形态: hand:/next: 减费各自取本类目的目标费表, 互不串位
+    (2026-09-14 回费格去虚接线的调用形态: 一张牌只按自己减费的类目找目标)。"""
+    db = _db(tmp_path, [
+        {"id": "TTN_955", "name": "生命缚誓者的礼物", "type": "SPELL", "cost": 2,
+         "text": "使你手牌中法术牌的法力值消耗减少（1）点。"},
+        {"id": "SC_755", "name": "建造水晶塔", "type": "SPELL", "cost": 0,
+         "text": "在本回合中，你的下一张星灵牌法力值消耗减少（2）点。"},
+    ])
+    a = EffectAnalyzer(db)
+    # 礼物只看 hand 表; next 表有没有目标与它无关
+    assert a.mana_ramp_value(
+        "TTN_955", discountable_costs={"hand": [0, 1], "next": []}) == 1
+    assert a.mana_ramp_value(
+        "TTN_955", discountable_costs={"hand": [], "next": [5]}) == 0
+    # 水晶塔只看 next 表
+    assert a.mana_ramp_value(
+        "SC_755", discountable_costs={"hand": [5], "next": [0, 2]}) == 2
+    assert a.mana_ramp_value(
+        "SC_755", discountable_costs={"hand": [], "next": []}) == 0
+
+
 def test_mana_ramp_and_burst_damage(tmp_path):
     """信息区事实查询: 回费(获得/复原法力水晶, 措辞含空格换行)与
     当前法强下的单牌伤害潜力(法术/技能吃法强, 战吼按基础值)。"""

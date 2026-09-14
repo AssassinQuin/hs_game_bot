@@ -57,7 +57,11 @@ def train(material_dir: Path | str, out_dir: Path | str) -> dict:
                                           learning_rate=0.05, random_state=0)
 
     metrics = {"n_rows": len(rows), "n_train": len(xtr), "n_test": len(xte),
-               "n_features": len(names), "features": names}
+               "n_features": len(names), "features": names,
+               # 语料局数(组数): 实时军师的开口门槛依据(hsbot/play_ai.py
+               # PLAY_N_GAMES_MIN=300, docs/PLAY_ADVICE.md §1-T2)
+               "n_games": len({str(r.get("src", "")).split("#")[0]
+                               for r in rows})}
     if len(set(ytr)) == 2 and len(set(yte)) == 2:
         m = new_model().fit(xtr, ytr)
         pte = m.predict_proba(xte)[:, 1]

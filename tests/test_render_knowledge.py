@@ -279,3 +279,53 @@ def test_top_summary_two_lines(tmp_path):
     f2 = stat_fields(st, knowledge=None, carddb=db, analyzer=a)
     assert f2["lethal_deck"] is None and f2["cost_list"] is None \
         and f2["can_kill"] is True
+
+
+def test_stat_fields_ramp_discount_capped_by_targets(tmp_path):
+    """回费格去虚("0 水晶不需要", 2026-09-14): 减费面值按类目可减目标封顶。
+    手牌法术全 0 费时礼物的 -1 是虚的计 0; 牌库水晶塔除自身外无星灵目标
+    计 0, 有真目标(3 费光子炮台)才计满面值 2(两张拷贝各计一次)。"""
+    import json
+
+    p = tmp_path / "cards.json"
+    p.write_text(json.dumps([
+        {"id": "TTN_955", "name": "礼物", "type": "SPELL", "cost": 2,
+         "text": "使你手牌中法术牌的法力值消耗减少（1）点。"},
+        {"id": "MOON_0", "name": "零费月火", "type": "SPELL", "cost": 0,
+         "text": "造成$1点伤害。"},
+        {"id": "SPELL_2", "name": "两费法术", "type": "SPELL", "cost": 2,
+         "text": "造成$2点伤害。"},
+        {"id": "SC_755", "name": "建造水晶塔", "type": "SPELL", "cost": 0,
+         "set": "SPACE",
+         "text": "在本回合中，你的下一张星灵牌法力值消耗减少（2）点。"},
+        {"id": "SC_753", "name": "光子炮台", "type": "MINION", "cost": 3,
+         "set": "SPACE"},
+    ], ensure_ascii=False), encoding="utf-8")
+    db = CardDB(p)
+    from hsbot.analysis import EffectAnalyzer
+    from hsbot.render import stat_fields
+
+    a = EffectAnalyzer(db)
+    types = {"TTN_955": CardType.SPELL.value, "MOON_0": CardType.SPELL.value,
+             "SPELL_2": CardType.SPELL.value}
+
+    def _scene(hand_cids):
+        st, _ = _store()
+        _heroes(st)
+        for i, cid in enumerate(hand_cids, start=1):
+            st.apply(mk_full(10 + i, cid, ZONE=Zone.HAND.value, CONTROLLER=1,
+                             CARDTYPE=types[cid], ZONE_POSITION=i))
+        return st
+
+    # 手: 礼物+全 0 费法术 → 减费全虚计 0; 库: 水晶塔除自身外无星灵目标 → -2 虚
+    st = _scene(["TTN_955", "MOON_0"])
+    k = DeckKnowledge({"SC_755": 2}, db, "测试")
+    k.rebuild(st)
+    f = stat_fields(st, knowledge=k, carddb=db, analyzer=a)
+    assert f["ramp_hand"] == 0 and f["ramp_deck"] == 0
+    # 有 2 费法术在手 → 礼物计 1; 有 3 费炮台在库 → 水晶塔计满面值 2×2张=4
+    st = _scene(["TTN_955", "MOON_0", "SPELL_2"])
+    k2 = DeckKnowledge({"SC_755": 2, "SC_753": 1}, db, "测试")
+    k2.rebuild(st)
+    f2 = stat_fields(st, knowledge=k2, carddb=db, analyzer=a)
+    assert f2["ramp_hand"] == 1 and f2["ramp_deck"] == 4

@@ -27,6 +27,8 @@ from .config import Config
 from .consts import game_hash
 from .knowledge import DeckKnowledge, parse_decks_log
 from .mulligan_ai import MulliganAdvisor, models_root_for
+from .play_ai import PlayAdvisor
+from .play_ai import models_root_for as play_models_root_for
 from .overlay import (KIND_ADVICE, KIND_CHAIN, KIND_GAME_END, KIND_NOTICE,
                       KIND_SNAPSHOT, KIND_STAT, Msg, TAG_MY, TAG_OPP,
                       TAG_UNKNOWN)
@@ -41,16 +43,15 @@ from .pipeline import (StreamContext, build_line_pipeline,
                        _CREATE_GAME_MARK, _tail_state)  # noqa: F401  重导出供测试
 
 # store 事件种类 → 输出 Msg 种类(缺省 chain); advice 走独立分色高亮
-_MSG_KIND_BY_EVENT = {"mulligan_offer": KIND_ADVICE}
+_MSG_KIND_BY_EVENT = {"mulligan_offer": KIND_ADVICE, "play_offer": KIND_ADVICE}
 
 
 def _msg_kind_for(evt: dict) -> str:
-    """事件 → 输出种类: 专用分色只给我方的事件(对手的留牌信息行走普通
-    链路色 —— 金色 advice 语义专属"我方建议", 审计 2026-09-14 低#7)。"""
+    """事件 → 输出种类: 专用分色只给我方的事件(对手的留牌/出牌建议信息行走
+    普通链路色 —— 金色 advice 语义专属"我方建议", 审计 2026-09-14 低#7)。"""
     kind = evt.get("kind")
     msg_kind = _MSG_KIND_BY_EVENT.get(kind, KIND_CHAIN)
-    if (msg_kind != KIND_CHAIN and kind == "mulligan_offer"
-            and evt.get("actor") != evt.get("friendly")):
+    if msg_kind != KIND_CHAIN and evt.get("actor") != evt.get("friendly"):
         return KIND_CHAIN
     return msg_kind
 
@@ -268,9 +269,14 @@ class Watcher:
             prior_path=Path(cfg.data_dir) / "mulligan_prior.yaml",
             live=True, v3=bool(getattr(cfg, "mulligan_v3", False))) \
             if getattr(cfg, "mulligan_advice", True) else None
+        # 出牌建议器(play_ai 开关, T2): 读 LATEST 价值模型, 富化 play_offer
+        # 事件; 语料未达门槛/无模型时 advise=None, 整环静默(只出 T1 斩杀线)
+        self.play_ai = PlayAdvisor(
+            play_models_root_for(cfg.data_dir, cfg.deck_name), carddb) \
+            if getattr(cfg, "play_ai", True) else None
         self.analyzer = EffectAnalyzer(
             carddb, cache=EffectCache(Path(cfg.cache_dir) / "effects.json"),
-            mulligan=self.mulligan_ai)
+            mulligan=self.mulligan_ai, play=self.play_ai)
         self.out = out if out is not None else (lambda m: print(m.ui))
         self.hub = hub
 

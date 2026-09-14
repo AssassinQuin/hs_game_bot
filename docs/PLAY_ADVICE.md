@@ -50,6 +50,13 @@
 - N≈2000 采样线：remaining 多重集不放回抽 k → 每条线内跑 T1 DFS → `DamageDistribution`；P(斩杀) = P(分布 ≥ 血+甲)。已知顶牌不进抽样（降方差——牌库序台账的算法层回报，DESIGN §6.2）。
 - 预备模式：`enumerate_setup_options()` 各候选的下回合 P 对比（DESIGN §6.3）。
 
+**落地状态（2026-09-14）**：`planner/mc.py` 纯函数层已落——`mc_plan()` 样牌进
+known_draws 队尾不直入手（防 P(斩杀) 虚高，宁漏勿错）、known_draws 从抽样池
+扣 1 防双计、cost=(cid,面值) 预映射、k 缺省=hand_draws+engines×手牌数、
+budget_ms 硬墙钟诚实降级；超几何闭式解对拍+seed 逐位一致 14 测绿。
+**渲染/预备模式接线未做**（P(斩杀) 进悬浮窗与 `enumerate_setup_options` 挂
+后续切片）；典型中局 27.6ms/线，恶意最坏 ~1s/线，预算内跑。
+
 ### T4 TabPFN 基座切换（数据达标后）
 
 - 接进 `trainer.value.predict` 后端，接口不变；与 GBM 分组 CV 对照后拍板（环境与版本钉见 windows-env-quirks 记忆）。
@@ -216,5 +223,82 @@ overlay 面板行、config `lethal_plan`(默认开)。
 - COMPILER_VERSION 7→8（语法规则序+守卫变更，缓存全量重编译）。
 测试 187→207。
 
+2026-09-14 晚二次修复波（用户实测 g12-g17 反馈，systematic-debugging 定根因）：
+- **一次性减费类目化+0 水晶不消耗**（假可斩根修）：`next:X` 类目词入 Piece
+  （星灵=卡表 set=SPACE），原费已 0 不作用不消耗、类目不符保留余额——g12
+  敌 27 血"可斩伤 30"实为虚减费线（诚实 25），11 个假可斩快照清零、零反向翻转；
+- `predict_damage` 补 scaled 门（裸数字固定伤不吃法强，与 burst 对齐）；
+- 法强值链审计：store.spellpower(CURRENT_SPELLPOWER_BASE) 与 6 局实况逐一核对
+  无误，法伤"有误"实感主因即上述虚减费线；
+- 回费格去虚（"0 水晶不需要"显示侧）与 facts 补 mana_trace、推荐区常驻
+  （可斩/最优两级+数据行）见对应提交。
+测试 283（本波前）→307（含 T2/T3）。
+
 遗留（deferred minors）：exp_per_draw 用当前法强口径待注释固化、`_carddb` 活对象进机读
 dict 的序列化负债、cast_draw 触发句被 Draw 族误标一条 Draw(1)（T1 不消费，无害）。
+
+## 7. T2 落地状态（2026-09-14 骨架落地）
+
+### 7.1 已落地（按 §1-T2 规格逐条）
+
+- **`hsbot/play_ai.py`**（与 `mulligan_ai.py` 完全同款模式）：
+  `models_root_for(data_dir, deck)` → `data/models/play/<卡组>/`；
+  `read_latest()` 读 `LATEST.json` → 版本目录的 `value.pkl` + `value_meta.json`，
+  按 LATEST mtime 热更新（`PlayAdvisor._refresh`，先例 = 留牌 advisor）；
+  无产物/坏产物 → warning 一条 + 静默降级（advise 恒 None，只出 T1 斩杀线）。
+- **打分**：候选 = `candidate_actions`（深度 1：每张可支付手牌[实付费 =
+  COST 标签优先] + 关键二连"法强牌→法术"，法强在前）；节点 = `apply_candidate`
+  对 `trainer/states.flatten` 基线快照做**特征差分**（费−、手牌摘牌、随从
+  入场攻血+嘲讽、法强+、抽牌期望=牌库−n 并以匿名牌入手[按余牌封顶]），
+  不模拟 GameStore；`score = P(胜)`（模型对象来自 trainer 产物，flatten 布局
+  单点复用训练侧）；`delta_p = p − baseline("不动")`；平分取更省；top3。
+- **责任链接线**（加环不加分发）：store 发 `play_offer`（我方 `turn_start`
+  出主建议；每次我方打出后块尾重发——复用 `_pending_play` 扣留/批尾冲刷，
+  抽牌/回费事件到齐后才重算；对手回合静默）→ `analysis.enrich` 挂 advisor
+  富化（同 mulligan"只富化不改事件事实"，历史追平 live=False 不推理）→
+  watcher 路由 `play_offer`→KIND_ADVICE 金色通道（仅我方，同留牌"金色专属
+  我方建议"口径），`Msg.data` = 建议机读字段 → `render` 加
+  `@chain_renderer("play_offer")`（无 advice 判弃=整环显示静默）→ overlay
+  推荐区按 `data.kind` 分流入 `_AdvicePanel.set_play`。
+- **措辞归 render**：`play_offer_text` = `推荐: 名A(ΔP +x.x%) > 名B(ΔP
+  +x.x%) > 不动`（二连名按出牌序 `→` 相连；负 ΔP 照实显示）；
+  `play_offer_rows` = 主行(advice 色) + 证据行(dim：`语料N局 · 依据 价值模型
+  vXXX`)。控制台 stat_text 两行版逐字节零变化（play_offer 不进 stat_text）。
+- **overlay 优先级定版**：`_AdvicePanel` 四行源三行封顶，
+  **可斩/最优线行 > play_offer 主行 > 留牌行 > 数据行**（play 证据行与 plan
+  数据行同为 dim 支撑行，恒殿后让位）。依据：线行是确定性引擎（可证明、
+  当拍可执行）必须居首；play_offer 是本回合的统计最优，时效以回合为限，
+  优先于早已过期的开局留牌行（留牌只服务 T1，之后是陈旧事实）；支撑小字
+  恒殿后。恰好 top3 = 线行/play 主行/留牌主行。值驻留与局终 reset 语义不变。
+- **开口门槛**：`PLAY_N_GAMES_MIN = 300`（依据见 §1-T2 原文与模块 docstring；
+  统计功效教训 = 留牌 v3 评审"门控不过就退回低风险输出"）。门槛数据源 =
+  产物 `value_meta.json` 的 `n_games`（trainer/value.py 训练时写入，随语料
+  自动伸缩，达标自动开口，无需配置；缺键按 0 计=诚实静默）。
+- **开关**：config `play_ai`（默认开，同 `lethal_plan` 模式）；false →
+  watcher 不建建议器，整条环静默。
+- **验收**（tests/test_play_ai.py，24 测；全套 283→307 绿）：候选枚举
+  （可支付/超费剔除/二连构成/抽牌量含引擎/cast_draw 触发句误标 Draw 剔除）；
+  特征差分向量逐特征断言（费/手牌/场面/法强/牌库/期望抽封顶）；score 排序
+  （桩模型）；门槛（83 局静默/299 静默/300 开口/缺 n_games 静默）；无模型/
+  坏 pickle 降级；非我方回合静默；mtime 热更新（打分与门槛同走）；store
+  发环时机（turn_start 后/打出块尾且在块内抽牌之后/对手回合与对手打出
+  静默）；enrich 门控（仅我方+live）；render 措辞/负值/无建议判弃；overlay
+  优先级与整窗分流；**整局回放逐字节零变化钉子**（play_ai=false 且达标
+  模型在位 == 无模型基线；同模型开开关出"推荐"行=非空转对照）；**回放切片
+  建议时刻对齐**（回合标题 < 建议行 < 实际打出，全程恰一条）。
+
+### 7.2 还差（deferred）
+
+- **trainer 产物落点未接线**：`python -m trainer train` 现产物在
+  `trainer/data/<卡组>/`（无 LATEST.json 版本化），尚未指向
+  `data/models/play/<卡组>/`——产物形态已兼容（value.pkl + value_meta.json
+  + n_games），接线后 advisor mtime 热更新即自动生效；当前实跑语料 83 局
+  < 300，即便在位也按门槛静默（设计如此，宁缺毋滥）。
+- **二连仅"法强牌→法术"**：回费/减费链式二连、英雄技能候选、场面随从
+  交换与攻击目标选择未入候选（骨架口径，留给更深搜索/后续迭代）。
+- **抽牌期望=匿名牌**：flatten 聚合特征不含卡 ID，具名抽牌（台账已知顶牌）
+  无法进差分向量——ID 特征版（语料上千）自然解决。
+- **§3 数据闭环未建**：建议 vs 实际 `play` 的回测对账/偏差样本回流，等
+  语料达 300 局、建议真实开口后才有数据可回。
+- **value 训练侧 AUC 门控未挂**：advisor 只设语料局数门槛；AUC 门控
+  （同 LR_AUC_GATE 思想）待 T4 换基座时一并定版。
