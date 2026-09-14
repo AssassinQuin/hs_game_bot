@@ -35,6 +35,8 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_mat = sub.add_parser("material", help="语料原始切片 → 回合级训练素材")
     add_common(p_mat, sub=True)
+    p_mat2 = sub.add_parser("material-v2", help="语料原始切片 → v3 素材(决策行/逐回合抽牌)")
+    add_common(p_mat2, sub=True)
     p_train = sub.add_parser("train", help="素材 → 价值模型(时序 AUC 报告)")
     add_common(p_train, sub=True)
     p_bt = sub.add_parser("backtest", help="素材 → 分组交叉验证(同局绝不跨训练/验证组)")
@@ -103,6 +105,13 @@ def main(argv=None) -> int:
         stats = material.build_material(corpus, deck, out, carddb, battletag)
         print(f"素材: {stats['rows']} 个决策点({stats['games']} 局, 切片 "
               f"{stats['slices']}, 胜 {stats['wins']}) → {out / 'material.jsonl'}")
+        if stats["skip"]:
+            print("跳过: " + " │ ".join(f"{k} {v}" for k, v in stats["skip"].items()))
+        return 0
+    if args.cmd == "material-v2":
+        stats = material.build_material_v2(corpus, deck, out, carddb, battletag)
+        print(f"v3 素材: {stats['mulligan_rows']} 决策行 / {stats['games']} 局 "
+              f"(切片 {stats['slices']}) → {out / 'material_v2.jsonl'}")
         if stats["skip"]:
             print("跳过: " + " │ ".join(f"{k} {v}" for k, v in stats["skip"].items()))
         return 0

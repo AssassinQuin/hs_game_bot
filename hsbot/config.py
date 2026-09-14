@@ -44,6 +44,9 @@ DEFAULTS = {
         "advice": "#ffd700",    # 留牌建议(开局高亮)
     },
     "mulligan_advice": True,    # 留牌环节高亮建议(需先跑 python -m trainer mulligan)
+    "mulligan_v3": True,        # v3 基座评分器总开关; false 时输出与 v2 逐字节一致
+    "scorer_backend": "tabpfn_v2",  # tabpfn_v2 | tabicl_v2(训练时对照, AUC 高者产出系数)
+    "distill_min_agree": 0.90,  # 蒸馏系数上线门槛(top-1 集合一致率, 设计 §8)
     "lethal_plan": True,        # 斩杀线规划(信息区"可斩"行: DFS 手牌出牌线,
                                 # 见 docs/PLAY_ADVICE.md §6; planner 缺席/未解析
                                 # 时诚实降级, 不影响既有两行)
@@ -97,7 +100,7 @@ def auto_logs_dir() -> str:
 class Config:
     _INT = ("overlay_font_size",)
     _FLOAT = ("poll_interval", "session_check_interval", "overlay_alpha",
-              "draw_dedup_seconds")
+              "draw_dedup_seconds", "distill_min_agree")
     _BOOL = ("console_echo", "overlay_enabled", "overlay_topmost",
              "overlay_borderless", "auto_training", "auto_train_models",
              "mulligan_advice", "lethal_plan")

@@ -165,3 +165,62 @@ def test_cv_compare_reports_table_baseline():
                                          pref="tabpfn_v2")
     assert "统计表加性" in report
     assert winner in ("tabpfn_v2", "tabicl_v2", "lr")
+
+
+# ── 训练接线(config/_save_version/read_latest/train_v3 编排) ──
+
+def test_config_v3_keys():
+    from hsbot.config import Config
+    cfg = Config.load({"config": "/nonexistent.yaml"})
+    assert cfg.mulligan_v3 is True and cfg.scorer_backend == "tabpfn_v2"
+    assert abs(cfg.distill_min_agree - 0.90) < 1e-9
+
+
+def test_save_version_writes_v3_and_meta(tmp_path):
+    from trainer import mulligan as M
+    root = tmp_path / "models"
+    g = M.Game(path="s_g01", result=1, coin=False, opp_class="PRIEST",
+               cards=["A"], kept=["A"], mtime=1.0, size=10)
+    v3 = {"layout": 1, "distill_ok": True, "agree": 1.0, "auc": 0.6,
+          "backend": "tabpfn_v2"}
+    M._save_version(root, "测试", {}, None, None, [g], 1, Counter(), v3=v3)
+    art = json.loads((root / "v001" / "v3.json").read_text(encoding="utf-8"))
+    meta = json.loads((root / "v001" / "meta.json").read_text(encoding="utf-8"))
+    assert art["distill_ok"] is True
+    assert meta["v3"]["backend"] == "tabpfn_v2"
+
+
+def test_save_version_without_v3_no_artifact(tmp_path):
+    """mulligan_v3=false 等价 v3=None: 不产 v3.json(零变化钉子的落盘半边)。"""
+    from trainer import mulligan as M
+    root = tmp_path / "models"
+    g = M.Game(path="s_g01", result=1, coin=False, opp_class="PRIEST",
+               cards=["A"], kept=["A"], mtime=1.0, size=10)
+    M._save_version(root, "测试", {}, None, None, [g], 1, Counter())
+    assert not (root / "v001" / "v3.json").exists()
+    meta = json.loads((root / "v001" / "meta.json").read_text(encoding="utf-8"))
+    assert "v3" not in meta
+
+
+def test_read_latest_loads_v3(tmp_path):
+    from hsbot.mulligan_ai import read_latest
+    from trainer import mulligan as M
+    root = tmp_path / "models"
+    g = M.Game(path="s_g01", result=1, coin=False, opp_class="PRIEST",
+               cards=["A"], kept=["A"], mtime=1.0, size=10)
+    M._save_version(root, "测试", {}, None, None, [g], 1, Counter(),
+                    v3={"layout": 1, "distill_ok": True})
+    ver, art = read_latest(root)
+    assert art["v3"]["distill_ok"] is True
+
+
+def test_train_v3_skips_gracefully_on_empty_corpus(tmp_path):
+    """空语料/决策行不足 → v3=None, 训练主流程不失败(诚实降级路径)。"""
+    from types import SimpleNamespace
+    from trainer.scorer import train_v3
+    cfg = SimpleNamespace(training_dir=tmp_path / "corpus",
+                          data_dir=tmp_path / "data", battletag="湫然#51704",
+                          scorer_backend="tabpfn_v2", distill_min_agree=0.9)
+    (tmp_path / "data").mkdir()
+    v3 = train_v3(cfg, "奇迹德", NO_DB, {"engine": []})
+    assert v3 is None

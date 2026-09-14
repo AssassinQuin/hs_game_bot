@@ -441,7 +441,7 @@ def read_latest(root: Path | str) -> tuple[str | None, dict]:
                "seen": json.loads((vdir / "games_seen.json").read_text(encoding="utf-8")),
                "stats": json.loads((vdir / "stats.json").read_text(encoding="utf-8"))}
         for name, key in (("model.json", "lr"), ("games_digest.json", "digest"),
-                          ("tabpfn.json", "tabpfn")):
+                          ("tabpfn.json", "tabpfn"), ("v3.json", "v3")):
             p = vdir / name
             art[key] = json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
         return ver, art

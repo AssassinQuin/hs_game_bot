@@ -28,6 +28,10 @@ overlay_topmost: true     # 窗口置顶: 只应真实运行开启。测试/回�
 overlay_borderless: false # true=无边框(不可拖动/关闭, 需改配置还原)
 mulligan_advice: true     # 留牌环节高亮建议: 留X换Y(依据对手+留/换胜率, 模型来自
                           # python -m trainer mulligan; 无模型时只显示"起手可留")
+# 留牌 v3 基座评分器(docs/superpowers/specs/2026-09-14-mulligan-foundation-model-design.md):
+# mulligan_v3: true       # 总开关; false 时输出与 v2 逐字节一致(钉子测试)
+# scorer_backend: tabpfn_v2   # tabpfn_v2 | tabicl_v2(训练时都跑对照, AUC 高者产出系数)
+# distill_min_agree: 0.90     # 蒸馏系数上线门槛(top-1 集合一致率), 不过→live 回退 v2 级联
 # 斩杀线规划: 信息区"可斩: X→Y 总伤N"行(DFS 手牌出牌线, docs/PLAY_ADVICE.md §6)
 # lethal_plan: true       # 默认开(内置默认 true), 注释掉以免与代码双源
 # 信息分色(按人物与事件类型; 需自定义时取消注释整块并改色值):

@@ -379,7 +379,7 @@ class _VersionLock:
 
 def _save_version(root: Path, deck: str, stats: dict, lr: dict | None,
                   tab: dict | None, games: list, n_new: int,
-                  skip: Counter) -> str:
+                  skip: Counter, v3: dict | None = None) -> str:
     with _VersionLock(root):                     # 并发(局终自动+手动 CLI)串行化
         versions = [d.name for d in root.glob("v*") if d.is_dir()]
         ver = f"v{max((int(v[1:]) for v in versions), default=0) + 1:03d}"
@@ -401,6 +401,9 @@ def _save_version(root: Path, deck: str, stats: dict, lr: dict | None,
         if tab is not None:
             atomic_write_text(out / "tabpfn.json",
                               json.dumps(tab, ensure_ascii=False))
+        if v3 is not None:
+            atomic_write_text(out / "v3.json",
+                              json.dumps(v3, ensure_ascii=False))
         atomic_write_text(out / "games_digest.json",
                           json.dumps([{"c": g.opp_class, "o": int(g.coin),
                                        "f": sorted(set(g.cards)),
@@ -408,19 +411,20 @@ def _save_version(root: Path, deck: str, stats: dict, lr: dict | None,
                                        "r": g.result} for g in games],
                                      ensure_ascii=False))
         metrics = (lr or {}).get("metrics") or {}
+        meta = {"version": ver, "deck": deck,
+                "trained_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "n_games": len(games), "n_new": n_new,
+                "wins": wins, "skipped": dict(skip),
+                "lr_metrics": metrics,
+                "tabpfn_metrics": (tab or {}).get("metrics") or {},
+                "class_counts": dict(Counter(g.opp_class for g in games)),
+                "coin_games": sum(g.coin for g in games)}
+        if v3 is not None:
+            meta["v3"] = {k: v3.get(k) for k in
+                          ("backend", "agree", "auc", "q_auc", "q_gated",
+                           "distill_ok")}
         atomic_write_text(out / "meta.json",
-                          json.dumps({"version": ver, "deck": deck,
-                                      "trained_at": datetime.now().strftime(
-                                          "%Y-%m-%d %H:%M:%S"),
-                                      "n_games": len(games), "n_new": n_new,
-                                      "wins": wins, "skipped": dict(skip),
-                                      "lr_metrics": metrics,
-                                      "tabpfn_metrics": (tab or {}).get(
-                                          "metrics") or {},
-                                      "class_counts": dict(
-                                          Counter(g.opp_class for g in games)),
-                                      "coin_games": sum(g.coin for g in games)},
-                                     ensure_ascii=False, indent=1))
+                          json.dumps(meta, ensure_ascii=False, indent=1))
         atomic_write_text(root / "LATEST.json",
                           json.dumps({"version": ver}, ensure_ascii=False))
         # 保留最近 _KEEP_VERSIONS 版, 更旧的删除(磁盘有界; 审计 低#13)
@@ -481,10 +485,20 @@ def cmd_train(cfg: Config, deck: str) -> int:
     prior = load_prior(prior_path(cfg), deck, carddb, set(stats))
     lr = train_lr(games, carddb, prior)
     tab = train_tabpfn(games, cfg.data_dir, carddb, prior)
-    # 无新增且模型层级没变 → 不空转版本; 层级变了(如刚装上 tabpfn)则重训
+    # v3 训练(mulligan_v3 开关): 素材→Q→评分器→蒸馏; 失败不阻塞 v2 主流程
+    v3 = None
+    if getattr(cfg, "mulligan_v3", False):
+        try:
+            from .scorer import train_v3
+            v3 = train_v3(cfg, deck, carddb, prior)
+        except SystemExit as exc:                # 诚实降级: 打印原因不中断
+            print(f"v3: 跳过({exc})")
+        except Exception as exc:  # noqa: BLE001
+            print(f"! v3 训练失败({type(exc).__name__}): {exc}")
+    # 无新增且模型层级没变 → 不空转版本; 层级变了(如刚装上 tabpfn/开启 v3)则重训
     def same_layout(art):                # 双方都无此层 → 上面的存在性比对已保证一致
         return art is None or art.get("layout") == LAYOUT
-    if n_new == 0 and prev_ver is not None             and (prev.get("lr") is not None) == (lr is not None)             and (prev.get("tabpfn") is not None) == (tab is not None)             and same_layout(prev.get("lr")) and same_layout(prev.get("tabpfn")):
+    if n_new == 0 and prev_ver is not None             and (prev.get("lr") is not None) == (lr is not None)             and (prev.get("tabpfn") is not None) == (tab is not None)             and (prev.get("v3") is not None) == (v3 is not None)             and same_layout(prev.get("lr")) and same_layout(prev.get("tabpfn")):
         print(f"无新增对局, 沿用 {prev_ver}: {root / prev_ver}")
         return 0
 
@@ -515,7 +529,14 @@ def cmd_train(cfg: Config, deck: str) -> int:
         print("── TabPFN 基座: 未启用(需 pip install tabpfn; 缺失时评分权回退) ──")
     print(f"置信度: {len(games)} 局样本"
           + ("尚少, 结论仅供对照(≥200 局后更可靠)" if len(games) < 200 else "。"))
-    ver = _save_version(root, deck, stats, lr, tab, games, n_new, skip)
+    if v3 is not None:
+        m = v3
+        print(f"── v3 基座评分器({m['backend']}): Q AUC {m['q_auc']} "
+              f"({'过' if m['q_gated'] else '不过→标签退化纯胜负'}) │ "
+              f"评分器 AUC {m['auc']} │ 蒸馏一致率 {m['agree'] * 100:.0f}% "
+              f"(门槛 {float(getattr(cfg, 'distill_min_agree', 0.9)) * 100:.0f}%) │ "
+              f"{'上线' if m['distill_ok'] else '不过门槛→live 回退 v2 级联'} ──")
+    ver = _save_version(root, deck, stats, lr, tab, games, n_new, skip, v3=v3)
     print(f"模型已保存: {root / ver}" + (f"(上一版 {prev_ver})" if prev_ver else "(首版)"))
     return 0
 

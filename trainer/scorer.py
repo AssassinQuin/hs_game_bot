@@ -290,3 +290,66 @@ def distill(ds: dict, predict) -> tuple[dict, dict, float]:
     return ({c: gain[c] / gain_n[c] for c in gain if gain_n[c]},
             {k: syn[k] / syn_n[k] for k in syn if syn_n[k]},
             match / total if total else 0.0)
+
+
+# ════════════════════ v3 训练编排(material_v2 → Q → 评分器 → 蒸馏) ════════════════════
+
+_MIN_MULL_ROWS = 10        # 决策行少于此值不开训(小样本诚实条款, 与 LR_MIN_GAMES 同哲学)
+
+
+def train_v3(cfg, deck: str, carddb, prior: dict) -> dict | None:
+    """v3 全流程 → v3.json 内容(设计 §3-§7); 决策行不足/基座缺失 → None。
+    失败不抛(调用方已兜底), 阶段门控逐级诚实降级。"""
+    from pathlib import Path
+
+    from hsbot.mulligan_ai import ANTI_SYNERGY_THR, LR_AUC_GATE, V3_LAYOUT
+    from .material import build_material_v2, load_material_v2
+    from . import qvalue
+
+    out_dir = Path(__file__).resolve().parent / "data" / deck
+    corpus_dir = Path(cfg.training_dir)
+    slices = sorted((corpus_dir / deck).glob("*.power.log"))
+    mv2 = out_dir / "material_v2.jsonl"
+    # 成本闸: 素材比全部切片新则复用(局终自动训练不重复全量重放)
+    if mv2.exists() and slices \
+            and mv2.stat().st_mtime > max(s.stat().st_mtime for s in slices):
+        rows = load_material_v2(out_dir)
+    else:
+        build_material_v2(corpus_dir, deck, out_dir, carddb, cfg.battletag)
+        rows = load_material_v2(out_dir)
+    n_mull = sum(1 for r in rows if r.get("row") == "mulligan")
+    if n_mull < _MIN_MULL_ROWS:
+        print(f"v3: 决策行不足({n_mull} < {_MIN_MULL_ROWS}), 跳过")
+        return None
+
+    # 阶段一: Q 模型 OOF + 门控(不过 → 阶段二标签退化纯胜负)
+    Xq, yq, gq, q3idx, _meta = qvalue.q_rows(rows, carddb, prior)
+    qm = qvalue.q_oof_fit(Xq, yq, gq, cfg.data_dir)
+    q_gated = qvalue.q_gate_passes(qm)
+    q_by_game = {g: qm["oof"][i] for g, i in q3idx.items() if i in qm["oof"]}
+
+    # 阶段二: 评分器(蒸馏标签) + 对照表 + 蒸馏系数
+    ds = scorer_dataset(rows, carddb, prior, q_by_game, q_gated)
+    report, winner, _full = cv_compare(ds, cfg.data_dir, cfg.scorer_backend)
+    backend, predict = fit_scorer(ds, cfg.data_dir, cfg.scorer_backend)
+    if predict is None:
+        print("v3: 基座后端不可用(缺 tabpfn), 跳过")
+        return None
+    gain, syn, agree = distill(ds, predict)
+    display = {"tabpfn_v2": "TabPFN v2", "tabicl_v2": "TabICL v2", "lr": "LR"}
+    auc = (report.get(display.get(winner, ""), {}) or {}).get("auc")
+    distill_ok = (agree >= float(getattr(cfg, "distill_min_agree", 0.9))
+                  and auc is not None and auc >= LR_AUC_GATE)
+    # live 用系数表不消费 deck_tail; CLI 基座枚举取训练局众数尾段(单卡组前提)
+    tail_mode = Counter(tuple(t) for t in ds["tails"]).most_common(1)
+    return {"layout": V3_LAYOUT, "backend": backend,
+            "vocab": ds["vocab"], "classes": ds["classes"],
+            "pairs": ds["pairs"], "engine": ds["engines"],
+            "gain": gain, "syn": syn,
+            "agree": round(agree, 3), "auc": auc, "q_auc": qm["auc"],
+            "q_gated": q_gated, "distill_ok": distill_ok,
+            "anti_thr": ANTI_SYNERGY_THR,
+            "deck_tail": list(tail_mode[0][0]) if tail_mode else [],
+            "deck_engine": float(Counter(ds["deck_engines"]).most_common(1)[0][0])
+            if ds["deck_engines"] else 0.0,
+            "X": ds["X"], "y": ds["y"]}
