@@ -65,6 +65,7 @@ def scorer_dataset(rows_v2: list[dict], carddb, prior: dict,
 
     X: list = []
     y: list = []
+    results: list = []
     games: list = []
     tails: list = []
     deck_engines: list = []
@@ -86,6 +87,7 @@ def scorer_dataset(rows_v2: list[dict], carddb, prior: dict,
         qv = (q_by_game or {}).get(r["game"])
         y.append(0.5 * result + 0.5 * qv
                  if (q_gated and qv is not None) else result)
+        results.append(result)
         games.append(r["game"])
         tails.append(tail)
         deck_engines.append(deck_engine)
@@ -95,7 +97,8 @@ def scorer_dataset(rows_v2: list[dict], carddb, prior: dict,
         opp_l.append(r["opp_class"])
     # 组 = 会话(切片名剥 _gNN.power.log 后缀): 同会话绝不跨训练/验证组
     sess = lambda g: re.sub(r"_g\d+(\.power\.log)?$", "", g.split("#")[0])
-    return {"X": X, "y": y, "groups": [sess(g) for g in games],
+    return {"X": X, "y": y, "results": results,
+            "groups": [sess(g) for g in games],
             "games": games, "tails": tails, "deck_engines": deck_engines,
             "offered": offered_l, "kept": kept_l, "coin": coin_l,
             "opp": opp_l, "vocab": vocab, "classes": classes,
@@ -110,21 +113,42 @@ def _deck_tail(decklist: dict | None, carddb, prior: dict) -> list:
 
 # ════════════════════ 后端拟合 + 组级 CV 对照 ════════════════════
 
+def _soft_labels(y: list) -> bool:
+    """蒸馏标签是否含连续值(0.5·胜负+0.5·Q)——决定基座用回归还是分类形态。"""
+    return any(abs(v - round(v)) > 1e-9 for v in y)
+
+
 def _fit_backend(name: str, Xtr, ytr, data_dir):
-    """backend → predict(X)→[P(胜)]; 缺包/坏折 → None。"""
+    """backend → 打分器(X)→[P(胜) 或连续分]; 缺包/不支持 → None。
+    软标签(蒸馏)时 TabPFN 走 Regressor、LR 走 Ridge、TabICL 诚实跳过。"""
     from hsbot.mulligan_ai import tabpfn_env
     tabpfn_env(data_dir)
+    soft = _soft_labels(ytr)
     try:
         import numpy as np
         if name == "tabpfn_v2":
+            if soft:
+                from tabpfn import TabPFNRegressor
+                model = TabPFNRegressor(device="cpu",
+                                        ignore_pretraining_limits=True)
+                model.fit(np.array(Xtr, dtype=np.float32),
+                          np.array(ytr, dtype=np.float32))
+                return lambda Xv: model.predict(
+                    np.array(Xv, dtype=np.float32))
             from tabpfn import TabPFNClassifier
             clf = TabPFNClassifier(device="cpu",
                                    ignore_pretraining_limits=True)
         elif name == "tabicl_v2":
+            if soft:
+                return None
             from tabicl import TabICLClassifier
             clf = TabICLClassifier()
         elif name == "lr":
             from sklearn.linear_model import LogisticRegression
+            from sklearn.linear_model import Ridge
+            if soft:
+                reg = Ridge(alpha=1.0).fit(Xtr, ytr)
+                return lambda Xv: reg.predict(Xv)
             return _fit_lr(Xtr, ytr)
         else:
             return None
@@ -156,15 +180,17 @@ def cv_compare(ds: dict, data_dir, pref: str = "tabpfn_v2") -> tuple:
     → (report, winner_machine_key, winner 全量 predict | None)。"""
     from hsbot.mulligan_ai import card_advice, table_update
     from .backtest import auc as auc_of, group_folds
-    X, y = ds["X"], ds["y"]
+    X, y, y_true = ds["X"], ds["y"], ds["results"]
     names = list(_BACKENDS) + ["lr"]
     scores: dict[str, list] = {n: [] for n in names}
     table_scores: list = []
     for tr, va in group_folds(ds["groups"], N_SPLITS):
         ytr = [y[i] for i in tr]
-        if len(set(ytr)) < 2 or len({y[i] for i in va}) < 2:
+        if len(set(round(v) for v in ytr)) < 2                 or len({y_true[i] for i in va}) < 2:
             continue
-        yva = [y[i] for i in va]
+        yva = [y_true[i] for i in va]      # 评估口径 = 真实胜负(设计 §9)
+        bin_ytr = [1 if v >= 0.5 else 0 for v in ytr]   # 统计表折内口径
+        ytr = bin_ytr
         for name in names:
             if name != "lr" and not _backend_available(name):
                 continue
@@ -179,12 +205,14 @@ def cv_compare(ds: dict, data_dir, pref: str = "tabpfn_v2") -> tuple:
             table_update(stats, ds["opp"][i], ds["coin"][i],
                          1 if y[i] >= 0.5 else 0, ds["offered"][i],
                          ds["kept"][i])
-        deck_wr = sum(1 for i in tr if y[i] >= 0.5) / max(1, len(tr))
+        deck_wr = sum(1 if y[i] >= 0.5 else 0 for i in tr) / max(1, len(tr))
+        from types import SimpleNamespace
+        db = SimpleNamespace(cost=ds["cost"], cardtype=ds["cardtype"])
         sv = []
         for i in va:
             g = {c: card_advice(stats, c, ds["opp"][i],
                                 1 if ds["coin"][i] else 0, deck_wr,
-                                None, None)["gain"]
+                                db, None)["gain"]
                  for c in ds["kept"][i]}
             sv.append(sum(g.values()))
         table_scores.append(auc_of(yva, sv))
@@ -297,24 +325,32 @@ def distill(ds: dict, predict) -> tuple[dict, dict, float]:
 _MIN_MULL_ROWS = 10        # 决策行少于此值不开训(小样本诚实条款, 与 LR_MIN_GAMES 同哲学)
 
 
-def train_v3(cfg, deck: str, carddb, prior: dict) -> dict | None:
+def train_v3(cfg, deck: str, carddb, prior: dict,
+             out_dir: Path | str | None = None) -> dict | None:
     """v3 全流程 → v3.json 内容(设计 §3-§7); 决策行不足/基座缺失 → None。
-    失败不抛(调用方已兜底), 阶段门控逐级诚实降级。"""
+    失败不抛(调用方已兜底), 阶段门控逐级诚实降级。
+    out_dir 缺省 = trainer/data/<deck>(与 material 步骤同目录约定);
+    测试必须显式传 tmp, 否则会覆盖真实素材(实测踩坑)。"""
     from pathlib import Path
 
     from hsbot.mulligan_ai import ANTI_SYNERGY_THR, LR_AUC_GATE, V3_LAYOUT
     from .material import build_material_v2, load_material_v2
     from . import qvalue
 
-    out_dir = Path(__file__).resolve().parent / "data" / deck
+    if out_dir is None:
+        out_dir = Path(__file__).resolve().parent / "data" / deck
     corpus_dir = Path(cfg.training_dir)
     slices = sorted((corpus_dir / deck).glob("*.power.log"))
     mv2 = out_dir / "material_v2.jsonl"
-    # 成本闸: 素材比全部切片新则复用(局终自动训练不重复全量重放)
-    if mv2.exists() and slices \
-            and mv2.stat().st_mtime > max(s.stat().st_mtime for s in slices):
+    # 成本闸: 素材比全部切片新且非空才复用(局终自动训练不重复全量重放);
+    # 空/行数不足(曾被坏构建覆盖)一律重建
+    rows: list = []
+    if mv2.exists() and mv2.stat().st_size > 0 and slices \
+            and mv2.stat().st_mtime > max(s_.stat().st_mtime for s_ in slices):
         rows = load_material_v2(out_dir)
-    else:
+        if sum(1 for r in rows if r.get("row") == "mulligan") < _MIN_MULL_ROWS:
+            rows = []
+    if not rows:
         build_material_v2(corpus_dir, deck, out_dir, carddb, cfg.battletag)
         rows = load_material_v2(out_dir)
     n_mull = sum(1 for r in rows if r.get("row") == "mulligan")

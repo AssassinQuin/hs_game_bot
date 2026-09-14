@@ -222,8 +222,11 @@ def test_train_v3_skips_gracefully_on_empty_corpus(tmp_path):
                           data_dir=tmp_path / "data", battletag="湫然#51704",
                           scorer_backend="tabpfn_v2", distill_min_agree=0.9)
     (tmp_path / "data").mkdir()
-    v3 = train_v3(cfg, "奇迹德", NO_DB, {"engine": []})
+    v3 = train_v3(cfg, "奇迹德", NO_DB, {"engine": []},
+                  out_dir=tmp_path / "out")
     assert v3 is None
+    # 素材写在调用方给的目录, 不许碰真实 trainer/data(实测踩坑: 曾覆盖为空)
+    assert (tmp_path / "out" / "material_v2.jsonl").exists()
 
 
 # ── CLI v3_base(CLI 离线全量枚举) ──
