@@ -380,6 +380,13 @@ def mulligan3_features(model: dict, offered: list, kept: list,
     return x
 
 
+def v3_layout_offsets(vocab: list, pairs: list) -> dict:
+    """特征布局偏移(单点): kept onehot 段与 pair 段的起始下标。
+    蒸馏设计矩阵与测试都从这里取偏移, 不许硬编码布局。"""
+    nv = len(vocab)
+    return {"kept_off": nv + 1, "pair_off": 2 * nv + 9}   # oov1 + kept_n+8
+
+
 def v3_set_score(kept_set, gains: dict, pair_bonus: dict) -> float:
     """加性集合打分 = Σ gain + Σ pair(与 best_keep_set 同一口径, 供组合输出)。"""
     s = sum(gains.get(c, 0.0) for c in kept_set)
