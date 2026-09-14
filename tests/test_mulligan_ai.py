@@ -252,3 +252,55 @@ def test_opponent_mulligan_offer_not_advice_colored():
     assert _msg_kind_for(mine) == KIND_ADVICE
     assert _msg_kind_for(opp) == KIND_CHAIN
     assert _msg_kind_for({"kind": "play", "actor": 1, "friendly": 1}) == KIND_CHAIN
+
+
+# ── v3 决策时特征构造器(spec §5.1, 定长追加式) ──
+
+def _v3_model():
+    return {"vocab": ["A", "B", "C"], "classes": ["PRIEST", "MAGE"],
+            "pairs": [["A", "B"]], "engine": ["B"],
+            "deck_tail": [0.5] * 15, "deck_engine": 2.0,
+            "cost": {"A": 1, "B": 5, "C": 2}.get,
+            "cardtype": {}.get}
+
+
+def test_v3_features_schema_fixed_length():
+    import hsbot.mulligan_ai as ai
+    m = _v3_model()
+    names = ai.v3_feature_names(m["vocab"], m["classes"], m["pairs"])
+    x1 = ai.mulligan3_features(m, ["A", "B"], ["A"], False, "PRIEST")
+    x2 = ai.mulligan3_features(m, ["C"], [], True, "MAGE")
+    # names 契约 = 模型段(deck_tail 由调用方按模型追加, 与 v2 tail 惯例一致)
+    assert len(names) + len(m["deck_tail"]) == len(x1) == len(x2)
+    # 泄漏钉子(spec §2): 决策时特征里不允许出现决策后字段
+    banned = ("replaced", "drawn", "board", "snap", "hand_")
+    assert not any(b in n for n in names for b in banned)
+    # 追加式布局(尾部是 deck_tail): 词表变化只动前段, 尾段语义不变
+    assert names[-1] == "deck_tail" or m["deck_tail"] == x1[-len(m["deck_tail"]):]
+
+
+def test_v3_features_values_and_fallback():
+    import hsbot.mulligan_ai as ai
+    m = _v3_model()
+    x = ai.mulligan3_features(m, ["A", "ZZZ"], ["A"], False, "PRIEST")
+    assert x[0] == 1.0 and x[1] == 0.0 and x[2] == 0.0   # offered onehot A
+    assert x[len(m["vocab"])] == 1.0                     # 词表外兜底位(ZZZ)
+    assert x[len(m["vocab"]) + 1] == 1.0                 # kept onehot A
+    assert x[-len(m["deck_tail"]):] == m["deck_tail"]    # 尾段原样
+
+
+def test_v3_features_curve_engine_pairs():
+    import hsbot.mulligan_ai as ai
+    m = _v3_model()
+    names = ai.v3_feature_names(m["vocab"], m["classes"], m["pairs"])
+    x = ai.mulligan3_features(m, ["A", "B"], ["A", "B"], True, "PRIEST")
+    get = dict(zip(names, x))
+    assert get["kept_n"] == 2
+    assert get["cover_1"] == 1.0 and get["cover_2"] == 0.0 and get["cover_3"] == 0.0
+    assert get["kept_cost"] == 6.0                       # A(1)+B(5)
+    assert get["kept_cheap_spell"] == 0.0                # 无卡表 cardtype → 0
+    assert get["kept_engine"] == 1.0                     # B 在 engine 词表
+    assert get["engine_density"] == 0.5                  # 1/2
+    assert get["pair_A|B"] == 1.0
+    assert get["coin"] == 1.0
+    assert get["opp_PRIEST"] == 1.0 and get["opp_MAGE"] == 0.0

@@ -317,6 +317,104 @@ def matched_evidence(digest: list, cid: str, hand: list, opp_class: str,
     return out
 
 
+# ════════════════════ v3 评分器特征 + 组合输出(spec 2026-09-14 §5) ════════════════════
+# 防泄漏铁律: 本段特征只允许决策时可得信息(offered/候选留集/对手职业/先后手/
+# 卡组构成)。任何决策后字段(换入牌/后续抽牌/场面)进布局 = 泄漏, 测试钉死。
+
+V3_LAYOUT = 1
+ANTI_SYNERGY_THR = -0.02    # pair_synergy < 此值 → 不宜同留(设计 §5.3 定稿值)
+
+
+def v3_feature_names(vocab: list, classes: list, pairs: list) -> list:
+    """特征名(顺序即契约, 追加式)。deck_tail 由调用方按模型原样追加在
+    向量尾部(其长度随卡组特征版式变化, 不占名单)。"""
+    names = [f"offered_{c}" for c in vocab] + ["offered_oov"]
+    names += [f"kept_{c}" for c in vocab] + [
+        "kept_n", "cover_1", "cover_2", "cover_3", "kept_cost",
+        "kept_cheap_spell", "kept_engine", "engine_density"]
+    names += [f"pair_{a}|{b}" for a, b in pairs]
+    names += [f"opp_{c}" for c in classes] + ["coin"]
+    return names
+
+
+def mulligan3_features(model: dict, offered: list, kept: list,
+                       coin: bool, opp_class: str) -> list:
+    """决策时特征(spec §5.1)。model = {"vocab","classes","pairs","engine",
+    "deck_tail","cost","cardtype","deck_engine"}; cost/cardtype 是 cid→值
+    callable(缺卡表 → None → 记 0), 本层零卡表依赖。"""
+    vocab = model["vocab"]
+    classes = model["classes"]
+    pairs = model.get("pairs") or []
+    cost = model.get("cost") or (lambda cid: None)
+    cardtype = model.get("cardtype") or (lambda cid: None)
+    engines = set(model.get("engine") or [])
+    x: list = []
+    offered_set, kept_set = set(offered), set(kept)
+
+    def put(v):
+        x.append(float(v))
+
+    for c in vocab:
+        put(1.0 if c in offered_set else 0.0)
+    put(1.0 if any(c not in set(vocab) for c in offered_set) else 0.0)
+    for c in vocab:
+        put(1.0 if c in kept_set else 0.0)
+    put(len(kept_set))
+    costs = [cost(c) for c in kept_set]
+    costs = [c for c in costs if isinstance(c, (int, float))]
+    for k in (1, 2, 3):
+        put(1.0 if k in costs else 0.0)                   # k 费档有牌可出
+    put(sum(costs))
+    put(sum(1 for c in kept_set if cost(c) is not None and cost(c) <= 2
+            and cardtype(c) == "SPELL"))
+    n_engine = sum(1 for c in kept_set if c in engines)
+    deck_engine = float(model.get("deck_engine") or 0.0)
+    put(n_engine)
+    put(n_engine / deck_engine if deck_engine > 0 else 0.0)
+    for a, b in pairs:
+        put(1.0 if a in kept_set and b in kept_set else 0.0)
+    for c in classes:
+        put(1.0 if c == opp_class else 0.0)
+    put(1.0 if coin else 0.0)
+    x.extend(float(v) for v in (model.get("deck_tail") or []))
+    return x
+
+
+def v3_set_score(kept_set, gains: dict, pair_bonus: dict) -> float:
+    """加性集合打分 = Σ gain + Σ pair(与 best_keep_set 同一口径, 供组合输出)。"""
+    s = sum(gains.get(c, 0.0) for c in kept_set)
+    s += sum(b for p, b in pair_bonus.items() if set(p) <= kept_set)
+    return s
+
+
+def combined_outputs(uniq: list, gains: dict, pair_bonus: dict,
+                     keep: list) -> dict:
+    """2ⁿ 打分表 → 组合维度机读事实(spec §5.3): keep/per_card_marginal/
+    pair_synergy/anti_synergy/reject。pair 限定 offered 内(≤10 对), 全部由
+    打分表组合而来, 零额外推理。"""
+    from itertools import combinations as _cmb
+    uniq_set = set(uniq)
+    scores = {frozenset(cmb): v3_set_score(set(cmb), gains, pair_bonus)
+              for size in range(len(uniq) + 1)
+              for cmb in _cmb(sorted(uniq), size)}
+    keep_set = frozenset(keep)
+    best_s = scores.get(keep_set, v3_set_score(keep_set, gains, pair_bonus))
+    marginal = {c: best_s - scores[keep_set - {c}] for c in keep}
+    pair_synergy = {}
+    for a, b in _cmb(sorted(uniq), 2):
+        pair_synergy[(a, b)] = (scores[frozenset({a, b})]
+                                - scores[frozenset({a})]
+                                - scores[frozenset({b})]
+                                + scores[frozenset()])
+    anti = [p for p, v in pair_synergy.items() if v < ANTI_SYNERGY_THR]
+    reject = [c for c in uniq if c not in keep_set
+              and (scores.get(keep_set | {c}, best_s) - best_s) < 0]
+    return {"keep": list(keep), "marginal": marginal,
+            "pair_synergy": pair_synergy, "anti_synergy": anti,
+            "reject": reject,
+            "scores": {tuple(sorted(k)): v for k, v in scores.items()}}
+
+
 # ════════════════════ 模型产物读取 + 实时建议器 ════════════════════
 
 def models_root_for(data_dir, deck: str) -> Path:
