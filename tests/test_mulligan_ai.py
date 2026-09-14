@@ -338,3 +338,82 @@ def test_combined_outputs_symmetry_and_edges():
     # 空集最优(全负增益) → keep 空, reject = 全部
     empty = ai.combined_outputs(["A", "B"], {"A": -0.1, "B": -0.2}, {}, [])
     assert empty["keep"] == [] and set(empty["reject"]) == {"A", "B"}
+
+
+# ── v3 live 路径: 蒸馏系数表 + 组合输出 + 零变化 ──
+
+def _mk_model_v3(data_dir: Path, v3: dict | None, deck="奇迹德"):
+    cards = {"GOOD": {"*|*": _cell(3, 1, 2, 2)}, "A": {"*|*": _cell(2, 2, 2, 2)}}
+    root = _mk_model(data_dir, cards, deck=deck)
+    if v3 is not None:
+        (root / "v001" / "v3.json").write_text(
+            json.dumps(v3, ensure_ascii=False), encoding="utf-8")
+    return root
+
+
+_V3_OK = {"layout": 1, "backend": "tabpfn_v2", "vocab": ["GOOD", "A"],
+          "classes": ["PRIEST"], "pairs": [], "engine": [],
+          "gain": {"GOOD": 0.10, "A": 0.05}, "syn": {},
+          "agree": 0.95, "auc": 0.60, "q_auc": 0.58, "q_gated": True,
+          "distill_ok": True, "anti_thr": -0.02, "deck_tail": [],
+          "deck_engine": 0.0, "X": [[0.0]], "y": [1]}
+
+
+def test_advise_v3_uses_distilled_coefficients(tmp_path):
+    root = _mk_model_v3(tmp_path, dict(_V3_OK, syn={"GOOD|A": 0.30}))
+    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True)
+    r = adv.advise(["GOOD", "A"], "PRIEST", False)
+    assert r["scorer"] == "v3"
+    assert r["keep"] == ["GOOD", "A"]            # 协同 +0.3 → 双留
+    v3 = r["v3"]
+    assert set(v3["marginal"]) == {"GOOD", "A"}
+    assert abs(v3["pair_synergy"][("GOOD", "A")] - 0.30) < 1e-9
+    assert v3["anti_synergy"] == []
+
+
+def test_advise_v3_anti_synergy_and_reject(tmp_path):
+    root = _mk_model_v3(tmp_path, dict(_V3_OK,
+                                       gain={"GOOD": 0.10, "A": -0.20},
+                                       syn={"GOOD|A": -0.05}))
+    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True)
+    r = adv.advise(["GOOD", "A"], "PRIEST", False)
+    v3 = r["v3"]
+    assert any(tuple(p) == ("GOOD", "A") for p in v3["anti_synergy"])
+    assert "A" in v3["reject"]                   # 未留且加回为负
+
+
+def test_advise_v3_gate_fail_falls_back(tmp_path):
+    root = _mk_model_v3(tmp_path, dict(_V3_OK, distill_ok=False))
+    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True)
+    r = adv.advise(["GOOD"], "PRIEST", False)
+    assert r["scorer"] != "v3"                   # 回退统计表/LR
+
+
+def test_advise_v3_off_byte_identical_to_v2(tmp_path):
+    """零变化钉子: v3=False 时, v3.json 存在与否的输出逐字节一致。"""
+    root = _mk_model_v3(tmp_path, dict(_V3_OK))
+    r_off = MulliganAdvisor(root, "奇迹德", NO_DB, v3=False) \
+        .advise(["GOOD", "A"], "PRIEST", False)
+    (root / "v001" / "v3.json").unlink()
+    r_v2 = MulliganAdvisor(root, "奇迹德", NO_DB, v3=False) \
+        .advise(["GOOD", "A"], "PRIEST", False)
+    assert json.dumps(r_off, sort_keys=True) == json.dumps(r_v2, sort_keys=True)
+    assert "v3" not in r_off
+
+
+def test_render_v3_anti_wording_and_zero_change():
+    from hsbot.render import _render_mulligan_offer
+    per = {"GOOD": {"name": "黑市拍卖师", "gain": 0.1},
+           "A": {"name": "月火术", "gain": 0.05}}
+    base_adv = {"opp_class": "PRIEST", "coin": False, "keep": ["GOOD"],
+                "drop": ["A"], "per_card": per}
+    evt = {"msg": "x"}
+    line_before = _render_mulligan_offer({**evt, "advice": base_adv}, NO_DB)
+    v3_adv = {**base_adv, "v3": {"anti_synergy": [["GOOD", "A"]]}}
+    line_after = _render_mulligan_offer({**evt, "advice": v3_adv}, NO_DB)
+    assert "不宜同留: 黑市拍卖师+月火术" in line_after
+    assert line_after[:len(line_before)] == line_before   # 前缀零变化
+    # 反向对称键不重复显示
+    v3_sym = {**base_adv, "v3": {"anti_synergy": [["GOOD", "A"], ["A", "GOOD"]]}}
+    line_sym = _render_mulligan_offer({**evt, "advice": v3_sym}, NO_DB)
+    assert line_sym.count("不宜同留: ") == 1

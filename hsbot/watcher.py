@@ -262,7 +262,7 @@ class Watcher:
         self.mulligan_ai = MulliganAdvisor(
             models_root_for(cfg.data_dir, cfg.deck_name), cfg.deck_name, carddb,
             prior_path=Path(cfg.data_dir) / "mulligan_prior.yaml",
-            live=True) \
+            live=True, v3=bool(getattr(cfg, "mulligan_v3", False))) \
             if getattr(cfg, "mulligan_advice", True) else None
         self.analyzer = EffectAnalyzer(
             carddb, cache=EffectCache(Path(cfg.cache_dir) / "effects.json"),

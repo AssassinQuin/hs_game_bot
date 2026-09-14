@@ -525,13 +525,15 @@ class MulliganAdvisor:
 
     def __init__(self, root: Path | str, deck: str, carddb,
                  prior_path: Path | str | None = None,
-                 live: bool = False) -> None:
+                 live: bool = False, v3: bool = False) -> None:
         self.root = Path(root)
         self.deck = deck
         self.carddb = carddb
         # live=实时监控线程内: 禁 TabPFN(首次 fit 是秒级 CPU 块, 会卡住开局
         # 事件批; 审计 2026-09-14 低) —— CLI advise/离线不受限
         self.live = live
+        # v3=蒸馏系数表总开关(config mulligan_v3): false 时行为与 v2 逐字节一致
+        self._v3_enabled = v3
         self.prior_path = Path(prior_path) if prior_path else \
             self.root.parents[2] / "mulligan_prior.yaml"   # data/models/mulligan/<卡组> → data/
         self._stamp = None                  # (LATEST mtime, prior mtime) 失配即重读
@@ -587,8 +589,26 @@ class MulliganAdvisor:
         def _coin_views():
             return (False, True) if coin_i is None else (bool(coin_i),)
 
+        # v3(设计 §6): live 走蒸馏系数表(零 torch), 候选枚举复用 best_keep_set;
+        # 不过一致率/AUC 门槛(distill_ok=false)或开关关闭 → 原样落回 v2 级联
+        v3 = self._art.get("v3") if self._v3_enabled else None
+        v3_ok = bool(v3) and bool(v3.get("distill_ok")) \
+            and v3.get("layout") == V3_LAYOUT
+        gains3, syn3 = {}, {}
+        if v3_ok:
+            gains3 = {c: float((v3.get("gain") or {}).get(c, 0.0))
+                      for c in uniq}
+            uset = set(uniq)
+            for k, v in (v3.get("syn") or {}).items():
+                a, _, b = str(k).partition("|")
+                if a in uset and b in uset:
+                    syn3[(a, b)] = float(v)
+
         tab_payload = self._art.get("tabpfn")
-        if not self.live and TabPFNWrap.usable(tab_payload, self.prior_path.parent):
+        if v3_ok:
+            mean_keep = best_keep_set(uniq, gains3, syn3)
+            scorer = "v3"
+        elif not self.live and TabPFNWrap.usable(tab_payload, self.prior_path.parent):
             if self._tab is None:
                 self._tab = TabPFNWrap(tab_payload, self.prior_path.parent)
             sets = [self._tab.best_set(uniq, cc, cls) for cc in _coin_views()]
@@ -622,8 +642,12 @@ class MulliganAdvisor:
                            "src": a["src"], "n": a["n"], "prior": a["prior"],
                            "matched": matched_evidence(digest, c, uniq, cls, coin_i)
                            if digest else None}
-        return {"version": self._ver, "opp_class": cls, "coin": coin,
-                "deck_wr": deck_wr, "keep": keep,
-                "drop": [c for c in uniq if c not in keep],
-                "per_card": per_card, "scorer": scorer, "auc": auc,
-                "deviations": deviations}
+        out = {"version": self._ver, "opp_class": cls, "coin": coin,
+               "deck_wr": deck_wr, "keep": keep,
+               "drop": [c for c in uniq if c not in keep],
+               "per_card": per_card, "scorer": scorer, "auc": auc,
+               "deviations": deviations}
+        if scorer == "v3":
+            # 组合维度机读事实(spec §5.3); 中文措辞归 render
+            out["v3"] = combined_outputs(uniq, gains3, syn3, keep)
+        return out

@@ -72,8 +72,20 @@ def _render_mulligan_offer(evt: dict, carddb: CardDB) -> str:
     coin_txt = "后手" if adv.get("coin") else "先手"
     keep = "、".join(fmt(c) for c in adv.get("keep") or []) or "无"
     drop = "、".join(fmt(c) for c in adv.get("drop") or []) or "无"
-    return (f"【留牌建议·vs{class_zh(adv.get('opp_class', ''))}·{coin_txt}】"
+    line = (f"【留牌建议·vs{class_zh(adv.get('opp_class', ''))}·{coin_txt}】"
             f"留 {keep} │ 换 {drop}")
+    # v3 组合事实 → 措辞(spec §5.3); 无 v3 键时与 v2 逐字节一致(零变化钉子)
+    seen: set = set()
+    anti_names = []
+    for p in (adv.get("v3") or {}).get("anti_synergy") or []:
+        key = frozenset(p)
+        if key in seen:                      # 协同对称双键只措辞一次
+            continue
+        seen.add(key)
+        anti_names.append(f"{fmt(p[0]).split('(')[0]}+{fmt(p[1]).split('(')[0]}")
+    if anti_names:
+        line += " │ 不宜同留: " + "、".join(anti_names)
+    return line
 
 
 # ================= 留牌结论词: 事实 → 中文(输出层政策) =================
