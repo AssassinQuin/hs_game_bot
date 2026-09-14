@@ -616,7 +616,12 @@ def cmd_advise(cfg: Config, deck: str, hand: list, opp_class: str,
     if explore and not r["deviations"]:
         print("(本次抽样与均值建议一致, 无探索偏差)")
     nm = lambda c: carddb.name(c) or c
-    if r["scorer"] == "tabpfn":
+    if r["scorer"] in ("v3", "v3_base"):
+        meta_v3 = _v3_meta(root, r["version"])
+        basis = (f"v3 基座评分器[{r['scorer']}]({meta_v3.get('backend', '?')}, "
+                 f"蒸馏一致率 {meta_v3.get('agree', 0) * 100:.0f}%, "
+                 f"AUC {meta_v3.get('auc', '—')})")
+    elif r["scorer"] == "tabpfn":
         basis = f"TabPFN 基座上下文学习(AUC {r['auc']:.2f}) + 专家先验"
     elif r["scorer"] == "lr":
         basis = f"LR 集合枚举(AUC {r['auc']:.2f}) + 专家先验"
@@ -631,7 +636,35 @@ def cmd_advise(cfg: Config, deck: str, hand: list, opp_class: str,
         print(f"  {a['name']:<14} {mulligan_verdict(a):<5} 留→{_pct(a['keep_wr'])} "
               f"换→{_pct(a['drop_wr'])} 增益{a['gain'] * 100:+.1f}% "
               f"({mulligan_src_zh(a['src'])}) │ {mulligan_matched_zh(a['matched'])}")
+    if r.get("v3"):
+        v3d = r["v3"]
+        nm_ = lambda c: carddb.name(c) or c
+        seen = set()
+        pairs = []
+        for (a, b), v in v3d["pair_synergy"].items():
+            key = frozenset((a, b))
+            if key in seen:
+                continue
+            seen.add(key)
+            pairs.append((nm_(a), nm_(b), v))
+        print("组合维度(机读事实, 阈值口径见设计 §5.3):")
+        for c, m in v3d["marginal"].items():
+            print(f"  边际 {nm_(c)} {m * 100:+.1f}%")
+        for a, b, v in sorted(pairs, key=lambda t: -t[2]):
+            print(f"  同留协同 {a}+{b} {v * 100:+.1f}%")
+        for p_ in v3d["anti_synergy"]:
+            print(f"  不宜同留 {nm_(p_[0])}+{nm_(p_[1])}")
+        for c in v3d["reject"]:
+            print(f"  建议换 {nm_(c)}")
     return 0
+
+
+def _v3_meta(root, ver: str) -> dict:
+    try:
+        return json.loads((root / ver / "v3.json").read_text(
+            encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def _loo_table_backtest(games: list, carddb, prior: dict) -> dict:

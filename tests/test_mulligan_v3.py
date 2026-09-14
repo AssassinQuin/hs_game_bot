@@ -224,3 +224,32 @@ def test_train_v3_skips_gracefully_on_empty_corpus(tmp_path):
     (tmp_path / "data").mkdir()
     v3 = train_v3(cfg, "奇迹德", NO_DB, {"engine": []})
     assert v3 is None
+
+
+# ── CLI v3_base(CLI 离线全量枚举) ──
+
+def test_tabpfnwrap3_usable_gates():
+    from hsbot.mulligan_ai import TabPFNWrap3
+    bad = dict(_V3_OK_GATE := {"layout": 1, "distill_ok": False, "X": [[0.], [1.]]})
+    assert TabPFNWrap3.usable(bad, ROOT / "data") is False
+    assert TabPFNWrap3.usable(None, ROOT / "data") is False
+    no_x = {"layout": 1, "distill_ok": True, "X": []}
+    assert TabPFNWrap3.usable(no_x, ROOT / "data") is False
+
+
+def test_tabpfnwrap3_score_all_and_base_combined(tmp_path):
+    """CLI 全量枚举: 2ⁿ 打分表 → 组合输出; 与加性口径同构性冒烟。"""
+    pytest.importorskip("tabpfn")
+    import hsbot.mulligan_ai as ai
+    payload = {"layout": 1, "backend": "tabpfn_v2",
+               "vocab": ["A", "B"], "classes": ["PRIEST"], "pairs": [],
+               "engine": [], "gain": {}, "syn": {},
+               "distill_ok": True, "deck_tail": [], "deck_engine": 0.0,
+               "X": [[0.0] * 15, [1.0] * 15], "y": [0, 1]}
+    w = ai.TabPFNWrap3(payload, ROOT / "data")
+    scores = w.score_all(["A", "B"], False, "PRIEST", NO_DB)
+    assert len(scores) == 4 and () in scores          # 含空集
+    keep = max(scores, key=scores.get)
+    comb = ai.combined_outputs_from_scores(
+        ["A", "B"], {frozenset(k): v for k, v in scores.items()}, list(keep))
+    assert comb["keep"] == list(keep)

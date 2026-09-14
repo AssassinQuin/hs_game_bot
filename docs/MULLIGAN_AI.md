@@ -185,7 +185,38 @@ store   发结构化事件 mulligan_offer{actor, offered[cid], msg兜底文本}
 `hsbot/mulligan_ai.py` 是纯 stdlib 推理层, 训练器(python -m trainer mulligan)
 与实时军师共用同一份结论函数与先验文件, 训练出新版本即自动生效。
 
-## 8. 业界参照
+## 8. v3 基座评分器(2026-09-14, 设计定稿)
+
+> 设计: [specs/2026-09-14-mulligan-foundation-model-design.md](superpowers/specs/2026-09-14-mulligan-foundation-model-design.md)
+> (含 §5.4 拆行合法性判据——反事实候选集只在推理端枚举, 训练行只许真实共现观测)。
+
+两阶段小基座(tabular foundation model)架构, `python -m trainer mulligan train`
+一个命令与 v2 同跑, 产物落同版本目录 `v3.json`:
+
+```
+原始切片重放 material_v2(trainer/material.py: 决策行 replaced_in/回合行 drawn_this_turn)
+  → ① Q 模型(trainer/qvalue.py): 第K回合局面 → P(胜), 组级CV OOF,
+     AUC ≥ LR_AUC_GATE 过门控才作蒸馏标签(不过 → 标签退化纯胜负)
+  → ② 评分器(trainer/scorer.py): 每局一行(决策时特征+真实留集),
+     y = 0.5·胜负 + 0.5·Q₁₎₃; TabPFN v2 / TabICL v2 / LR / 统计表加性
+     组级 CV 对照(spec §9.1), AUC 高的基座产出蒸馏系数
+  → ③ 蒸馏: 基座打分面 → Σgain + Σsyn 最小二乘(自由截距, 分摊平均),
+     top-1 集合一致率 ≥ distill_min_agree(0.90) 且 评分器 AUC 过门控
+     → v3.json[distill_ok]=true
+```
+
+- **live 军师**: 系数表查表(复用 best_keep_set, 零 torch); advice 增组合
+  维度机读事实(v3.keep/marginal/pair_synergy/anti_synergy/reject),
+  render 措辞 "不宜同留: X+Y"。级联: v3 系数 → LR → 统计表(v2 兜底不动)。
+- **CLI advise**: TabPFNWrap3 基座全量枚举(离线允许 torch), 组合字段全量打印。
+- **config**: `mulligan_v3`(总开关, false=输出与 v2 逐字节一致) /
+  `scorer_backend`(tabpfn_v2 | tabicl_v2, 都跑对照) / `distill_min_agree`。
+- 防泄漏铁律: 评分器特征只含决策时信息(测试钉死); Q 特征允许回合 K 已发生
+  信息; Thompson 探索不变(仍走统计表后验)。
+- 基座许可证: TabPFN v2 权重 = Apache 2.0 + 增强署名; TabPFN-2.5+/TabICL
+  权重见各自 LICENSE(TabICL = BSD-3)。
+
+## 9. 业界参照
 
 - [HSReplay: The Art of the Mulligan](https://articles.hsreplay.net/2019/04/15/the-art-of-mulligan/)
   与 [卡牌留牌数据](https://articles.hsreplay.net/2020/07/23/card-mulligan-data/):

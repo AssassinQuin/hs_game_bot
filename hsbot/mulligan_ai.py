@@ -396,16 +396,20 @@ def v3_set_score(kept_set, gains: dict, pair_bonus: dict) -> float:
 
 def combined_outputs(uniq: list, gains: dict, pair_bonus: dict,
                      keep: list) -> dict:
-    """2ⁿ 打分表 → 组合维度机读事实(spec §5.3): keep/per_card_marginal/
-    pair_synergy/anti_synergy/reject。pair 限定 offered 内(≤10 对), 全部由
-    打分表组合而来, 零额外推理。"""
+    """加性系数 → 组合维度机读事实(spec §5.3)。"""
     from itertools import combinations as _cmb
-    uniq_set = set(uniq)
     scores = {frozenset(cmb): v3_set_score(set(cmb), gains, pair_bonus)
               for size in range(len(uniq) + 1)
               for cmb in _cmb(sorted(uniq), size)}
+    return combined_outputs_from_scores(uniq, scores, keep)
+
+
+def combined_outputs_from_scores(uniq: list, scores: dict, keep: list) -> dict:
+    """2ⁿ 打分表(任意来源: 加性系数/基座批量打分) → 组合维度机读事实。
+    pair 限定 offered 内(≤10 对), 全部由打分表组合而来, 零额外推理。"""
+    from itertools import combinations as _cmb
     keep_set = frozenset(keep)
-    best_s = scores.get(keep_set, v3_set_score(keep_set, gains, pair_bonus))
+    best_s = scores.get(keep_set, 0.0)
     marginal = {c: best_s - scores[keep_set - {c}] for c in keep}
     pair_synergy = {}
     for a, b in _cmb(sorted(uniq), 2):
@@ -517,6 +521,58 @@ class TabPFNWrap:
         return best
 
 
+class TabPFNWrap3:
+    """v3 基座评分器(CLI 离线全量枚举, 设计 §6): fit = 存 v3.json 内嵌的
+    评分器训练行; score_all = 对 2ⁿ 候选留集批量出 P(胜)。实时路径不加载
+    (live 禁 torch), 只有 distill_ok 的产物才可用。"""
+
+    def __init__(self, payload: dict, data_dir) -> None:
+        self.payload = payload
+        self.data_dir = data_dir
+        self._learner = None
+
+    @classmethod
+    def usable(cls, payload: dict | None, data_dir) -> bool:
+        if not payload or not payload.get("distill_ok") or not payload.get("X"):
+            return False
+        tabpfn_env(data_dir)
+        try:
+            import tabpfn  # noqa: F401
+        except ImportError:
+            return False
+        return True
+
+    def _fit_learner(self):
+        if self._learner is None:
+            import numpy as np
+            tabpfn_env(self.data_dir)
+            from tabpfn import TabPFNClassifier
+            clf = TabPFNClassifier(device="cpu",
+                                   ignore_pretraining_limits=True)
+            clf.fit(np.array(self.payload["X"], dtype=np.float32),
+                    np.array(self.payload["y"], dtype=int))
+            self._learner = clf
+        return self._learner
+
+    def score_all(self, offered: list, coin: bool, opp_class: str,
+                  carddb) -> dict:
+        """全部候选留集 → {tuple(kept): P(胜)}(特征布局单点走 mulligan3_features)。"""
+        import numpy as np
+        p = self.payload
+        model = {"vocab": p["vocab"], "classes": p["classes"],
+                 "pairs": p.get("pairs") or [], "engine": p.get("engine") or [],
+                 "cost": carddb.cost, "cardtype": carddb.cardtype,
+                 "deck_tail": p.get("deck_tail") or [],
+                 "deck_engine": float(p.get("deck_engine") or 0.0)}
+        uniq = sorted(set(offered), key=offered.index)
+        cand = [list(combo) for size in range(len(uniq) + 1)
+                for combo in combinations(uniq, size)]
+        X = np.array([mulligan3_features(model, offered, kept, coin, opp_class)
+                      for kept in cand], dtype=np.float32)
+        probs = self._fit_learner().predict_proba(X)[:, 1]
+        return {tuple(kept): float(v) for kept, v in zip(cand, probs)}
+
+
 class MulliganAdvisor:
     """实时留牌建议: 读 LATEST 模型 + 专家先验(改动即生效), 同步出事实。
 
@@ -540,6 +596,7 @@ class MulliganAdvisor:
         self._ver, self._art = None, {}
         self._prior = {"cards": {}, "pairs": {}, "engine": []}
         self._tab = None                    # TabPFNWrap(懒加载; 缺包/未过门控=不可用)
+        self._tab3 = None                   # TabPFNWrap3(仅 CLI; live 禁 torch)
 
     def _refresh(self) -> None:
         latest = self.root / "LATEST.json"
@@ -605,7 +662,27 @@ class MulliganAdvisor:
                     syn3[(a, b)] = float(v)
 
         tab_payload = self._art.get("tabpfn")
-        if v3_ok:
+        v3_scores = None
+        if v3_ok and not self.live                 and TabPFNWrap3.usable(v3, self.prior_path.parent):
+            # CLI(离线允许 torch): 基座对 2ⁿ 候选全量打分(设计 §6)
+            if self._tab3 is None:
+                self._tab3 = TabPFNWrap3(v3, self.prior_path.parent)
+
+            def _top(sc):
+                best_k, best_p = (), float(sc[()])
+                for kept, pv in sc.items():
+                    if pv > best_p + 1e-12:
+                        best_k, best_p = kept, pv
+                return list(best_k)
+
+            views = [self._tab3.score_all(uniq, cc, cls, self.carddb)
+                     for cc in _coin_views()]
+            mean_keep = sorted(set.intersection(*[set(_top(sc))
+                                                  for sc in views]),
+                               key=uniq.index) if coin_i is None                 else _top(views[0])
+            v3_scores = views[0]
+            scorer = "v3_base"
+        elif v3_ok:
             mean_keep = best_keep_set(uniq, gains3, syn3)
             scorer = "v3"
         elif not self.live and TabPFNWrap.usable(tab_payload, self.prior_path.parent):
@@ -650,4 +727,7 @@ class MulliganAdvisor:
         if scorer == "v3":
             # 组合维度机读事实(spec §5.3); 中文措辞归 render
             out["v3"] = combined_outputs(uniq, gains3, syn3, keep)
+        elif scorer == "v3_base" and v3_scores is not None:
+            out["v3"] = combined_outputs_from_scores(
+                uniq, {frozenset(k): v for k, v in v3_scores.items()}, keep)
         return out

@@ -361,7 +361,7 @@ _V3_OK = {"layout": 1, "backend": "tabpfn_v2", "vocab": ["GOOD", "A"],
 
 def test_advise_v3_uses_distilled_coefficients(tmp_path):
     root = _mk_model_v3(tmp_path, dict(_V3_OK, syn={"GOOD|A": 0.30}))
-    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True)
+    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True, live=True)
     r = adv.advise(["GOOD", "A"], "PRIEST", False)
     assert r["scorer"] == "v3"
     assert r["keep"] == ["GOOD", "A"]            # 协同 +0.3 → 双留
@@ -375,7 +375,7 @@ def test_advise_v3_anti_synergy_and_reject(tmp_path):
     root = _mk_model_v3(tmp_path, dict(_V3_OK,
                                        gain={"GOOD": 0.10, "A": -0.20},
                                        syn={"GOOD|A": -0.05}))
-    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True)
+    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True, live=True)
     r = adv.advise(["GOOD", "A"], "PRIEST", False)
     v3 = r["v3"]
     assert any(tuple(p) == ("GOOD", "A") for p in v3["anti_synergy"])
@@ -384,7 +384,7 @@ def test_advise_v3_anti_synergy_and_reject(tmp_path):
 
 def test_advise_v3_gate_fail_falls_back(tmp_path):
     root = _mk_model_v3(tmp_path, dict(_V3_OK, distill_ok=False))
-    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True)
+    adv = MulliganAdvisor(root, "奇迹德", NO_DB, v3=True, live=True)
     r = adv.advise(["GOOD"], "PRIEST", False)
     assert r["scorer"] != "v3"                   # 回退统计表/LR
 
