@@ -402,10 +402,10 @@ def combined_outputs(uniq: list, gains: dict, pair_bonus: dict,
     marginal = {c: best_s - scores[keep_set - {c}] for c in keep}
     pair_synergy = {}
     for a, b in _cmb(sorted(uniq), 2):
-        pair_synergy[(a, b)] = (scores[frozenset({a, b})]
-                                - scores[frozenset({a})]
-                                - scores[frozenset({b})]
-                                + scores[frozenset()])
+        v = (scores[frozenset({a, b})] - scores[frozenset({a})]
+             - scores[frozenset({b})] + scores[frozenset()])
+        pair_synergy[(a, b)] = v
+        pair_synergy[(b, a)] = v                       # 对称双键, 消费端免排序
     anti = [p for p, v in pair_synergy.items() if v < ANTI_SYNERGY_THR]
     reject = [c for c in uniq if c not in keep_set
               and (scores.get(keep_set | {c}, best_s) - best_s) < 0]

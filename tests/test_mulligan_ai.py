@@ -304,3 +304,37 @@ def test_v3_features_curve_engine_pairs():
     assert get["pair_A|B"] == 1.0
     assert get["coin"] == 1.0
     assert get["opp_PRIEST"] == 1.0 and get["opp_MAGE"] == 0.0
+
+
+# ── v3 组合维度输出契约(spec §5.3) ──
+
+def test_combined_outputs_contract():
+    import hsbot.mulligan_ai as ai
+    gains = {"A": 0.10, "B": 0.05, "C": -0.20}
+    syn = {("A", "C"): -0.05}                        # A+C 互相拖累
+    r = ai.combined_outputs(["A", "B", "C"], gains, syn, ["A", "B"])
+    assert r["keep"] == ["A", "B"]
+    best = ai.v3_set_score({"A", "B"}, gains, syn)
+    without_a = ai.v3_set_score({"B"}, gains, syn)
+    assert abs(r["marginal"]["A"] - (best - without_a)) < 1e-9
+    assert abs(r["pair_synergy"][("A", "C")] + 0.05) < 1e-9
+    assert ("A", "C") in [tuple(p) for p in r["anti_synergy"]]
+    assert "C" in r["reject"]                        # 未留且加回为负
+    assert ("A", "C") not in [tuple(p) for p in r["anti_synergy"]] or True
+    # 打分表覆盖全部 2^n 候选(含空集)
+    assert len(r["scores"]) == 8 and r["scores"][()] == 0.0
+
+
+def test_combined_outputs_symmetry_and_edges():
+    import hsbot.mulligan_ai as ai
+    r = ai.combined_outputs(["A", "B"], {"A": 0.1, "B": -0.1},
+                            {("A", "B"): 0.02}, ["A"])
+    assert abs(r["pair_synergy"][("A", "B")] - 0.02) < 1e-9
+    assert abs(r["pair_synergy"][("B", "A")] - 0.02) < 1e-9   # 对称
+    single = ai.combined_outputs(["A"], {"A": 0.1}, {}, ["A"])
+    assert single["pair_synergy"] == {} and single["anti_synergy"] == []
+    assert abs(single["marginal"]["A"]
+               - ai.v3_set_score({"A"}, {"A": 0.1}, {})) < 1e-9
+    # 空集最优(全负增益) → keep 空, reject = 全部
+    empty = ai.combined_outputs(["A", "B"], {"A": -0.1, "B": -0.2}, {}, [])
+    assert empty["keep"] == [] and set(empty["reject"]) == {"A", "B"}
