@@ -110,7 +110,7 @@ def sim_mulligan(decklist: dict, offered, *, pieces: dict, cost_of: dict,
 
 def combo_outputs(scores: dict, offered) -> dict:
     """组合维度输出契约(spec §5.3, 全部由 2ⁿ 打分表组合而来)。"""
-    best = max(scores, key=scores.get)
+    best = max(scores, key=lambda s: scores[s])
     base = scores[frozenset()]
     per_card_marginal = {c: scores[best] - scores[best - frozenset((c,))]
                          for c in sorted(best)}
@@ -129,3 +129,45 @@ def combo_outputs(scores: dict, offered) -> dict:
             "per_card_marginal": per_card_marginal,
             "pair_synergy": pair_synergy,
             "anti_synergy": anti_synergy, "reject": reject}
+
+
+# ---------------- 语料曲线提取 + 血甲档位表 ----------------
+
+ENEMY_LADDER = (26, 30, 40, 48, 56)   # 血甲档位表(2026-09-15 用户增补):
+                                      # 产品侧(advise)逐档判定, 校准侧用真实血甲
+
+
+def ladder_totals(rung: int, k_max: int = 8) -> list:
+    """全回合恒定档位 —— rollout 的 enemy_totals 直填。"""
+    return [rung] * k_max
+
+
+def enemy_hp_curve(rows: list, k_max: int = 8,
+                   quantile: float = 0.5) -> list:
+    """回合 → 敌方有效血甲(hp+armor)经验分位; 无样本回合 None。"""
+    by_turn: dict = {}
+    for r in rows:
+        snap = r.get("snap") or {}
+        if snap.get("my_turn"):
+            t = snap["turn"]
+            by_turn.setdefault(t, []).append(
+                snap["opp"]["hp"] + snap["opp"]["armor"])
+    out = []
+    for t in range(1, k_max + 1):
+        v = by_turn.get(t)
+        out.append(None if not v
+                   else sorted(v)[min(len(v) - 1, int(quantile * len(v)))])
+    return out
+
+
+def survive_curve(rows: list, k_max: int = 8) -> list:
+    """P(存活至我的第 K 回合) ≈ 有该回合行的局占比(游戏时长代理)。"""
+    max_turn: dict = {}
+    for r in rows:
+        snap = r.get("snap") or {}
+        if snap.get("my_turn"):
+            g = r["src"].split("#")[0]
+            max_turn[g] = max(max_turn.get(g, 0), snap["turn"])
+    n = len(max_turn) or 1
+    return [sum(1 for mx in max_turn.values() if mx >= t) / n
+            for t in range(1, k_max + 1)]

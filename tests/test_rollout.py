@@ -216,7 +216,7 @@ def test_sim_mulligan_launch_hist_bounded():
 
 def test_sim_mulligan_perf_small_deck():
     deck = {"MOON": 12, "AUCTION": 2, "DRAW2": 6}
-    pieces, cost_of = None, None                   # 手搓 pieces, 免编译器
+    # 手搓 pieces, 免编译器
     pieces = {("MOON", 1): Piece("MOON", 1, segments=(1,), spell_scaled=True,
                                  is_spell=True),
               ("AUCTION", 5): Piece("AUCTION", 5, engine=True),
@@ -230,3 +230,35 @@ def test_sim_mulligan_perf_small_deck():
     assert _time.time() - t0 < 5.0, "5 牌序×8 集合×6 回合须 5s 内(性能钉子)"
     assert set(r) >= {"scores", "keep", "per_card_marginal", "pair_synergy",
                       "anti_synergy", "reject", "launch_hist"}
+
+
+# ---------------- Task5: 语料曲线 + 血甲档位表 ----------------
+
+from trainer.sim import (ENEMY_LADDER, enemy_hp_curve, ladder_totals,
+                         survive_curve)
+
+
+def test_enemy_ladder_totals_constant():
+    assert ENEMY_LADDER == (26, 30, 40, 48, 56)
+    assert ladder_totals(30, k_max=3) == [30, 30, 30]
+
+
+def _row(turn, opp_hp, game="g1", hand_n=4, result=1):
+    return {"snap": {"turn": turn, "my_turn": True,
+                     "me": {"hand": [{"cid": "X", "cost": 1}] * hand_n,
+                            "hp": 30, "armor": 0, "mana": 3,
+                            "spellpower": 0, "board": []},
+                     "opp": {"hp": opp_hp, "armor": 0}},
+            "src": f"{game}.power.log#g1T{turn}", "result": result}
+
+
+def test_enemy_hp_curve_median_by_turn():
+    rows = [_row(1, 30), _row(1, 30), _row(2, 28), _row(2, 24), _row(2, 30)]
+    assert enemy_hp_curve(rows, k_max=3) == [30, 28, None]
+
+
+def test_survive_curve_fraction_alive():
+    rows = [_row(1, 30, game="a"), _row(2, 30, game="a"), _row(3, 30, game="a"),
+            _row(1, 30, game="b"), _row(2, 30, game="b"),
+            _row(1, 30, game="c")]
+    assert survive_curve(rows, k_max=3) == pytest.approx([1.0, 2 / 3, 1 / 3])
