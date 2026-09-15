@@ -262,3 +262,73 @@ def test_survive_curve_fraction_alive():
             _row(1, 30, game="b"), _row(2, 30, game="b"),
             _row(1, 30, game="c")]
     assert survive_curve(rows, k_max=3) == pytest.approx([1.0, 2 / 3, 1 / 3])
+
+
+# ---------------- Task6: 三层校准 ----------------
+
+from trainer.simcal import (LAUNCH_MAX_ABS_DIFF, first_lethal_turns,
+                            my_mulligan)
+
+
+def test_my_mulligan_finds_battletag_side():
+    meta = {"players": {"1": {"name": "别人"}, "2": {"name": "湫然#51704"}},
+            "mulligan": {"2": {"offered": ["A", "B", "C", "D"],
+                               "kept": ["A"]}}}
+    offered, kept, coin = my_mulligan(meta, "湫然#51704")
+    assert offered == ("A", "B", "C", "D") and kept == ("A",) and coin
+
+
+def test_first_lethal_turns_takes_first_only():
+    pieces = {("BIG", 4): Piece("BIG", 4, segments=(6,), spell_scaled=True,
+                                is_spell=True)}
+    rows = [
+        {"snap": {"turn": 2, "my_turn": True, "spellpower": 0,
+                  "me": {"mana": 4, "hand": [{"cid": "BIG", "cost": 4}],
+                         "board": []},
+                  "opp": {"hp": 6, "armor": 0}},
+         "src": "g1.power.log#g1T2", "result": 1},
+        {"snap": {"turn": 4, "my_turn": True, "spellpower": 0,
+                  "me": {"mana": 4, "hand": [{"cid": "BIG", "cost": 4}],
+                         "board": []},
+                  "opp": {"hp": 6, "armor": 0}},
+         "src": "g1.power.log#g1T4", "result": 1},
+        {"snap": {"turn": 9, "my_turn": False, "spellpower": 0,
+                  "me": {"mana": 9, "hand": [], "board": []},
+                  "opp": {"hp": 6, "armor": 0}},
+         "src": "g1.power.log#g1T9", "result": 1},
+    ]
+    # 局键域: src 前缀去 ".power.log" → 与 meta 的 {session}_g{idx:02d} 同域
+    assert first_lethal_turns(rows, pieces, {"BIG": 4}) == {"g1": 2}
+
+
+def test_calibrate_passes_on_self_consistent_synthetic(tmp_path):
+    """合成自洽语料: 模拟器策略/谓词与数据生成同源 → 三层全过。"""
+    from trainer.simcal import calibrate
+    deck_dir = tmp_path / "奇迹德"
+    deck_dir.mkdir()
+    meta = {"_meta": True, "session": "S", "game_index": 1,
+            "decklist": {"MOON": 2, "BIG": 1},
+            "players": {"1": {"name": "湫然#51704"}},
+            "mulligan": {"1": {"offered": ["BIG", "MOON"],
+                               "kept": ["BIG"]}}}
+    (deck_dir / "S_g01.jsonl").write_text(
+        json.dumps(meta, ensure_ascii=False) + "\n[]\n", encoding="utf-8")
+    # 手牌数须与模拟轨迹自洽: keep=[BIG]+补抽1 → T1 手牌2;
+    # T2/T4 自然抽后 3。T4 手牌=[星火,月火,月火] 费4 → 真实侧同回合可斩。
+    rows = [_row(1, 30, game="S_g01", hand_n=2),
+            _row(2, 24, game="S_g01", hand_n=3),
+            _row(3, 12, game="S_g01", hand_n=3),
+            _row(4, 6, game="S_g01", hand_n=3)]
+    rows[2]["snap"]["me"]["hand"] = [{"cid": "BIG", "cost": 4},
+                                     {"cid": "MOON", "cost": 1},
+                                     {"cid": "MOON", "cost": 1}]
+    rows[2]["snap"]["me"]["mana"] = 4
+    rows[3]["snap"]["me"]["hand"] = [{"cid": "BIG", "cost": 4},
+                                     {"cid": "MOON", "cost": 1},
+                                     {"cid": "MOON", "cost": 1}]
+    rows[3]["snap"]["me"]["mana"] = 4
+    db = _db(tmp_path, CARDS)
+    rep = calibrate(deck_dir, rows, battletag="湫然#51704", carddb=db,
+                    analyzer=EffectAnalyzer(db), orders=4, k_max=5, seed=0)
+    assert rep["pass"] is True, rep
+    assert set(rep["layers"]) == {"trajectory", "launch", "result"}
