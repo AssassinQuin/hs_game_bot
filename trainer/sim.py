@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import random
+import time
 from itertools import combinations
 from pathlib import Path
 
@@ -95,7 +96,9 @@ def sim_mulligan(decklist: dict, offered, *, pieces: dict, cost_of: dict,
     sets = all_keep_sets(offered)
     hist = {s: [0] * (k_max + 1) for s in sets}    # [0] 弃用; 1..k_max 计启动回合
     rng = random.Random(seed)
-    for _ in range(orders):
+    t0 = time.perf_counter()
+    step = max(1, orders // 10)           # 进度上报间隔(小档 → 每序都报)
+    for o in range(orders):
         order = tuple(rng.sample(full, len(full)))
         for s in sets:
             r = rollout(order, offered=offered, keep=tuple(sorted(s)),
@@ -103,6 +106,10 @@ def sim_mulligan(decklist: dict, offered, *, pieces: dict, cost_of: dict,
                         k_max=k_max, enemy_totals=enemy_totals)
             if r.launch_turn is not None:
                 hist[s][r.launch_turn] += 1
+        if (o + 1) % step == 0 or o + 1 == orders:
+            done = sum(sum(h) for h in hist.values())
+            print(f"[sim {o + 1}/{orders}] 牌序完成, 累计启动 {done} 次 "
+                  f"({time.perf_counter() - t0:.1f}s)", flush=True)
     scores = {s: sum(hist[s][t] / orders * survive[t - 1]
                      for t in range(1, k_max + 1) if hist[s][t])
               for s in sets}

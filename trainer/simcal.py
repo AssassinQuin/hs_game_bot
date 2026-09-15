@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import random
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -116,6 +117,9 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
             continue
         sims.append((i, offered, kept, coin, g))
     rows = [r for r in rows if _game_key(r) not in offdeck]
+    print(f"[cal] 配置: {len(metas)} meta, 可模拟 {len(sims)} 局, "
+          f"orders={orders}, k_max={k_max}, seed={seed}, "
+          f"跳过={dict(skip) or '无'}", flush=True)
 
     ehp = enemy_hp_curve(rows, k_max=k_max)
     full = [cid for cid, n in decklist.items() for _ in range(n)]
@@ -132,23 +136,42 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
             result_of[g] = r["result"]
     real_launch = first_lethal_turns(rows, pieces, cost_of)
     games = sorted(real_hs)
+    if real_launch:
+        heads = ", ".join(f"T{t}" for _g, t in
+                          sorted(real_launch.items(), key=lambda kv: kv[1]))
+        print(f"[cal] 真实侧: {len(games)} 局, 首可斩 {len(real_launch)} 局 "
+              f"@ {heads}", flush=True)
+    else:
+        print(f"[cal] 真实侧: {len(games)} 局, 首可斩 0 局"
+              "(启动/结果层将空洞)", flush=True)
 
     # 模拟侧: 每局用真实 keep 推演 orders 次(orders 真旋钮: 每局启动率的
     # 样本量), 轨迹层聚合全部推演在公共回合的手牌规模差值
     diffs: list[float] = []
     sim_launch: list[int | None] = []
     n_sim = 0
+    t_all = time.perf_counter()
+    step = max(1, orders // 10)           # 推演进度上报间隔(orders=5 → 每次都报)
     for i, offered, kept, coin, g in sims:
         n_sim += 1
+        t_g = time.perf_counter()
         rng = random.Random(seed * 1000003 + i)
-        for _ in range(orders):
+        launched = 0
+        for j in range(orders):
             res = rollout(tuple(rng.sample(full, len(full))), offered=offered,
                           keep=kept, coin=coin, pieces=pieces, cost_of=cost_of,
                           k_max=k_max, enemy_totals=ehp)
             sim_launch.append(res.launch_turn)
+            launched += res.launch_turn is not None
             for t, hs in enumerate(res.hand_sizes, 1):
                 if t in real_hs.get(g, {}):
                     diffs.append(abs(hs - real_hs[g][t]))
+            if (j + 1) % step == 0 or j + 1 == orders:
+                print(f"[cal {n_sim}/{len(sims)}] {g} keep="
+                      f"{'+'.join(sorted(kept)) or '全换'} "
+                      f"推演 {j + 1}/{orders} 启动 {launched} "
+                      f"({time.perf_counter() - t_g:.1f}s)", flush=True)
+    elapsed = time.perf_counter() - t_all
 
     if not games or not n_sim or not diffs:
         return {"pass": False, "reason": "无配对样本(语料/键域/回合交集为空)",
@@ -194,7 +217,7 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
     return {"pass": traj_ok and (launch_ok or launch_vacuous)
             and (result_ok or result_vacuous),
             "games": len(games), "sim_games": n_sim, "layers": layers,
-            "skip": dict(skip)}
+            "skip": dict(skip), "elapsed_s": round(elapsed, 1)}
 
 
 def print_calibrate_report(rep: dict) -> None:
@@ -216,7 +239,7 @@ def print_calibrate_report(rep: dict) -> None:
     re = rep["layers"]["result"]
     print(f"── 三层校准: {'PASS' if rep['pass'] else 'FAIL'} "
           f"({rep['games']} 真实局 / {rep['sim_games']} 模拟局, "
-          f"{eff}/3 层有效) ──")
+          f"{eff}/3 层有效, 模拟侧 {rep.get('elapsed_s', '?')}s) ──")
     print(f"  轨迹层[{lj['trajectory']}] 手牌规模中位差 "
           f"{tr['median_hand_diff']:.2f} (≤{TRAJ_MAX_MEDIAN_HAND_DIFF}, "
           f"{tr['n_points']} 点)")
