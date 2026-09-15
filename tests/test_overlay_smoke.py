@@ -18,7 +18,8 @@ def ensure_display():
         pytest.skip(f"无可用显示: {exc}")
 
 
-def _run_with_auto_close(monkeypatch, q, after_ms=800, data_dir="."):
+def _run_with_auto_close(monkeypatch, q, after_ms=360, data_dir="."):
+    # 360ms = 3 个 120ms 刷新周期(消息 run() 前已全部入队, 首 poll 即清空)
     """mainloop 注入定时 destroy: 刷新链若断, 定时器仍会收窗, 测试不悬挂。
     窗口一律 withdraw + 不置顶 —— 测试不显示 UI(2026-09-13 用户要求),
     刷新链(insert/after/坏消息隔离)逻辑照常被覆盖。"""
@@ -179,8 +180,8 @@ def test_overlay_geometry_persisted(tmp_path, monkeypatch):
             self.geometry("500x600+40+50")
             win._on_configure(_Ev())    # withdraw 无 Configure 事件, 手动喂
 
-        self.after(300, drag)
-        self.after(1800, self.destroy)                            # > 防抖 800ms
+        self.after(100, drag)
+        self.after(1050, self.destroy)                            # drag+防抖800ms=900, 余150ms
         _ORIG_MAINLOOP(self, n)
 
     monkeypatch.setattr(tk.Tk, "mainloop", fake_mainloop)

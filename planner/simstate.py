@@ -57,6 +57,8 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
     - 抽牌: p.is_spell 且打牌前 engines>0 → 每个在场引擎各自触发一次(循环
       engines 次): known_draws 非空则队头入手并弹出, 否则 drawn+1;
       hand' 永远排序规范化。
+    - 独立抽牌: p.draw_n>0 时逐张抽(同样 known 队头优先); build_piece 恒不填,
+      live 路径零影响。
     - engines' = engines + (1 若本牌是引擎) —— 触发判定用打牌前的 engines。
     """
     key = state.hand[index]
@@ -83,19 +85,24 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
     rest = state.hand[:index] + state.hand[index + 1:]   # 已是升序(子序列)
     known = state.known_draws
     drawn = state.drawn
-    if p.is_spell and state.engines > 0:      # 引擎触发只看打牌前的 engines
-        hand_list = None                      # 惰性 list 化: 只有入手牌才重排
-        for _ in range(state.engines):        # 每个在场引擎各自触发一次
-            if known:                         # (双拍卖师施一法术抽两张)
-                if hand_list is None:
-                    hand_list = list(rest)
-                insort(hand_list, known[0])   # 队头入手, 二分插入保持升序
-                known = known[1:]             # 弹出
-            else:
-                drawn += 1                    # 未知抽牌: 只计数(期望折算)
-        hand = tuple(hand_list) if hand_list is not None else rest
-    else:
-        hand = rest                           # 无抽牌: 升序子序列直接用
+    hand_list = None                      # 惰性 list 化: 只有入手牌才重排
+
+    def _draw_one() -> None:              # 已知牌队头入手, 未知只计数
+        nonlocal known, drawn, hand_list   # (rollout 的抽样 = known 队列喂入)
+        if known:
+            if hand_list is None:
+                hand_list = list(rest)
+            insort(hand_list, known[0])   # 队头入手, 二分插入保持升序
+            known = known[1:]             # 弹出
+        else:
+            drawn += 1
+
+    if p.is_spell and state.engines > 0:  # 引擎触发只看打牌前的 engines
+        for _ in range(state.engines):    # 每个在场引擎各自触发一次
+            _draw_one()                   # (双拍卖师施一法术抽两张)
+    for _ in range(p.draw_n):             # 独立抽牌(rollout 专用; 恒 0 即无操作)
+        _draw_one()
+    hand = tuple(hand_list) if hand_list is not None else rest
     # 热路径(dfs 每条边一次): 绕开 frozen __init__ 的逐字段 object.__setattr__,
     # 一次 C 级填充等价构造; 事后外部赋值仍被 frozen_setattr 拦截, 不可变性不变。
     if p.discount_next:                       # 打出的减费牌覆盖旧余额

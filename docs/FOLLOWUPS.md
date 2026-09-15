@@ -1,0 +1,42 @@
+# 跟进队列(跨机器可接续)
+
+> 生成:2026-09-15,v3.1 留牌模拟器合并(main@1119c69)后的终审裁决产物。
+> 任何机器克隆本仓库即可按此处上下文接续执行;完成后勾选并关联 issue。
+> 背景台账:`.superpowers/sdd/progress.md` 2026-09-15 段落(会话本地,不入库);
+> 权威背景:`docs/MULLIGAN_AI.md` v3.1 节 + v3.1 spec。
+
+## [P1] 性能优化——启动判定前置过滤 + known_draws 截断 → Issue #1
+
+单推演 ~4.7-10s(手牌 8-10 张时 best_line DFS 爆炸),5 档校准 63 分钟,200 档外推 1-4 天。
+
+- engines=0 乐观上界前置过滤(手牌 segments 总伤+已打 face < 敌血甲 → 跳过 best_line;
+  **engines>0 不可用**,引擎循环可抽新牌,上界不封闭)
+- launch check 的 known_draws 截断(偏差须量化)
+- 完成后 spec §5 性能门按新口径重新立法(立法位已留)
+- 验收:真实牌表 5 档 calibrate <10 分钟;同 seed 数值一致(严格无损)或偏差量化;全套绿
+
+## [P2] 启动谓词语义缺口——磨血/场面赢法 vs 单回合爆发 → Issue #2
+
+真实 56 局首可斩 0;advise"全换"即谓词错位表现;结果层永久空洞。
+**live 维持 v3 兜底级联,谓词修复前不得解除**(MULLIGAN_AI v3.1 已写死)。
+
+- 谓词重设计(多回合累积斩杀/场面伤害/血甲按职业分层),与 SimSnapshot 统一设计
+  (docs/superpowers/specs/2026-09-15-simsnapshot-unification-design.md)一并考虑
+- 验收:真实侧首可斩 >0 局;结果层非空洞且启动局胜率 ≥0.60;advise 与卡组常识方向一致
+
+## [P3] 小项加固(7 项) → Issue #3
+
+1. offered 去重(sim_mulligan 概率静默膨胀)
+2. advise 空素材守卫(空 material → "全换"假建议)
+3. 触发守卫补"回合结束时"族(唯一会把错误方向引入 draw_n 的项,优先)
+4. 混合卡(segments+draw_n)测试
+5. --orders ≥1 下界
+6. 空 jsonl splitlines 守卫
+7. calibrate 失败路径返回结构统一
+
+## 环境备忘(接手机器)
+
+- 卡表缓存 `data/cache/cards.zh.json` 不入库,新机器先跑 `python3 scripts/fetch_cards.py`
+- 素材重建:`python3 -m trainer material --deck 奇迹德`(trainer/data 为 gitignored 本地产物)
+- CLI 旗标形态:顶层旗标在子命令前,子命令旗标(--hand/--coin/--enemy)在子命令后
+- 测试基线:238 passed / 2 skipped
