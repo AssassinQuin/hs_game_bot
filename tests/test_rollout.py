@@ -441,3 +441,23 @@ def test_sim_main_unknown_subcommand():
     with pytest.raises(SystemExit) as ei:
         sim_mod.main(["frobnicate"])
     assert ei.value.code == 2
+
+
+# ---------------- 终审 I-1: 抽样纪律源码级钉子 ----------------
+
+def test_exp_per_draw_banned_in_rollout_path():
+    """抽样取代折算(spec §3): rollout 及其调用方不得出现 exp_per_draw 的
+    代码引用(docstring 说明豁免——AST 里它是字符串常量)。"""
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    for rel in ("planner/rollout.py", "trainer/sim.py", "trainer/simcal.py"):
+        tree = ast.parse((root / rel).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and node.id == "exp_per_draw":
+                raise AssertionError(
+                    f"{rel}:{node.lineno} 出现 exp_per_draw(禁止期望折算通道)")
+            if isinstance(node, ast.keyword) and node.arg == "exp_per_draw":
+                raise AssertionError(
+                    f"{rel}:{node.lineno} 传了 exp_per_draw 关键字")

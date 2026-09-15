@@ -82,7 +82,7 @@ def all_keep_sets(offered) -> list[frozenset]:
 
 
 def sim_mulligan(decklist: dict, offered, *, pieces: dict, cost_of: dict,
-                 coin: bool = False, orders: int = 200, k_max: int = 8,
+                 coin: bool = False, orders: int = 200, k_max: int = 12,
                  enemy_totals, survive, seed: int = 0) -> dict:
     """CRN 蒙特卡洛: 每个抽样牌序枚举全部 keep 集(同随机源, 差值低方差)。
 

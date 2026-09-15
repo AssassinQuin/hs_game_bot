@@ -100,6 +100,14 @@ COMPILER_VERSION 7 的效果 IR)。**与现有 dfs 的一处语义分歧,单列�
 - 量级:1k 牌序起步(p≈0.5 时 SE≈1.5%,CRN 下差值精度更高),`sim_orders`
   可调;性能钉子沿用 test_planner 的 worst-case 100ms 纪律,全量 1k×32×K
   必须分钟级内(超出=策略/谓词有性能回归,硬失败);
+
+**2026-09-15 实测立法(性能)**:策略 v2(囤牌)×k_max=12 后单推演实测
+~4.7-10s(手牌 8-10 张时启动判定 DFS 爆炸),上述"分钟级/100ms"硬门对
+v2 口径**已被实测取代**——实现侧交付的是玩具牌表 5s 钉子
+(test_sim_mulligan_perf_small_deck),真实牌表性能墙如实入档
+(MULLIGAN_AI v3.1 节,5 档 63 分钟)。**启动判定前置过滤(engines=0
+乐观上界剪枝)与 known_draws 截断立为合并后第一跟进任务**;优化落地后
+本条硬门按新口径重新立法。
 - **组合维度输出契约不变**(v3 §5.3 原样):score(set)=P_win(set),
   per_card_marginal / pair_synergy / anti_synergy / reject 全部由 2ⁿ
   打分表组合而来,零额外推理——模拟器只是把"打分"的实现从基座拟合

@@ -49,6 +49,9 @@ def rollout(full_order, *, offered, keep, coin, pieces, cost_of, k_max,
     keep 中的卡按首次出现从 full_order 移除, 剩余序列即抽牌流。
     enemy_totals: 按回合(1-based)的敌方有效血甲; None 回合跳过启动判定。
     """
+    if len(enemy_totals) < k_max:
+        raise ValueError(
+            f"enemy_totals 长度 {len(enemy_totals)} < k_max {k_max}(调用方契约违反)")
     stream = list(full_order)
     for cid in keep:
         if cid not in stream:
