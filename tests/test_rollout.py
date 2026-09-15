@@ -130,3 +130,34 @@ def test_rollout_keep_card_not_in_order_raises():
         rollout(("MOON",), offered=("MOON", "BIG"), keep=("BIG",),
                 coin=False, pieces=_sim_pieces(), cost_of=_COST, k_max=2,
                 enemy_totals=(6, 6))
+
+
+# ---------------- Task3: sim pieces 构建 + 完备性硬门 ----------------
+
+from trainer.sim import COIN_CID, build_sim_pieces, pieces_completeness
+
+
+def test_build_sim_pieces_injects_coin_and_draws(analyzer, tmp_path):
+    db = _db(tmp_path, CARDS)
+    decklist = {"MOON": 2, "AUCTION": 1, "DRAW2": 2}
+    pieces, cost_of = build_sim_pieces(decklist, db, analyzer)
+    assert cost_of["MOON"] == 1 and cost_of["AUCTION"] == 5
+    coin = pieces[(COIN_CID, 0)]
+    assert coin.mana_gain == 1 and coin.is_spell and cost_of[COIN_CID] == 0
+    # 独立抽牌后填: 奥术洞察 Draw(2) → draw_n=2; 拍卖师(每当)守卫 → 0
+    assert pieces[("DRAW2", 3)].draw_n == 2
+    assert pieces[("AUCTION", 5)].draw_n == 0
+
+
+def test_pieces_completeness_gates_missing_card_and_key(analyzer, tmp_path):
+    db = _db(tmp_path, CARDS)
+    decklist = {"MOON": 2, "GHOST": 1}        # GHOST 不在卡表
+    pieces, cost_of = build_sim_pieces(decklist, db, analyzer)
+    assert any("GHOST" in s for s in
+               pieces_completeness(decklist, db, pieces, cost_of))
+    del pieces[("MOON", 1)]                   # 人为抽走键
+    assert any("MOON" in s for s in
+               pieces_completeness(decklist, db, pieces, cost_of))
+    ok_deck = {"MOON": 2}
+    p2, c2 = build_sim_pieces(ok_deck, db, analyzer)
+    assert pieces_completeness(ok_deck, db, p2, c2) == []
