@@ -31,6 +31,8 @@ class Piece:
     discount_next: int = 0       # CostDown scope 以 "next:" 开头的 amount 合计
     engine: bool = False         # IR 含 Mechanic("cast_draw"): 每施放一法术抽一张
     is_spell: bool = False       # cardtype == "SPELL"
+    draw_n: int = 0              # 独立抽牌数(rollout 专用; build_piece 永不填,
+                                 # live 斩杀线路径恒 0 —— 零变化由钉子测试背书)
 
 
 def _inert(card_id: str, cost: int) -> Piece:
