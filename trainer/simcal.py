@@ -15,8 +15,7 @@ from planner.pieces import Piece
 from planner.rollout import rollout
 from planner.simstate import initial_state
 
-from .sim import (build_sim_pieces, enemy_hp_curve, pieces_completeness,
-                  survive_curve)
+from .sim import build_sim_pieces, enemy_hp_curve, pieces_completeness
 
 TRAJ_MAX_MEDIAN_HAND_DIFF = 1.5    # 轨迹层: 手牌规模中位差上限(张)
 LAUNCH_MAX_ABS_DIFF = 0.20         # 启动层: P(启动≤K) 逐点绝对差上限
@@ -91,7 +90,6 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
                 "layers": {}, "detail": bad}
 
     ehp = enemy_hp_curve(rows, k_max=k_max)
-    surv = survive_curve(rows, k_max=k_max)
     full = [cid for cid, n in decklist.items() for _ in range(n)]
 
     # 真实侧: 每局手牌规模曲线 / 首可斩回合 / 胜负
@@ -107,7 +105,8 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
     real_launch = first_lethal_turns(rows, pieces, cost_of)
     games = sorted(real_hs)
 
-    # 模拟侧: 每局用真实 keep + 逐局种子推演一次
+    # 模拟侧: 每局用真实 keep 推演 orders 次(orders 真旋钮: 每局启动率的
+    # 样本量), 轨迹层聚合全部推演在公共回合的手牌规模差值
     diffs: list[float] = []
     sim_launch: list[int | None] = []
     n_sim = 0
@@ -115,16 +114,21 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
         offered, kept, coin = my_mulligan(m, battletag)
         if not offered:
             continue
-        rng = random.Random(seed * 1000003 + i)
-        res = rollout(tuple(rng.sample(full, len(full))), offered=offered,
-                      keep=kept, coin=coin, pieces=pieces, cost_of=cost_of,
-                      k_max=k_max, enemy_totals=ehp)
         n_sim += 1
-        sim_launch.append(res.launch_turn)
+        rng = random.Random(seed * 1000003 + i)
         g = f"{m['session']}_g{m['game_index']:02d}"
-        for t, hs in enumerate(res.hand_sizes, 1):
-            if t in real_hs.get(g, {}):
-                diffs.append(abs(hs - real_hs[g][t]))
+        for _ in range(orders):
+            res = rollout(tuple(rng.sample(full, len(full))), offered=offered,
+                          keep=kept, coin=coin, pieces=pieces, cost_of=cost_of,
+                          k_max=k_max, enemy_totals=ehp)
+            sim_launch.append(res.launch_turn)
+            for t, hs in enumerate(res.hand_sizes, 1):
+                if t in real_hs.get(g, {}):
+                    diffs.append(abs(hs - real_hs[g][t]))
+
+    if not games or not n_sim or not diffs:
+        return {"pass": False, "reason": "无配对样本(语料/键域/回合交集为空)",
+                "layers": {}, "games": len(games), "sim_games": n_sim}
 
     def _median(xs):
         xs = sorted(xs)
@@ -139,7 +143,7 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
         real_p = (sum(1 for g in games if real_launch.get(g, k_max + 1) <= K)
                   / len(games)) if games else 0.0
         sim_p = (sum(1 for x in sim_launch if x is not None and x <= K)
-                 / n_sim) if n_sim else 0.0
+                 / len(sim_launch)) if sim_launch else 0.0
         launch_diffs.append(abs(real_p - sim_p))
     launch_max = max(launch_diffs) if launch_diffs else 0.0
     launch_ok = launch_max <= LAUNCH_MAX_ABS_DIFF
@@ -178,5 +182,6 @@ def print_calibrate_report(rep: dict) -> None:
           f"{tr['n_points']} 点)")
     print(f"  启动层[{lj['launch']}] P(启动≤K) 最大绝对差 "
           f"{la['max_abs_diff']:.3f} (≤{LAUNCH_MAX_ABS_DIFF})")
-    print(f"  结果层[{lj['result']}] 启动局胜率 {re['win_rate']:.2f} "
+    wr = f"{re['win_rate']:.2f}" if re["n_launched"] else "n/a"
+    print(f"  结果层[{lj['result']}] 启动局胜率 {wr} "
           f"(≥{RESULT_MIN_WIN_RATE}, {re['n_launched']} 局)")

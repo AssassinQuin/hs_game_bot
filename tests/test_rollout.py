@@ -266,8 +266,7 @@ def test_survive_curve_fraction_alive():
 
 # ---------------- Task6: 三层校准 ----------------
 
-from trainer.simcal import (LAUNCH_MAX_ABS_DIFF, first_lethal_turns,
-                            my_mulligan)
+from trainer.simcal import first_lethal_turns, my_mulligan
 
 
 def test_my_mulligan_finds_battletag_side():
@@ -332,3 +331,49 @@ def test_calibrate_passes_on_self_consistent_synthetic(tmp_path):
                     analyzer=EffectAnalyzer(db), orders=4, k_max=5, seed=0)
     assert rep["pass"] is True, rep
     assert set(rep["layers"]) == {"trajectory", "launch", "result"}
+
+
+def test_calibrate_empty_rows_fails_fast(tmp_path):
+    """R12: 空语料/无配对样本不得静默 pass。"""
+    from trainer.simcal import calibrate
+    deck_dir = tmp_path / "奇迹德"
+    deck_dir.mkdir()
+    meta = {"_meta": True, "session": "S", "game_index": 1,
+            "decklist": {"MOON": 2, "BIG": 1},
+            "players": {"1": {"name": "湫然#51704"}},
+            "mulligan": {"1": {"offered": ["BIG", "MOON"], "kept": ["BIG"]}}}
+    (deck_dir / "S_g01.jsonl").write_text(
+        json.dumps(meta, ensure_ascii=False) + "\n[]\n", encoding="utf-8")
+    db = _db(tmp_path, CARDS)
+    rep = calibrate(deck_dir, [], battletag="湫然#51704", carddb=db,
+                    analyzer=EffectAnalyzer(db), orders=2, k_max=4, seed=0)
+    assert rep["pass"] is False
+    assert "无配对样本" in rep["reason"]
+
+
+def test_calibrate_orders_controls_rollouts_per_game(tmp_path, monkeypatch):
+    """orders 必须真实控制每局推演次数(审查 Important: 曾为死旋钮)。"""
+    import trainer.simcal as simcal_mod
+    from trainer.simcal import calibrate
+    calls = []
+    orig = simcal_mod.rollout
+
+    def counting(*a, **kw):
+        calls.append(1)
+        return orig(*a, **kw)
+
+    monkeypatch.setattr(simcal_mod, "rollout", counting)
+    deck_dir = tmp_path / "奇迹德"
+    deck_dir.mkdir()
+    meta = {"_meta": True, "session": "S", "game_index": 1,
+            "decklist": {"MOON": 2, "BIG": 1},
+            "players": {"1": {"name": "湫然#51704"}},
+            "mulligan": {"1": {"offered": ["BIG", "MOON"], "kept": ["BIG"]}}}
+    (deck_dir / "S_g01.jsonl").write_text(
+        json.dumps(meta, ensure_ascii=False) + "\n[]\n", encoding="utf-8")
+    rows = [_row(1, 30, game="S_g01", hand_n=2),
+            _row(2, 24, game="S_g01", hand_n=3)]
+    db = _db(tmp_path, CARDS)
+    calibrate(deck_dir, rows, battletag="湫然#51704", carddb=db,
+              analyzer=EffectAnalyzer(db), orders=3, k_max=4, seed=0)
+    assert len(calls) == 3, "1 个可用 meta × orders=3"
