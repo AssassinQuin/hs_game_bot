@@ -270,11 +270,58 @@ from trainer.simcal import first_lethal_turns, my_mulligan
 
 
 def test_my_mulligan_finds_battletag_side():
+    """v1 的 len==4 判币是死代码(实测长度 {3,5}); 无币 cid → coin=False。"""
     meta = {"players": {"1": {"name": "别人"}, "2": {"name": "湫然#51704"}},
             "mulligan": {"2": {"offered": ["A", "B", "C", "D"],
                                "kept": ["A"]}}}
     offered, kept, coin = my_mulligan(meta, "湫然#51704")
-    assert offered == ("A", "B", "C", "D") and kept == ("A",) and coin
+    assert offered == ("A", "B", "C", "D") and kept == ("A",)
+    assert coin is False
+
+
+def test_my_mulligan_strips_coin_and_holes():
+    """D1: 币实测混在 offered(cid MUDAN_COIN1)→ 识别剔除; 空串洞过滤。"""
+    meta = {"players": {"2": {"name": "湫然#51704"}},
+            "mulligan": {"2": {"offered": ["A", "MUDAN_COIN1", "", "B", "C"],
+                               "kept": ["A"]}}}
+    offered, kept, coin = my_mulligan(meta, "湫然#51704")
+    assert coin is True
+    assert offered == ("A", "B", "C")
+    assert kept == ("A",)
+
+
+def test_calibrate_skips_offdeck_games_both_sides(tmp_path):
+    """D1: offered/kept 含 decklist 外卡 → 该局跳过且真实侧同步排除,
+    跳过数进返回值(R12); D3: 双侧 0 启动 → 层记空洞且不否决 pass。"""
+    from trainer.simcal import calibrate
+    deck_dir = tmp_path / "奇迹德"
+    deck_dir.mkdir()
+    clean = {"_meta": True, "session": "S", "game_index": 1,
+             "decklist": {"MOON": 2, "BIG": 1},
+             "players": {"1": {"name": "湫然#51704"}},
+             "mulligan": {"1": {"offered": ["BIG", "MOON"],
+                                "kept": ["BIG"]}}}
+    offdeck = {"_meta": True, "session": "S", "game_index": 2,
+               "decklist": {"MOON": 2, "BIG": 1},
+               "players": {"1": {"name": "湫然#51704"}},
+               "mulligan": {"1": {"offered": ["GHOST", "MOON"],
+                                  "kept": ["GHOST"]}}}
+    for name, meta in (("S_g01.jsonl", clean), ("S_g02.jsonl", offdeck)):
+        (deck_dir / name).write_text(
+            json.dumps(meta, ensure_ascii=False) + "\n[]\n", encoding="utf-8")
+    # g02 真实侧行(hand_n=9)若未双侧排除会污染轨迹层
+    rows = [_row(1, 30, game="S_g01", hand_n=2),
+            _row(2, 24, game="S_g01", hand_n=3),
+            _row(1, 30, game="S_g02", hand_n=9)]
+    db = _db(tmp_path, CARDS)
+    rep = calibrate(deck_dir, rows, battletag="湫然#51704", carddb=db,
+                    analyzer=EffectAnalyzer(db), orders=2, k_max=4, seed=0)
+    assert rep["skip"] == {"异局(deck外卡)": 1}
+    assert rep["sim_games"] == 1 and rep["games"] == 1
+    assert rep["layers"]["trajectory"]["ok"] is True   # g02 已双侧排除
+    assert rep["layers"]["launch"]["vacuous"] is True  # 双侧 0 启动
+    assert rep["layers"]["result"]["vacuous"] is True
+    assert rep["pass"] is True                         # 空洞不否决
 
 
 def test_first_lethal_turns_takes_first_only():

@@ -204,7 +204,7 @@ def main(argv=None) -> int:
     ap.add_argument("--battletag", default=None)
     ap.add_argument("--corpus", default=None)
     ap.add_argument("--orders", type=int, default=200)
-    ap.add_argument("--k-max", dest="k_max", type=int, default=8)
+    ap.add_argument("--k-max", dest="k_max", type=int, default=12)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_adv = sub.add_parser("advise", help="给定起手 → CRN 模拟出组合维度建议")
     p_adv.add_argument("--hand", required=True, help="逗号分隔的卡 ID")

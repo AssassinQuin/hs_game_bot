@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import random
+from collections import Counter
 from pathlib import Path
 
 from planner.dfs import best_line
@@ -21,15 +22,24 @@ TRAJ_MAX_MEDIAN_HAND_DIFF = 1.5    # 轨迹层: 手牌规模中位差上限(张)
 LAUNCH_MAX_ABS_DIFF = 0.20         # 启动层: P(启动≤K) 逐点绝对差上限
 RESULT_MIN_WIN_RATE = 0.60         # 结果层: 启动局胜率下限(≈1 预期, 宽容小样本)
 
+# 硬币 card_id 容错集合: 2026-09-15 真实语料实测币混在 offered 里,
+# cid 为 MUDAN_COIN1(本季皮肤币); offered 长度实测 {3:先手, 5:后手},
+# 从无 4 —— v1 的 len==4 判币是死代码(审计 2026-09-15 修复波 D1)。
+_COIN_CIDS = ("MUDAN_COIN1", "COIN", "GAME_005")
+
 
 def my_mulligan(meta: dict, battletag: str) -> tuple[tuple, tuple, bool]:
-    """corpus _meta → (offered, kept, coin)。coin = offered 4 张(v1 口径,
-    MULLIGAN_AI"幸运币不参与留牌"的推断; 校准容差吸收误差)。"""
+    """corpus _meta → (offered, kept, coin), 币已剔出 offered/kept。
+
+    空串洞(cid 解析失败的洞, 实测 1/83 局)一并过滤。"""
     for pid, p in meta.get("players", {}).items():
         if p.get("name") == battletag:
             m = meta.get("mulligan", {}).get(pid) or {}
-            offered = tuple(m.get("offered") or [])
-            return offered, tuple(m.get("kept") or []), len(offered) == 4
+            offered = tuple(c for c in (m.get("offered") or []) if c)
+            kept = tuple(c for c in (m.get("kept") or []) if c)
+            coin = any(c in _COIN_CIDS for c in offered)
+            return (tuple(c for c in offered if c not in _COIN_CIDS),
+                    tuple(c for c in kept if c not in _COIN_CIDS), coin)
     return (), (), False
 
 
@@ -71,7 +81,7 @@ def first_lethal_turns(rows: list, pieces: dict, cost_of: dict) -> dict:
 
 
 def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
-              orders: int = 200, k_max: int = 8, seed: int = 0) -> dict:
+              orders: int = 200, k_max: int = 12, seed: int = 0) -> dict:
     metas = []
     for p in sorted(Path(deck_dir).glob("*.jsonl")):
         meta = json.loads(
@@ -88,6 +98,24 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
     if bad:
         return {"pass": False, "reason": "pieces 不完备(硬门, spec §7)",
                 "layers": {}, "detail": bad}
+
+    # D1 数据契约: 先过 meta —— 剔币/空串后, offered/kept 任一 cid 不在
+    # decklist(实测 8/83 局换牌时段玩了别的卡组, 导出器按目录盖章了
+    # decklist)→ 该局跳过且**双侧**排除(真实侧 rows 按局键同步过滤)。
+    skip: Counter = Counter()
+    offdeck: set = set()
+    sims: list = []            # (meta 序, offered, kept, coin, 局键)
+    for i, m in enumerate(metas):
+        offered, kept, coin = my_mulligan(m, battletag)
+        if not offered:
+            continue
+        g = f"{m['session']}_g{m['game_index']:02d}"
+        if any(c not in decklist for c in (*offered, *kept)):
+            skip["异局(deck外卡)"] += 1
+            offdeck.add(g)
+            continue
+        sims.append((i, offered, kept, coin, g))
+    rows = [r for r in rows if _game_key(r) not in offdeck]
 
     ehp = enemy_hp_curve(rows, k_max=k_max)
     full = [cid for cid, n in decklist.items() for _ in range(n)]
@@ -110,13 +138,9 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
     diffs: list[float] = []
     sim_launch: list[int | None] = []
     n_sim = 0
-    for i, m in enumerate(metas):
-        offered, kept, coin = my_mulligan(m, battletag)
-        if not offered:
-            continue
+    for i, offered, kept, coin, g in sims:
         n_sim += 1
         rng = random.Random(seed * 1000003 + i)
-        g = f"{m['session']}_g{m['game_index']:02d}"
         for _ in range(orders):
             res = rollout(tuple(rng.sample(full, len(full))), offered=offered,
                           keep=kept, coin=coin, pieces=pieces, cost_of=cost_of,
@@ -128,7 +152,8 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
 
     if not games or not n_sim or not diffs:
         return {"pass": False, "reason": "无配对样本(语料/键域/回合交集为空)",
-                "layers": {}, "games": len(games), "sim_games": n_sim}
+                "layers": {}, "games": len(games), "sim_games": n_sim,
+                "skip": dict(skip)}
 
     def _median(xs):
         xs = sorted(xs)
@@ -153,16 +178,23 @@ def calibrate(deck_dir, rows: list, *, battletag: str, carddb, analyzer,
                 ) if launched_games else 1.0
     result_ok = win_rate >= RESULT_MIN_WIN_RATE
 
+    # D3 空洞显性化: 双侧 0 启动 → 该层无检验力, 不提供正向证据也不否决
+    launch_vacuous = (not real_launch
+                      and not any(x is not None for x in sim_launch))
+    result_vacuous = not launched_games
+
     layers = {
         "trajectory": {"ok": traj_ok, "median_hand_diff": traj_med,
                        "n_points": len(diffs)},
-        "launch": {"ok": launch_ok, "max_abs_diff": launch_max,
-                   "curve_diffs": launch_diffs},
-        "result": {"ok": result_ok, "win_rate": win_rate,
-                   "n_launched": len(launched_games)},
+        "launch": {"ok": launch_ok, "vacuous": launch_vacuous,
+                   "max_abs_diff": launch_max, "curve_diffs": launch_diffs},
+        "result": {"ok": result_ok, "vacuous": result_vacuous,
+                   "win_rate": win_rate, "n_launched": len(launched_games)},
     }
-    return {"pass": all(v["ok"] for v in layers.values()),
-            "games": len(games), "sim_games": n_sim, "layers": layers}
+    return {"pass": traj_ok and (launch_ok or launch_vacuous)
+            and (result_ok or result_vacuous),
+            "games": len(games), "sim_games": n_sim, "layers": layers,
+            "skip": dict(skip)}
 
 
 def print_calibrate_report(rep: dict) -> None:
@@ -170,18 +202,30 @@ def print_calibrate_report(rep: dict) -> None:
         print(f"✗ 校准未运行: {rep['reason']}")
         if rep.get("detail"):
             print("  " + " │ ".join(rep["detail"][:10]))
+        if rep.get("skip"):
+            print("跳过: " + " │ ".join(f"{k} {v}" for k, v in
+                                         rep["skip"].items()))
         return
-    lj = {k: ("通过" if v["ok"] else "未过") for k, v in rep["layers"].items()}
+    lj = {k: ("空洞" if v.get("vacuous") else
+              ("通过" if v["ok"] else "未过"))
+          for k, v in rep["layers"].items()}
+    eff = 1 + sum(1 for k in ("launch", "result")
+                  if not rep["layers"][k].get("vacuous"))
     tr = rep["layers"]["trajectory"]
     la = rep["layers"]["launch"]
     re = rep["layers"]["result"]
     print(f"── 三层校准: {'PASS' if rep['pass'] else 'FAIL'} "
-          f"({rep['games']} 真实局 / {rep['sim_games']} 模拟局) ──")
+          f"({rep['games']} 真实局 / {rep['sim_games']} 模拟局, "
+          f"{eff}/3 层有效) ──")
     print(f"  轨迹层[{lj['trajectory']}] 手牌规模中位差 "
           f"{tr['median_hand_diff']:.2f} (≤{TRAJ_MAX_MEDIAN_HAND_DIFF}, "
           f"{tr['n_points']} 点)")
+    vac = ", 双侧0启动, 无检验力" if la.get("vacuous") else ""
     print(f"  启动层[{lj['launch']}] P(启动≤K) 最大绝对差 "
-          f"{la['max_abs_diff']:.3f} (≤{LAUNCH_MAX_ABS_DIFF})")
+          f"{la['max_abs_diff']:.3f} (≤{LAUNCH_MAX_ABS_DIFF}{vac})")
+    vac_r = ", 双侧0启动, 无检验力" if re.get("vacuous") else ""
     wr = f"{re['win_rate']:.2f}" if re["n_launched"] else "n/a"
     print(f"  结果层[{lj['result']}] 启动局胜率 {wr} "
-          f"(≥{RESULT_MIN_WIN_RATE}, {re['n_launched']} 局)")
+          f"(≥{RESULT_MIN_WIN_RATE}, {re['n_launched']} 局{vac_r})")
+    if rep.get("skip"):
+        print("跳过: " + " │ ".join(f"{k} {v}" for k, v in rep["skip"].items()))

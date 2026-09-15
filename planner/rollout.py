@@ -4,8 +4,10 @@
 进期望注记; 本模块把抽样牌序作为 known_draws 队列喂给 play —— 抽到的牌
 真实入手, 期望折算通道在本模块永不出现。
 
-脚本策略(设计 §3): 引擎/回费/无伤害段牌尽快打; 伤害段牌仅引擎在场时打
-(转抽牌循环燃料), 否则留手作启动组件 —— "绝不打出启动组件"的落地。
+脚本策略(设计 §3, 2026-09-15 v2 迭代): 引擎/回费牌尽快打; 伤害段牌仅
+引擎在场时打(转抽牌循环燃料); 其余无段非引擎非回费牌**囤手不打** ——
+v1 对其一律打, 0 费法术密集卡组 T1 即倾泻至 2 张, 轨迹层实测手牌
+系统性偏小(中位差 3.0, 4020 点), 真实对局是囤组件的。
 启动判定复用 best_line(board_atk=0 保守口径, 宁漏勿错)。
 
 简化口径(v1, 轨迹层校准兜底): 被换牌视为洗回统一抽牌流; 忽略手牌上限、
@@ -29,11 +31,14 @@ class RolloutResult:
 
 
 def _policy_playable(key, pieces: dict, engines: int) -> bool:
-    """脚本策略单卡裁定: 引擎/回费/无伤害段 → 打; 伤害段 → 仅引擎在场打。"""
+    """脚本策略单卡裁定 v2: 引擎/回费 → 打; 伤害段 → 仅引擎在场打;
+    其余(无段非引擎非回费) → 囤(v1 打了, 轨迹层校准实测偏小)。"""
     p = pieces.get(key)
-    if p is None or p.engine or p.mana_gain or not p.segments:
+    if p is None or p.engine or p.mana_gain:
         return True
-    return engines > 0
+    if p.segments:
+        return engines > 0
+    return False
 
 
 def rollout(full_order, *, offered, keep, coin, pieces, cost_of, k_max,
