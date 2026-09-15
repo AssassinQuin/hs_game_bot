@@ -850,7 +850,7 @@ def test_first_lethal_turns_takes_first_only():
                   "opp": {"hp": 6, "armor": 0}},
          "src": "g1.power.log#g1T9", "result": 1},
     ]
-    assert first_lethal_turns(rows, pieces, {"BIG": 4}) == {"g1.power.log": 2}
+    assert first_lethal_turns(rows, pieces, {"BIG": 4}) == {"g1": 2}
 ```
 
 再加一个 calibrate 的合成端到端(临时语料目录 + 假卡表;校准在完全自洽的合成数据上必须 pass):
