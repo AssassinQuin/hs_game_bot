@@ -170,3 +170,63 @@ def test_pieces_completeness_gates_missing_card_and_key(analyzer, tmp_path):
     ok_deck = {"MOON": 2}
     p2, c2 = build_sim_pieces(ok_deck, db, analyzer)
     assert pieces_completeness(ok_deck, db, p2, c2) == []
+
+
+# ---------------- Task4: CRN 枚举 + 组合维度输出 ----------------
+
+import time as _time
+
+from trainer.sim import ANTI_SYNERGY_THRESHOLD, combo_outputs, sim_mulligan
+
+
+def test_combo_outputs_hand_computed():
+    """纯函数: 手算值精确钉死(spec §5.3 公式)。"""
+    scores = {frozenset(): 0.40, frozenset(("A",)): 0.50,
+              frozenset(("B",)): 0.38, frozenset(("A", "B")): 0.44}
+    out = combo_outputs(scores, ("A", "B"))
+    assert out["keep"] == ("A",)
+    assert out["per_card_marginal"] == {"A": pytest.approx(0.10)}
+    assert out["pair_synergy"][("A", "B")] == pytest.approx(-0.04)
+    assert out["anti_synergy"] == [("A", "B")]     # -0.04 < -0.02
+    assert out["reject"] == ["B"]                  # 0.38-0.40 = -0.02 < 0
+
+
+def test_sim_mulligan_deterministic_and_ordered():
+    deck = {"MOON": 2, "BIG": 1}
+    kw = dict(pieces=_sim_pieces(), cost_of=_COST, coin=False, orders=8,
+              k_max=5, enemy_totals=(None, 6, 6, 6, 6),
+              survive=[1.0] * 5, seed=0)
+    r1 = sim_mulligan(deck, ("MOON", "BIG"), **kw)
+    r2 = sim_mulligan(deck, ("MOON", "BIG"), **kw)
+    assert r1["scores"] == r2["scores"]            # 同种子可复现
+    assert len(r1["scores"]) == 4                  # 2^2 个 keep 集
+    assert r1["scores"][frozenset(("BIG",))] >= \
+        r1["scores"][frozenset()]                  # 留星火不劣于全换
+
+
+def test_sim_mulligan_launch_hist_bounded():
+    deck = {"MOON": 2, "BIG": 1}
+    r = sim_mulligan(deck, ("MOON", "BIG"), pieces=_sim_pieces(),
+                     cost_of=_COST, orders=5, k_max=4,
+                     enemy_totals=(None, 6, 6, 6), survive=[1.0] * 4, seed=1)
+    for s, hist in r["launch_hist"].items():
+        assert 0 <= sum(hist) <= 5
+        assert hist[0] == 0                        # [0] 弃用位
+
+
+def test_sim_mulligan_perf_small_deck():
+    deck = {"MOON": 12, "AUCTION": 2, "DRAW2": 6}
+    pieces, cost_of = None, None                   # 手搓 pieces, 免编译器
+    pieces = {("MOON", 1): Piece("MOON", 1, segments=(1,), spell_scaled=True,
+                                 is_spell=True),
+              ("AUCTION", 5): Piece("AUCTION", 5, engine=True),
+              ("DRAW2", 3): Piece("DRAW2", 3, is_spell=True, draw_n=2),
+              ("COIN", 0): Piece("COIN", 0, mana_gain=1, is_spell=True)}
+    cost_of = {"MOON": 1, "AUCTION": 5, "DRAW2": 3, "COIN": 0}
+    t0 = _time.time()
+    r = sim_mulligan(deck, ("MOON", "AUCTION", "DRAW2"), pieces=pieces,
+                     cost_of=cost_of, orders=5, k_max=6,
+                     enemy_totals=(30,) * 6, survive=[1.0] * 6, seed=0)
+    assert _time.time() - t0 < 5.0, "5 牌序×8 集合×6 回合须 5s 内(性能钉子)"
+    assert set(r) >= {"scores", "keep", "per_card_marginal", "pair_synergy",
+                      "anti_synergy", "reject", "launch_hist"}
