@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import random
 from itertools import combinations
+from pathlib import Path
 
 from planner.pieces import Piece, build_piece
 from planner.rollout import rollout
@@ -171,3 +173,92 @@ def survive_curve(rows: list, k_max: int = 8) -> list:
     n = len(max_turn) or 1
     return [sum(1 for mx in max_turn.values() if mx >= t) / n
             for t in range(1, k_max + 1)]
+
+
+# ---------------- CLI(advise / calibrate) ----------------
+
+def _latest_decklist(corpus: Path, deck: str) -> dict | None:
+    """语料该卡组目录最新一样本的 decklist(牌表 0 变化, 任取即可)。"""
+    deck_dir = Path(corpus) / deck
+    for p in sorted(deck_dir.glob("*.jsonl"), reverse=True):
+        meta = json.loads(p.read_text(encoding="utf-8").splitlines()[0])
+        if meta.get("_meta") and meta.get("decklist"):
+            return meta["decklist"]
+    return None
+
+
+def main(argv=None) -> int:
+    import argparse
+    import sys
+    from pathlib import Path
+
+    from hsbot.analysis import EffectAnalyzer
+    from hsbot.carddb import CardDB
+    from hsbot.config import Config
+
+    argv = list(sys.argv[1:]) if argv is None else list(argv)
+    ap = argparse.ArgumentParser(prog="trainer sim",
+                                 description="留牌模拟器(v3.1, 0 变化自闭卡组)")
+    ap.add_argument("--config", default="config.yaml")
+    ap.add_argument("--deck", default=None)
+    ap.add_argument("--battletag", default=None)
+    ap.add_argument("--corpus", default=None)
+    ap.add_argument("--orders", type=int, default=200)
+    ap.add_argument("--k-max", dest="k_max", type=int, default=8)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p_adv = sub.add_parser("advise", help="给定起手 → CRN 模拟出组合维度建议")
+    p_adv.add_argument("--hand", required=True, help="逗号分隔的卡 ID")
+    p_adv.add_argument("--coin", action="store_true", help="后手")
+    p_adv.add_argument("--enemy", type=int, default=30,
+                       help="敌方血甲档位(默认 30; 档位表 26/30/40/48/56)")
+    sub.add_parser("calibrate", help="三层一致性校准(vs 真实语料)")
+    args = ap.parse_args(argv)
+
+    cfg = Config.load({"config": args.config})
+    deck = args.deck or cfg.deck_name
+    battletag = args.battletag or cfg.battletag
+    corpus = Path(args.corpus or cfg.training_dir)
+    carddb = CardDB(cfg.cache_dir / "cards.zh.json")
+    analyzer = EffectAnalyzer(carddb)
+    out = Path(__file__).resolve().parent / "data" / deck
+
+    decklist = _latest_decklist(corpus, deck)
+    if not decklist:
+        raise SystemExit(f"语料 {corpus / deck} 无 decklist, 模拟器不适用")
+    pieces, cost_of = build_sim_pieces(decklist, carddb, analyzer)
+    bad = pieces_completeness(decklist, carddb, pieces, cost_of)
+    if bad:
+        raise SystemExit("模拟器硬门未过(spec §7, 该卡组禁用):\n  "
+                         + "\n  ".join(bad))
+
+    if args.cmd == "advise":
+        from .material import load_material
+        rows = load_material(out)
+        offered = tuple(c.strip() for c in args.hand.split(",") if c.strip())
+        rep = sim_mulligan(decklist, offered, pieces=pieces, cost_of=cost_of,
+                           coin=args.coin, orders=args.orders,
+                           k_max=args.k_max,
+                           enemy_totals=ladder_totals(args.enemy,
+                                                      k_max=args.k_max),
+                           survive=survive_curve(rows, k_max=args.k_max))
+        _zh = lambda cid: carddb.name(cid) or cid  # noqa: E731
+        print(f"── 模拟留牌建议 ({args.orders} 牌序, CRN {2 ** len(offered)} 集) ──")
+        print("留: " + "、".join(_zh(c) for c in rep["keep"]))
+        for c, v in sorted(rep["per_card_marginal"].items(),
+                           key=lambda kv: -kv[1]):
+            print(f"  {_zh(c)} 边际 {v:+.1%}")
+        for (a, b), v in rep["pair_synergy"].items():
+            if abs(v) >= 0.02:
+                tag = "同留" if v > 0 else "不宜同留"
+                print(f"  {_zh(a)}+{_zh(b)} {tag} {v:+.1%}")
+        if rep["reject"]:
+            print("换: " + "、".join(_zh(c) for c in rep["reject"]))
+        return 0
+
+    from .simcal import calibrate, print_calibrate_report
+    from .material import load_material
+    rep = calibrate(corpus / deck, load_material(out), battletag=battletag,
+                    carddb=carddb, analyzer=analyzer, orders=args.orders,
+                    k_max=args.k_max)
+    print_calibrate_report(rep)
+    return 0 if rep["pass"] else 1

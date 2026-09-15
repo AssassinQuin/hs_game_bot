@@ -42,6 +42,10 @@ def main(argv=None) -> int:
     if "mulligan" in argv:                   # 留牌训练器(独立子命令族, 旗标可在前后)
         i = argv.index("mulligan")
         return mulligan.main(argv[:i] + argv[i + 1:])
+    if "sim" in argv:                       # 留牌模拟器(v3.1, 独立子命令族)
+        i = argv.index("sim")
+        from . import sim
+        return sim.main(argv[:i] + argv[i + 1:])
     args = ap.parse_args(argv)
 
     cfg = Config.load({"config": args.config, "data_dir": args.data_dir})

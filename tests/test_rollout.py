@@ -377,3 +377,20 @@ def test_calibrate_orders_controls_rollouts_per_game(tmp_path, monkeypatch):
     calibrate(deck_dir, rows, battletag="湫然#51704", carddb=db,
               analyzer=EffectAnalyzer(db), orders=3, k_max=4, seed=0)
     assert len(calls) == 3, "1 个可用 meta × orders=3"
+
+
+# ---------------- Task7: CLI ----------------
+
+from trainer import sim as sim_mod
+
+
+def test_sim_main_requires_subcommand():
+    with pytest.raises(SystemExit) as ei:
+        sim_mod.main(["--config", "config.yaml"])
+    assert ei.value.code == 2              # argparse 用法错误
+
+
+def test_sim_main_unknown_subcommand():
+    with pytest.raises(SystemExit) as ei:
+        sim_mod.main(["frobnicate"])
+    assert ei.value.code == 2
