@@ -1268,7 +1268,7 @@ Expected: `素材: N 个决策点(...局...)` 无重放失败。
 
 - [ ] **Step 2: 跑三层校准**
 
-Run: `python3 -m trainer sim calibrate --deck 奇迹德 --orders 200`
+Run: `python3 -m trainer sim --deck 奇迹德 --orders 200 calibrate`(注意: 旗标须在子命令前,与 trainer/mulligan CLI 同惯例)
 Expected 输出形如:
 
 ```
@@ -1282,7 +1282,7 @@ Expected 输出形如:
 
 - [ ] **Step 3: 解读三分支(按实际结果走其一)**
 
-- **PASS** → Step 4;顺手跑 `python3 -m trainer sim advise --deck 奇迹德 --hand <从任一 meta 的 offered 取真实 3 卡>` 人工 sanity(建议方向与卡组常识不悖)。
+- **PASS** → Step 4;顺手跑 `python3 -m trainer sim --deck 奇迹德 --hand <从任一 meta 的 offered 取真实 3 卡> advise`(旗标在子命令前)人工 sanity(建议方向与卡组常识不悖)。
 - **轨迹层未过** → 策略偏倚:检查模拟手牌规模系统性偏大/偏小,调 `_policy_playable` 优先级(只动策略,不动 play/dfs);每次调整后重跑本步,记入 v3.1 节。
 - **启动/结果层未过** → 谓词或血甲口径:检查 `enemy_hp_curve` 分位选择、`first_lethal_turns` 的 engines 快照重建;若真实启动局胜率低(<0.60),逐局列出启动却输的样本归因(冰甲/破坏/斩杀计算口径),把发现写成 v3.1 节的"已知偏差"清单。**禁止**为凑 PASS 放宽阈值常量——阈值改动=设计变更,须回 spec 立案。
 
