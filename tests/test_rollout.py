@@ -23,6 +23,8 @@ CARDS = [
      "text": "在本回合中，获得一个 法力水晶。"},
     {"id": "BIG", "name": "星火术", "type": "SPELL", "cost": 4,
      "text": "造成$6点伤害。"},
+    {"id": "OPP_DRAW2", "name": "自然平衡", "type": "SPELL", "cost": 2,
+     "text": "消灭一个随从。你的对手抽两张牌。"},
 ]
 
 
@@ -147,6 +149,13 @@ def test_build_sim_pieces_injects_coin_and_draws(analyzer, tmp_path):
     # 独立抽牌后填: 奥术洞察 Draw(2) → draw_n=2; 拍卖师(每当)守卫 → 0
     assert pieces[("DRAW2", 3)].draw_n == 2
     assert pieces[("AUCTION", 5)].draw_n == 0
+
+
+def test_build_sim_pieces_excludes_opponent_draws(analyzer, tmp_path):
+    """scope=opponent 的抽牌(自然平衡族)不计我方 draw_n(审查 Important 修复)。"""
+    db = _db(tmp_path, CARDS)
+    pieces, _cost = build_sim_pieces({"OPP_DRAW2": 2}, db, analyzer)
+    assert pieces[("OPP_DRAW2", 2)].draw_n == 0
 
 
 def test_pieces_completeness_gates_missing_card_and_key(analyzer, tmp_path):

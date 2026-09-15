@@ -23,8 +23,8 @@ def _draw_n_from_ir(carddb, analyzer, cid: str) -> int:
         return 0
     n = 0
     for e in ir.effects:
-        if type(e).__name__ == "Draw":
-            n += getattr(e, "amount", 1)
+        if type(e).__name__ == "Draw" and getattr(e, "scope", "") != "opponent":
+            n += getattr(e, "amount", 1)   # 对手抽牌(自然平衡族)不计我方
     return n
 
 
