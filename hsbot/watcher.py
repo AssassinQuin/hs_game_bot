@@ -35,7 +35,7 @@ from .overlay import (KIND_ADVICE, KIND_CHAIN, KIND_GAME_END, KIND_NOTICE,
 from .persist import SessionStore, atomic_write_text
 from .render import chain_line, game_end_line, snapshot_block, snapshot_line, \
     stat_fields, stat_text
-from .store import GameStore
+from .store import GameStore, is_hero
 
 log = logging.getLogger("hsbot.watcher")
 
@@ -177,11 +177,20 @@ class AuditExporter:
         """新局: 未配对的基态整体作废(与 GameScope 重置语义同步)。"""
         self._bases.clear()
 
-    def capture_base(self, store, knowledge, analyzer, eid) -> None:
+    def capture_base(self, store, knowledge, analyzer, eid,
+                     target=None) -> None:
         try:
             asm = assemble_snapshot(store, knowledge, analyzer)
             if asm is not None:
-                self._bases[eid] = asm
+                # face 对账门控(2026-09-17 审计): 仅结算目标=敌方英雄时
+                # face 差才构成分歧(打随从/解场不是) —— 块开始时目标已可知
+                face_ok = False
+                opp = store.opponent_key()
+                if target is not None and opp is not None:
+                    e = store.get(target) if isinstance(target, int) else None
+                    face_ok = (e is not None and is_hero(e)
+                               and store.ctrl_key(e) == opp)
+                self._bases[eid] = (asm[0], asm[1], face_ok)
         except Exception:  # noqa: BLE001
             log.warning("对账基态捕获失败(eid=%s)", eid, exc_info=True)
 
@@ -191,13 +200,16 @@ class AuditExporter:
             return                          # 无基态/英雄技能: 不对账
         if evt.get("actor") != store.friendly_key:
             return                          # 只对我方的牌对账(对手打牌不重放)
+        if evt.get("suboption") is not None:
+            return                          # 抉择牌按所选子卡结算, 父卡 IR
+                                            # 预测必偏 —— 整牌不对账(宁漏勿错)
         try:
             after = assemble_snapshot(store, knowledge, analyzer)
             if after is None:
                 return
             from .recon import reconcile
             rec = reconcile(base[0], base[1], evt, after[0],
-                            analyzer.carddb)
+                            analyzer.carddb, face_comparable=base[2])
             if rec is not None:
                 import json as _json
                 self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -718,8 +730,13 @@ class Watcher:
             # adapter.is_play_block 不含 entity 判定, 基态捕获需实体 id, 保留 int 检查
             if is_play_block(pkt) and isinstance(pkt.entity, int):
                 # 对账基态: PLAY 块开始 = store 尚未应用块内包(预测基态)
+                # 对账基态: PLAY 块开始 = store 尚未应用块内包(预测基态)。
+                # 注: 块嵌套(战吼内再打牌)时外层 play 事件被 store 单槽覆写
+                # 永不发 → 外层基态残留至局末 reset(仅内存, 无配对污染,
+                # 2026-09-17 审计裁定接受; 修需 store 覆写处发信号, FOLLOWUPS)
                 self.audit.capture_base(self.match.gs, self.match.knowledge,
-                                        self.analyzer, pkt.entity)
+                                        self.analyzer, pkt.entity,
+                                        target=getattr(pkt, "target", None))
             try:
                 self.match.gs.apply(pkt, depth)
             except Exception as exc:  # noqa: BLE001  单包事件失败不拖垮监控

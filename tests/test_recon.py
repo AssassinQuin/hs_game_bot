@@ -89,6 +89,61 @@ def test_reconcile_missing_card_in_base_returns_none(tmp_path):
                      _db(tmp_path)) is None
 
 
+# ---------------- 审计 2026-09-17: 信号豁免(免噪声淹没判据) ----------------
+
+def test_reconcile_face_skipped_when_target_not_enemy_hero(tmp_path):
+    """高#1: 打随从/解场(目标非敌方英雄)的 face 差不是分歧。"""
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    base = initial_state(5, (("TST_FIRE", 4),), 0, enemy_total=30)
+    after = initial_state(1, (), 0, enemy_total=30)      # 打随从: 敌方没掉血
+    assert reconcile(base, _PIECES, _EVT, after, db,
+                     face_comparable=False) is None
+
+
+def test_reconcile_unknown_draw_downgrade(tmp_path):
+    """中#2: 实测多出的已知池外牌 = 未知抽入手(预测只计数), 不记 hand 分歧。"""
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    base = initial_state(5, (("TST_FIRE", 4),), 0, engines=1,
+                         known_draws=())
+    after = initial_state(1, (("TST_RAMP", 0),), 0, engines=1)   # 实测抽到
+    assert reconcile(base, _PIECES, _EVT, after, db,
+                     face_comparable=False) is None
+
+
+def test_reconcile_mixed_extra_still_flags(tmp_path):
+    """混合(实测多出的牌含已知池内)保守记真分歧: 实测 2 张 MOON, 预测 1 张。"""
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    base = initial_state(5, (("TST_FIRE", 4),), 0, engines=1,
+                         known_draws=(("MOON", 1),))
+    after = initial_state(1, (("MOON", 1), ("MOON", 1)), 0, engines=1)
+    rec = reconcile(base, _PIECES, _EVT, after, db, face_comparable=False)
+    d = {x["field"]: x for x in rec["diffs"]}
+    assert d["hand_n"]["predicted"] == 1 and d["hand_n"]["actual"] == 2
+
+
+def test_reconcile_mana_compared_capped_at_ten(tmp_path):
+    """低#4: 实测侧临时水晶可瞬时 >10(mana_now 不封顶), 对比双侧按 10 封顶。"""
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    evt = {"card_id": "TST_RAMP", "cost_tag": 0, "eid": 11, "is_power": False}
+    base = initial_state(10, (("TST_RAMP", 0),), 0)
+    after = initial_state(11, (), 0)                     # mana_now 实测 11
+    assert reconcile(base, _PIECES, evt, after, db) is None
+
+
+def test_reconcile_cost_none_prefers_carddb_cost_copy(tmp_path):
+    """低#5: cost_tag=None 时取卡表基础费副本(同牌不同减费多副本防错位)。"""
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    base = initial_state(5, (("TST_FIRE", 2), ("TST_FIRE", 4)), 0)   # 升序
+    after = initial_state(1, (("TST_FIRE", 2),), 0)      # 打的是 4 费那张
+    evt = {"card_id": "TST_FIRE", "cost_tag": None, "eid": 10}
+    assert reconcile(base, _PIECES, evt, after, db) is None
+
+
 # ---------------- AuditExporter 端到端(真 store + 真 PLAY 块) ----------------
 
 def _playable_scene(tmp_path, *, fire_cost=4):
@@ -102,8 +157,8 @@ def _playable_scene(tmp_path, *, fire_cost=4):
     return st, log, EffectAnalyzer(_db(tmp_path))
 
 
-def _run_play(st, *, used=4, enemy_dmg=6):
-    b = mk_block(BlockType.PLAY, 10)
+def _run_play(st, *, used=4, enemy_dmg=6, target=0):
+    b = mk_block(BlockType.PLAY, 10, target=target)
     st.apply(b, depth=0)
     st.apply(mk_show(10, "TST_FIRE", ZONE=Zone.GRAVEYARD.value), depth=1)
     st.apply(mk_tag(10, GameTag.ZONE, Zone.GRAVEYARD.value), depth=1)
@@ -136,8 +191,8 @@ def test_audit_exporter_damage_divergence_writes_jsonl(tmp_path):
                        "auto_training": False})
     st, log, a = _playable_scene(tmp_path)
     aud = AuditExporter(cfg)
-    aud.capture_base(st, None, a, 10)
-    _run_play(st, used=4, enemy_dmg=4)                # 实测只打 4(卡牌改版? )
+    aud.capture_base(st, None, a, 10, target=5)       # 5=敌方英雄: face 可比
+    _run_play(st, used=4, enemy_dmg=4, target=5)      # 实测只打 4(卡牌改版? )
     evt = log.by_kind("play")[0]
     evt["game_id"] = "deadbeef"
     aud.on_play(evt, st, None, a)

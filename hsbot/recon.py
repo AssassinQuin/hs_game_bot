@@ -4,6 +4,12 @@
 纯函数; main 仅作 CLI 入口读文件)。transition 级对账(非整线终态对比):
 每条分歧的定位面 = Piece 字段面 —— mana 组↔cost/减费/回费, face↔segments×sp,
 hand_n/hand_cards↔engine/draw_n, engines↔engine, sp↔spellpower_gain。
+
+信号豁免(2026-09-17 审计, 免噪声淹没判据):
+- face 仅在"结算目标=敌方英雄"时比较(打随从/解场的牌 face 差不是分歧);
+- 实测手牌多出"已知抽牌池之外"的牌 = 未知抽牌入手(预测模型边界: play 对
+  未知抽只计数), 全部多牌可由其解释时不记 hand_n/hand_cards 分歧 ——
+  预测侧也多牌(混合情形)保守记真分歧。
 """
 from __future__ import annotations
 
@@ -32,20 +38,36 @@ def ir_source_hash(carddb, cid: str) -> str:
                         ).hexdigest()[:12]
 
 
-def reconcile(base, pieces: dict, evt: dict, after, carddb) -> dict | None:
+def _pick_hand_index(base, cid, cost, carddb) -> int | None:
+    """手牌定位: cost_tag 优先精确匹配; None 时优先卡表基础费副本
+    (同牌不同减费多副本防错位), 再兜底首个同 cid。"""
+    idxs = [i for i, key in enumerate(base.hand) if key[0] == cid]
+    if not idxs:
+        return None
+    if cost is not None:
+        for i in idxs:
+            if base.hand[i][1] == cost:
+                return i
+        return None
+    want = carddb.cost(cid)
+    if want is not None:
+        for i in idxs:
+            if base.hand[i][1] == want:
+                return i
+    return idxs[0]
+
+
+def reconcile(base, pieces: dict, evt: dict, after, carddb,
+              *, face_comparable: bool = True) -> dict | None:
     """(PLAY 块开始基态, play 事件, 块后实测态) → 分歧记录; 一致 → None。
 
     evt 用 play 事件的 card_id/cost_tag(块开始锁定的真实手牌价); 预测 =
     play(base, 手牌中的该牌); 实测 = after 快照同口径投影。基态里没有该牌
-    (装配竞态/衍生牌) → None 不对账。
+    (装配竞态/衍生牌) → None 不对账。face_comparable=False = 结算目标非
+    敌方英雄(watcher 按 PLAY 块 target 解析), face 差不构成分歧。
     """
     cid = evt.get("card_id")
-    cost = evt.get("cost_tag")
-    idx = None
-    for i, key in enumerate(base.hand):
-        if key[0] == cid and (cost is None or key[1] == cost):
-            idx = i
-            break
+    idx = _pick_hand_index(base, cid, evt.get("cost_tag"), carddb)
     if idx is None:
         return None
     key = base.hand[idx]
@@ -61,16 +83,28 @@ def reconcile(base, pieces: dict, evt: dict, after, carddb) -> dict | None:
     else:
         predicted_face = pred.face - base.face
         diffs = []
-        if pred.mana != after.mana:
-            diffs.append({"field": "mana", "predicted": pred.mana,
-                          "actual": after.mana})
-        if len(pred.hand) != len(after.hand):
-            diffs.append({"field": "hand_n", "predicted": len(pred.hand),
-                          "actual": len(after.hand)})
-        pm, am = _hand_multiset(pred.hand), _hand_multiset(after.hand)
-        if pm != am:
-            diffs.append({"field": "hand_cards", "predicted": sorted(pm - am),
-                          "actual": sorted(am - pm)})
+        # mana 对比双侧按 10 封顶(临时水晶/硬币在实测侧可瞬时 >10, 游戏语义
+        # 可用水晶恒 ≤10; 记录字段保留原值)
+        pred_mana, after_mana = min(10, pred.mana), min(10, after.mana)
+        if pred_mana != after_mana:
+            diffs.append({"field": "mana", "predicted": pred_mana,
+                          "actual": after_mana})
+        # 未知抽牌豁免: 实测多出且全部不在已知抽牌池的牌 = 未知抽入手,
+        # 不是分歧(预测侧只计数); 预测侧也多牌(混合)时保守记真分歧
+        extra = _hand_multiset(after.hand) - _hand_multiset(pred.hand)
+        fully_unknown_draw = bool(extra) and all(
+            c not in {kc for kc, _kc in base.known_draws} for c in extra)
+        if not fully_unknown_draw:
+            pred_hand_n = len(pred.hand)
+            after_hand_n = len(after.hand)
+            if pred_hand_n != after_hand_n:
+                diffs.append({"field": "hand_n", "predicted": pred_hand_n,
+                              "actual": after_hand_n})
+            pm, am = _hand_multiset(pred.hand), _hand_multiset(after.hand)
+            if pm != am:
+                diffs.append({"field": "hand_cards",
+                              "predicted": sorted(pm - am),
+                              "actual": sorted(am - pm)})
         if pred.engines != after.engines:
             diffs.append({"field": "engines", "predicted": pred.engines,
                           "actual": after.engines})
@@ -79,7 +113,8 @@ def reconcile(base, pieces: dict, evt: dict, after, carddb) -> dict | None:
     actual_face = (base.enemy_total - after.enemy_total
                    if base.enemy_total is not None
                    and after.enemy_total is not None else None)
-    if actual_face is not None and predicted_face != actual_face:
+    if (face_comparable and actual_face is not None
+            and predicted_face != actual_face):
         diffs.append({"field": "face", "predicted": predicted_face,
                       "actual": actual_face})
     if not diffs:
