@@ -2,7 +2,6 @@
 fixture 三类分歧(伤害/回费/抽牌)+一致零输出(spec §8)。"""
 import json
 
-import pytest
 from hearthstone.enums import BlockType, CardType, GameTag, Zone
 
 from hsbot.carddb import CardDB
@@ -162,3 +161,29 @@ def test_audit_exporter_survives_missing_base_and_reset(tmp_path):
     aud.capture_base(st, None, a, 99)
     aud.reset()                                       # 新局: 基态作废
     assert not (tmp_path / "logs" / "sim_divergence.jsonl").exists()
+
+
+# ---------------- CLI 汇总(spec §5 消费入口 v1) ----------------
+
+def test_summarize_counts_by_card_and_field():
+    from hsbot.recon import summarize
+    recs = [
+        {"card_id": "A", "diffs": [{"field": "face"}]},
+        {"card_id": "A", "diffs": [{"field": "face"}, {"field": "mana"}]},
+        {"card_id": "B", "diffs": [{"field": "mana"}]},
+    ]
+    s = summarize(recs)
+    assert s["n"] == 3
+    assert s["by_card"] == [("A", 2), ("B", 1)]
+    assert s["by_field"] == {"face": 2, "mana": 2}
+
+
+def test_recon_cli_main_reads_jsonl(tmp_path, capsys):
+    from hsbot.recon import main
+    f = tmp_path / "d.jsonl"
+    f.write_text(json.dumps({"card_id": "A", "diffs": [{"field": "face"}]},
+                            ensure_ascii=False) + "\n", encoding="utf-8")
+    assert main([str(f)]) == 0
+    out = capsys.readouterr().out
+    assert "A" in out and "face" in out
+    assert main([]) == 2                        # 用法错误

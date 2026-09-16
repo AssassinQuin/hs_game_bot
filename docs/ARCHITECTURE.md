@@ -4,6 +4,28 @@
 > store 只维护状态;analysis 只解释卡牌/效果;render 只输出;
 > watcher 是编排门面;行级处理是责任链。
 
+## 0.5 两通道架构总纲(2026-09-15 SimSnapshot 统一定稿)
+
+```
+通道 1(真实)  Power.log → pipeline/watcher → store(唯一状态权威)
+                ├→ 快照持久化 / 训练语料 / 真实结果
+                └→ 角色: 通道 2 的初始条件供给 + 对账靶
+通道 2(模拟)  效果 IR(effects 编译→Piece) + SimSnapshot(游戏快照)
+                → play / advance_turn 推演
+                → 一切下游模拟与建议: live 斩杀线 / 留牌模拟器 / 未来通用预测器
+```
+
+后续一切模拟、建议类功能只长在通道 2 上; 通道 1 的角色 = 初始条件供给 +
+对账靶(纯展示类输出直读 store, 不属模拟/建议, 不受本原则约束)。装配分置:
+live = `analysis.assemble_snapshot`(store 投影, glue 留 hsbot 侧, planner
+仍不 import store); sim = `rollout` 抽样构造 `SimSnapshot`。
+
+预测-实测对账(SimSnapshot spec §5): 我方每张牌结算后 `play()` 重放预测
+转移 vs store 实测转移, diff 纯函数在 `hsbot/recon.py`(零 IO), 落盘归
+`watcher.AuditExporter`(`data/logs/sim_divergence.jsonl`, 零干扰), 汇总
+`python -m hsbot.recon <jsonl>` —— 分歧可直接定位到 effects 语法表 /
+Piece 语义 / play 转移, 形成收敛闭环(不自动改规则)。
+
 ## 1. 模块与类图
 
 ```
@@ -52,6 +74,8 @@
 | `watcher.TrainingExporter` | 训练样本+原始切片导出/收尾 | 不做游戏决策 |
 | `corpus.CorpusExporter` | 语料落盘+Decks 归因+import-all | 不平行推导对局事实(读 store) |
 | `overlay.OutputHub/OverlayWindow` | 输出三路分发+三区悬浮窗(上信息区/中上部推荐区/中下日志流, 上两区实底不透明)+分色+几何记忆+局终清空重置 | 不做游戏决策(机读字段驱动, 不从文本反推) |
+| `analysis.assemble_snapshot` | store/knowledge → (SimSnapshot, pieces) 装配投影 | 不改状态; planner 依赖铁律不破 |
+| `watcher.AuditExporter` | 预测-实测对账 JSONL 落盘 | 不做游戏决策; 零干扰(失败仅 WARNING) |
 
 ## 3. 设计模式落位
 

@@ -96,3 +96,35 @@ def reconcile(base, pieces: dict, evt: dict, after, carddb) -> dict | None:
                        "engines": after.engines, "sp": after.sp,
                        "face": actual_face},
             "diffs": diffs}
+
+
+def summarize(records) -> dict:
+    """对账记录 → 汇总(top 分歧卡 / 分歧字段计数)——消费入口 v1, 不做自动
+    改规则(spec §5)。"""
+    by_card = Counter(r["card_id"] for r in records)
+    by_field = Counter(d["field"] for r in records for d in r["diffs"])
+    return {"n": len(records), "by_card": by_card.most_common(),
+            "by_field": dict(by_field)}
+
+
+def main(argv=None) -> int:
+    import sys
+    from pathlib import Path
+    argv = list(sys.argv[1:]) if argv is None else list(argv)
+    if len(argv) != 1:
+        print("用法: python -m hsbot.recon <sim_divergence.jsonl>")
+        return 2
+    path = Path(argv[0])
+    records = [json.loads(ln) for ln in
+               path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    s = summarize(records)
+    print(f"对账分歧 {s['n']} 条 ({path.name})")
+    print("字段分布: " + (", ".join(f"{k}×{v}" for k, v in s["by_field"].items())
+                        or "无"))
+    for cid, n in s["by_card"][:10]:
+        print(f"  {cid} ×{n}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
