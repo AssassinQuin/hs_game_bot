@@ -443,6 +443,120 @@ def test_sim_main_unknown_subcommand():
     assert ei.value.code == 2
 
 
+# ---------------- P1 性能: 上界前置过滤 + known_draws 截断 ----------------
+
+from planner.rollout import LAUNCH_DRAWS_CAP, _drawable, _face_ceiling
+
+
+def test_face_ceiling_upper_bound_with_spellpower():
+    """上界 = scaled 段和 + 可达最大法强×scaled 段数 + 裸段和。"""
+    pieces = {("MOON", 1): Piece("MOON", 1, segments=(1,),
+                                 spell_scaled=True, is_spell=True),
+              ("SPBOOST", 2): Piece("SPBOOST", 2, spellpower_gain=2,
+                                    is_spell=True),
+              ("FLAT", 3): Piece("FLAT", 3, segments=(2, 2))}
+    keys = (("FLAT", 3), ("MOON", 1), ("SPBOOST", 2))
+    # sp=1, 最大法强 1+2=3: (1 + 3×1) + (2+2) = 8
+    assert _face_ceiling(1, keys, pieces) == 8
+
+
+def test_face_ceiling_missing_piece_contributes_zero():
+    assert _face_ceiling(0, (("GHOST", 1),), {}) == 0
+
+
+def test_drawable_closed_vs_open():
+    """封闭口径: 无引擎在场且手中无引擎牌/独立抽牌牌/可触法术。"""
+    p = {("MOON", 1): Piece("MOON", 1, is_spell=True, segments=(1,)),
+         ("AUCTION", 5): Piece("AUCTION", 5, engine=True),
+         ("DRAW2", 3): Piece("DRAW2", 3, is_spell=True, draw_n=2)}
+    assert _drawable(initial_state(3, (("MOON", 1),), 0), p) is False
+    # 手中引擎牌/独立抽牌牌/在场引擎×手中有法术 → 开
+    assert _drawable(initial_state(3, (("AUCTION", 5),), 0), p) is True
+    assert _drawable(initial_state(3, (("DRAW2", 3),), 0), p) is True
+    assert _drawable(initial_state(3, (("MOON", 1),), 0, engines=1), p) is True
+
+
+def test_rollout_launch_check_skipped_when_ceiling_short(monkeypatch):
+    """手牌总伤上界 < 敌方血甲的回合(封闭口径)免 DFS —— 严格无损短路。"""
+    import planner.rollout as R
+    calls = []
+    orig = R.best_line
+    monkeypatch.setattr(R, "best_line",
+                        lambda *a, **kw: calls.append(1) or orig(*a, **kw))
+    r = rollout(("MOON",), offered=("MOON",), keep=("MOON",), coin=False,
+                pieces=_sim_pieces(), cost_of=_COST, k_max=3,
+                enemy_totals=(30, 30, 30))
+    assert r.launch_turn is None
+    assert calls == []                       # 全程无一次 best_line
+
+
+def test_rollout_launch_check_runs_when_ceiling_reaches(monkeypatch):
+    import planner.rollout as R
+    calls = []
+    orig = R.best_line
+    monkeypatch.setattr(R, "best_line",
+                        lambda *a, **kw: calls.append(1) or orig(*a, **kw))
+    r = rollout(("MOON", "MOON", "BIG"), offered=("MOON", "BIG"),
+                keep=("BIG",), coin=False, pieces=_sim_pieces(),
+                cost_of=_COST, k_max=6,
+                enemy_totals=(None, 6, 6, 6, 6, 6))
+    assert r.launch_turn == 4                # 原语义不变(有界回合照常 DFS)
+    assert len(calls) == 3                   # T2/T3/T4 上界 ≥ 需求, T1 None 档
+
+
+def test_rollout_closed_turn_launch_check_gets_empty_known(monkeypatch):
+    """封闭回合 DFS 永不抽牌 → known_draws 喂空串(memo 键变小, 零语义差)。"""
+    import planner.rollout as R
+    seen = []
+    orig = R.best_line
+    monkeypatch.setattr(
+        R, "best_line",
+        lambda st, *a, **kw: seen.append(st) or orig(st, *a, **kw))
+    rollout(("MOON", "MOON", "BIG"), offered=("MOON", "BIG"), keep=("BIG",),
+            coin=False, pieces=_sim_pieces(), cost_of=_COST, k_max=6,
+            enemy_totals=(None, 6, 6, 6, 6, 6))
+    assert seen and all(s.known_draws == () for s in seen)
+
+
+def test_rollout_open_turn_launch_check_caps_known_draws(monkeypatch):
+    """可抽回合: 喂给启动 DFS 的 known_draws 截断到 cap(策略轨迹不受影响)。"""
+    import planner.rollout as R
+    seen = []
+    orig = R.best_line
+    monkeypatch.setattr(
+        R, "best_line",
+        lambda st, *a, **kw: seen.append(st) or orig(st, *a, **kw))
+    pieces = _sim_pieces()
+    pieces[("DRAW3", 3)] = Piece("DRAW3", 3, is_spell=True, draw_n=3)
+    pieces[("MOON0", 0)] = Piece("MOON0", 0, segments=(1,),
+                                 spell_scaled=True, is_spell=True)
+    cost = dict(_COST, DRAW3=3, MOON0=0)
+    order = ("DRAW3", "DRAW3", "DRAW3") + ("MOON0",) * 15
+    rollout(order, offered=("DRAW3", "MOON0"), keep=("DRAW3",), coin=False,
+            pieces=pieces, cost_of=cost, k_max=10, launch_draws_cap=2,
+            enemy_totals=(None,) * 8 + (9,) * 2)   # 上界 7+2 ≥ 9 → 会进 DFS
+    assert seen and all(len(s.known_draws) <= 2 for s in seen)
+
+
+def test_rollout_launch_draws_cap_is_conservative():
+    """cap 截断只可能漏报启动(保守方向): 需深抽的启动线 cap 紧时 miss,
+    cap 覆盖全部抽牌时照常启动 —— 偏差方向钉死, 量化入档 spec §5。"""
+    pieces = _sim_pieces()
+    pieces[("DRAW3", 3)] = Piece("DRAW3", 3, is_spell=True, draw_n=3)
+    pieces[("MOON0", 0)] = Piece("MOON0", 0, segments=(1,),
+                                 spell_scaled=True, is_spell=True)
+    cost = dict(_COST, DRAW3=3, MOON0=0)
+    order = ("DRAW3", "DRAW3", "DRAW3") + ("MOON0",) * 15
+    kw = dict(offered=("DRAW3", "MOON0"), keep=("DRAW3",), coin=False,
+              pieces=pieces, cost_of=cost, k_max=10,
+              enemy_totals=(None,) * 8 + (12,) * 2)
+    full = rollout(order, launch_draws_cap=20, **kw)
+    tight = rollout(order, launch_draws_cap=2, **kw)
+    assert full.launch_turn == 9              # T9 手牌 2×DRAW3+8×MOON0 深抽启动
+    assert tight.launch_turn is None          # 截 2 张 → 最高 10 伤 < 12
+    assert LAUNCH_DRAWS_CAP >= 2              # 默认档不小于最紧测试档
+
+
 # ---------------- 终审 I-1: 抽样纪律源码级钉子 ----------------
 
 def test_exp_per_draw_banned_in_rollout_path():

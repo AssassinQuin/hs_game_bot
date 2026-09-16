@@ -10,6 +10,17 @@ v1 对其一律打, 0 费法术密集卡组 T1 即倾泻至 2 张, 轨迹层实�
 系统性偏小(中位差 3.0, 4020 点), 真实对局是囤组件的。
 启动判定复用 best_line(board_atk=0 保守口径, 宁漏勿错)。
 
+启动判定性能(P1, FOLLOWUPS Issue #1): 逐回合 best_line DFS 在手牌 8-10 张时
+组合爆炸(实测单推演 ~4.7-10s)。两道前置:
+- **封闭回合乐观上界短路(严格无损)**: 手牌本回合不可能再进新牌(无引擎在场
+  且手中无引擎牌/独立抽牌牌/可触发引擎的法术)时, 手牌伤害上界 < 敌方血甲
+  的回合直接跳过 DFS —— 上界恒 ≥ DFS 可达伤害, 只可能少算"不可能启动"的
+  回合, 启动语义零变化;
+- **known_draws 截断(保守方向)**: 可抽回合喂给启动 DFS 的已知抽牌截断到
+  LAUNCH_DRAWS_CAP(上界口径同步把可抽前缀计入, 对截断语义封闭)。截断只
+  可能漏报"深抽后才够伤"的启动线, 偏差方向保守, 量化实测入档 spec §5。
+  策略轨迹(手牌演化)不受截断影响 —— 只动 launch 检查的输入。
+
 简化口径(v1, 轨迹层校准兜底): 被换牌视为洗回统一抽牌流; 忽略手牌上限、
 疲劳与费用锁定; T1 不自然抽、T≥2 每回合抽 1; coin 注入为 0 费回费法术。
 纯函数: 无 IO/全局态; 随机性全在调用方(trainer.sim 的 CRN 层)。
@@ -20,6 +31,10 @@ import dataclasses
 
 from .dfs import best_line
 from .simstate import initial_state, play
+
+LAUNCH_DRAWS_CAP = 12   # 启动 DFS 单回合可消费的已知抽牌上限(超参数:
+                        # 依据 = 2026-09-15 真实语料偏差量化, 量化口径与
+                        # 结果入档 spec §5 性能门; 偏差方向恒为漏报/保守)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -41,17 +56,55 @@ def _policy_playable(key, pieces: dict, engines: int) -> bool:
     return False
 
 
+def _face_ceiling(sp: int, keys, pieces: dict) -> int:
+    """乐观脸伤上界: keys 全部打出且法强增益全部先生效。
+
+    scaled 段按可达最大法强(sp + 手中全部法强增益)逐段计, 裸段按面值计;
+    pieces 缺键计 0(inert 无段)。只用于"不可能启动"短路, 恒 ≥ DFS 可达值。"""
+    sp_max, scaled_sum, scaled_hits, flat = sp, 0, 0, 0
+    for key in keys:
+        p = pieces.get(key)
+        if p is None:
+            continue
+        sp_max += p.spellpower_gain
+        if p.segments:
+            if p.spell_scaled:
+                scaled_sum += sum(p.segments)
+                scaled_hits += len(p.segments)
+            else:
+                flat += sum(p.segments)
+    return scaled_sum + sp_max * scaled_hits + flat
+
+
+def _drawable(st, pieces: dict) -> bool:
+    """launch DFS 期间手牌是否可能进新牌(决定上界是否封闭)。
+
+    开 = 手中有引擎牌(打出后后续法术触发抽牌)/独立抽牌牌/在场引擎×手中有
+    法术; 过近似安全 —— 判"开"只是少过滤, 不影响正确性。"""
+    for key in st.hand:
+        p = pieces.get(key)
+        if p is None:
+            continue
+        if p.engine or p.draw_n:
+            return True
+        if p.is_spell and st.engines:
+            return True
+    return False
+
+
 def rollout(full_order, *, offered, keep, coin, pieces, cost_of, k_max,
-            enemy_totals) -> RolloutResult:
+            enemy_totals, launch_draws_cap: int | None = None) -> RolloutResult:
     """一副完整牌序 + 留牌决策 → 启动回合。
 
     full_order: 整副牌(含重复)的一个随机序 —— CRN 层对全部 keep 集共用;
     keep 中的卡按首次出现从 full_order 移除, 剩余序列即抽牌流。
     enemy_totals: 按回合(1-based)的敌方有效血甲; None 回合跳过启动判定。
+    launch_draws_cap: 启动 DFS 可消费的已知抽牌上限(None → 模块默认)。
     """
     if len(enemy_totals) < k_max:
         raise ValueError(
             f"enemy_totals 长度 {len(enemy_totals)} < k_max {k_max}(调用方契约违反)")
+    cap = LAUNCH_DRAWS_CAP if launch_draws_cap is None else launch_draws_cap
     stream = list(full_order)
     for cid in keep:
         if cid not in stream:
@@ -88,11 +141,22 @@ def rollout(full_order, *, offered, keep, coin, pieces, cost_of, k_max,
         hand_sizes.append(len(st.hand))
         total = enemy_totals[t - 1]
         if total is not None:
-            # 已打出的策略伤害先扣血, best_line 只算手牌剩余爆发(face 清零)
-            plan = best_line(dataclasses.replace(st, face=0), pieces,
-                             enemy_total=total - st.face)
-            if plan.lethal:
-                return RolloutResult(t, t, tuple(hand_sizes), st.engines)
+            # P1 前置: 封闭回合手牌上界(可抽回合连 cap 内前缀一起计)够不到
+            # 血甲 → 免 DFS; 可抽回合 known_draws 截断到 cap(保守, 见模块注释)
+            if _drawable(st, pieces):
+                known = st.known_draws[:cap]
+                ceiling = _face_ceiling(st.sp, st.hand + known, pieces)
+            else:
+                known = ()
+                ceiling = _face_ceiling(st.sp, st.hand, pieces)
+            need = total - st.face
+            if ceiling >= need:
+                # 已打出的策略伤害先扣血, best_line 只算手牌剩余爆发(face 清零)
+                plan = best_line(dataclasses.replace(st, face=0,
+                                                     known_draws=known),
+                                 pieces, enemy_total=need)
+                if plan.lethal:
+                    return RolloutResult(t, t, tuple(hand_sizes), st.engines)
         engines, sp, disc_hand = st.engines, st.sp, st.disc_hand
         hand = [k[0] for k in st.hand]
         stream = [k[0] for k in st.known_draws]   # 引擎循环抽走的已入手
