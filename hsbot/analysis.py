@@ -215,6 +215,12 @@ class EffectAnalyzer:
                 host_cid = store.cid_of(evt["ctx_eid"])
                 if host_cid:
                     via = [host_cid]     # 光环式减益: 归因到所在触发块
+            if not via:
+                # 第三级: 玩家级光环(2026-09-14 实测 SC_755e2 ATTACHED=玩家
+                # 实体, 卡级/块级两路都查不到) —— 减方向 TagChange 常落在
+                # TRIGGER 块外, 此级兜住"减N(?)"的最后一类
+                actor = evt.get("actor")
+                via = store.aura_enchantments_on_player(actor)
             evt = {**evt, "via": via}
         return evt
 

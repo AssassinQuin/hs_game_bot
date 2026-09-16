@@ -353,6 +353,7 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
 
     hand_spells: list = []               # [(实体id, 实时费)] 手牌法术
     hand_space: list = []                # [(实体id, 实时费)] 手牌星灵牌
+    player_auras = st.aura_enchantments_on_player(me)   # 玩家级光环附魔(修 6)
     for e in st.hand(me):
         cid = getattr(e, "card_id", None)
         if not cid:
@@ -389,12 +390,15 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
         if carddb.cardtype(cid) == "SPELL":
             c = tag if tag is not None else base
             cost_hand += c if c is not None else 0
-        # 手牌减费在身事实(引擎 COST 标签 < 基础费): 归属=附魔名(解析层关联)
+        # 手牌减费在身事实(引擎 COST 标签 < 基础费): 归属=附魔名(解析层关联);
+        # 卡级附魔查不到 → 玩家级光环(2026-09-17 审计修 6: SC_755e2 ATTACHED=
+        # 玩家实体, 每帧算一次, 不在逐牌循环里重复查)
         if tag is not None and base is not None and tag < base:
             disc_cards += 1
             disc_total += base - tag
-            for en in st.enchantments_on(e.id):
-                nm = carddb.name(en)
+            names = [carddb.name(x) for x in st.enchantments_on(e.id)] \
+                or [carddb.name(x) for x in player_auras]
+            for nm in names:
                 if nm not in disc_srcs:
                     disc_srcs.append(nm)
     burst_board = st.board_attack(me)
@@ -439,7 +443,7 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
         "ramp_deck": ramp_deck,
         "cost_list": list_cost, "cost_deck": deck_cost, "cost_hand": cost_hand,
         "discount": {"cards": disc_cards, "total": disc_total,
-                     "sources": disc_srcs or (["?"] if disc_total else [])},
+                     "sources": disc_srcs},   # 归因失败诚实空表(修 6: 不再出 "?")
         # 斩杀线 plan 原样透传(契约 §3); _carddb 供 plan_line/stat_text 出名
         # (stat_text 不得再收 carddb 形参 —— watcher 调用点签名不变)
         "plan": plan, "_carddb": carddb,

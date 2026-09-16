@@ -327,6 +327,25 @@ class GameStore:
                 out.append(cid)
         return out
 
+    def aura_enchantments_on_player(self, key: PlayerKey | None) -> list[str]:
+        """挂在玩家实体上的光环附魔 card_id(去重保序; key=None → [])。
+
+        用途: 玩家级光环(2026-09-14 实测 SC_755e2"手牌法术-1"光环 ATTACHED=
+        玩家实体而非任何卡)不进 enchantments_on(卡) —— 减费来源第三级归因
+        (卡级附魔 → 块级触发 → 玩家级光环)的最后一环, 信息区"减N(?)"的 ?
+        由它消除。"""
+        if key is None:
+            return []
+        pe = self._player_entity(key)
+        if pe is None:
+            return []
+        out: list[str] = []
+        for e in self.enchantment_entities_on(pe.id):
+            cid = getattr(e, "card_id", None)
+            if cid and cid not in out:
+                out.append(cid)
+        return out
+
     def linked_effects(self) -> list[dict]:
         """联动卡效果台账: 全部在身附魔 → 宿主 + 来源卡(对局存档持久化)。
 
