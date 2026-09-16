@@ -18,7 +18,8 @@
 **落地记录(7e9c775)**:封闭回合乐观上界短路(严格无损)+`LAUNCH_DRAWS_CAP=12`
 截断(策略轨迹不受影响,偏差方向恒保守)。验收全过:5 档 58.1s(65×);无损对拍
 (scripts/p1_lossless_proof_probe.py,460 推演)launch_turn **零差异**;截断偏差
-3/425(T11 深抽线,恒保守);spec §5 已按新口径立法(≤10min 硬门);全套绿。
+3/425(<1%, T11 深抽线恒保守; 语料增长后复跑 3/460 同性质);spec §5 已按新口径
+立法(双门: 探针腿 ≤90s + 每推演 ≤0.2s, 2026-09-17 审计修订);全套绿。
 
 ## [P2] 启动谓词语义缺口——磨血/场面赢法 vs 单回合爆发 → Issue #2
 
@@ -56,4 +57,12 @@
 - 卡表缓存 `data/cache/cards.zh.json` 不入库,新机器先跑 `python3 scripts/fetch_cards.py`
 - 素材重建:`python3 -m trainer material --deck 奇迹德`(trainer/data 为 gitignored 本地产物)
 - CLI 旗标形态:顶层旗标在子命令前,子命令旗标(--hand/--coin/--enemy)在子命令后
-- 测试基线:364 passed(2026-09-16, SimSnapshot T1-T5 后; P1 落地时点为 343)
+- 测试基线:366 passed(2026-09-17, SimSnapshot 六任务+终审后)
+
+## [P5] 测试环境加固(2026-09-17 审计产出) → 归并 Issue #3
+
+1. tkinter 悬浮窗用例顺序性 flake(约 1/3 概率): tests/test_play_ai.py::
+   test_overlay_dispatches_play_offer_data_to_play_row 全量跑偶发 TclError,
+   隔离跑恒绿, 非回归——加 headless 守卫或与 overlay 窗口资源解耦。
+
+

@@ -65,7 +65,7 @@ class SimSnapshot:
 |---|---|
 | `play(snap, i, pieces)` | 完全沿用现行 simstate.play 契约(含热路径 `__new__` 构造);`turn/enemy_total/board_atk/dealt_total` 原样透传 |
 | `advance_turn(snap, *, enemy_total)` | `turn+1`;`mana=min(10, turn+1)`;`face → dealt_total` 累计后清零;T≥2 自然抽 1(known 队头入手,空则 `drawn+1`);`disc_next` 清零(回合级一次性余额,随回合过期);`sp/disc_hand/engines/known_draws` 跨回合保留(口径=rollout 现行 v1)。`enemy_total=None` 即该回合无数据(消费方跳过斩杀/启动判定) |
-| `memo_key(snap)` | 七元组投影 `(mana, hand, sp, disc_hand, disc_next, engines, known_draws)`;后缀不变性论证沿用 dfs.py 模块注释——face/drawn/dealt_total/turn/enemy_total/board_atk 均不进转移,故不进键 |
+| `memo_key(snap)` | 八元组投影 `(mana, hand, sp, disc_hand, disc_next, disc_next_cat, engines, known_draws)`(2026-09-17 审计正名: 原文"七元组"漏列 disc_next_cat——同 disc_next 不同类目后续减费作用不同, 漏进会撞错误坍缩, 实现自始含之);后缀不变性论证沿用 dfs.py 模块注释——face/drawn/dealt_total/turn/enemy_total/board_atk 不进后续转移, 故不进键 |
 
 `dfs.best_line` 签名随之简化:`board_atk/enemy_total` 从快照读(不再 kwargs);斩杀判定口径统一为
 

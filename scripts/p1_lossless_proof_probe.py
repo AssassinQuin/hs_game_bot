@@ -1,6 +1,10 @@
-"""无损性对拍(一次性探针): HEAD 旧 rollout vs 新实现(等效不截断) 在当前
-语料上逐推演比对 launch_turn —— 全等则证明前置过滤对旧语义严格无损,
-4/425 与昨日 ~10% 的差异纯属语料增长(93 局/血甲曲线变化), 非代码回归。
+"""无损性对拍(一次性探针): bb087bd 旧 rollout vs 新实现(等效不截断) 在
+当前语料上逐推演比对 launch_turn —— 全等则证明前置过滤对旧语义严格无损
+(2026-09-16 实测: 92 局 460 推演零差异, 启动 4/460 全同)。
+
+依赖 tmp_old/ 临时包(bb087bd 时点的 planner 旧六件, 不入库)——克隆后先重建:
+  mkdir tmp_old && for f in __init__ plan pieces simstate dfs rollout; do
+    git show bb087bd:planner/$f.py > tmp_old/$f.py || exit 1; done
 """
 import sys
 import time

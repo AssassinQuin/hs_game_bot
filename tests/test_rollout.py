@@ -569,6 +569,7 @@ def test_rollout_snapshots_sequence_contract():
                 coin=False, pieces=_sim_pieces(), cost_of=_COST, k_max=6,
                 enemy_totals=(None, None, None, None, None, 6))
     assert len(r.snapshots) == r.turns
+    assert r.launch_turn == 6                    # fixture 真启动, 显式钉住
     assert [s.turn for s in r.snapshots] == list(range(1, r.turns + 1))
     assert [len(s.hand) for s in r.snapshots] == list(r.hand_sizes)
     assert r.snapshots[-1].engines == r.engines
