@@ -5,7 +5,7 @@
 > 背景台账:`.superpowers/sdd/progress.md` 2026-09-15 段落(会话本地,不入库);
 > 权威背景:`docs/MULLIGAN_AI.md` v3.1 节 + v3.1 spec。
 
-## [P1] 性能优化——启动判定前置过滤 + known_draws 截断 → Issue #1
+## [P1] 性能优化——启动判定前置过滤 + known_draws 截断 → Issue #1 ✅ 已完成(2026-09-16)
 
 单推演 ~4.7-10s(手牌 8-10 张时 best_line DFS 爆炸),5 档校准 63 分钟,200 档外推 1-4 天。
 
@@ -14,6 +14,11 @@
 - launch check 的 known_draws 截断(偏差须量化)
 - 完成后 spec §5 性能门按新口径重新立法(立法位已留)
 - 验收:真实牌表 5 档 calibrate <10 分钟;同 seed 数值一致(严格无损)或偏差量化;全套绿
+
+**落地记录(7e9c775)**:封闭回合乐观上界短路(严格无损)+`LAUNCH_DRAWS_CAP=12`
+截断(策略轨迹不受影响,偏差方向恒保守)。验收全过:5 档 58.1s(65×);无损对拍
+(scripts/p1_lossless_proof_probe.py,460 推演)launch_turn **零差异**;截断偏差
+3/425(T11 深抽线,恒保守);spec §5 已按新口径立法(≤10min 硬门);全套绿。
 
 ## [P2] 启动谓词语义缺口——磨血/场面赢法 vs 单回合爆发 → Issue #2
 
@@ -39,4 +44,4 @@
 - 卡表缓存 `data/cache/cards.zh.json` 不入库,新机器先跑 `python3 scripts/fetch_cards.py`
 - 素材重建:`python3 -m trainer material --deck 奇迹德`(trainer/data 为 gitignored 本地产物)
 - CLI 旗标形态:顶层旗标在子命令前,子命令旗标(--hand/--coin/--enemy)在子命令后
-- 测试基线:238 passed / 2 skipped
+- 测试基线:364 passed(2026-09-16, SimSnapshot T1-T5 后; P1 落地时点为 343)
