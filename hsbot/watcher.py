@@ -18,10 +18,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from hearthstone.enums import BlockType
-
-from .adapter import (game_meta, new_parser, reset_player_manager,
-                      resolve_friendly, walk_packets)
+from .adapter import (game_meta, is_play_block, new_parser,
+                      reset_player_manager, resolve_friendly, walk_packets)
 from .analysis import EffectAnalyzer, assemble_snapshot, lethal_plan
 from .effects import EffectCache
 from .carddb import CardDB
@@ -717,9 +715,8 @@ class Watcher:
             limit = max(self.match.cursor, len(flat) - 1)
         while i < limit:
             pkt, depth = flat[i]
-            if (type(pkt).__name__ == "Block"
-                    and getattr(pkt, "type", None) == BlockType.PLAY
-                    and isinstance(pkt.entity, int)):
+            # adapter.is_play_block 不含 entity 判定, 基态捕获需实体 id, 保留 int 检查
+            if is_play_block(pkt) and isinstance(pkt.entity, int):
                 # 对账基态: PLAY 块开始 = store 尚未应用块内包(预测基态)
                 self.audit.capture_base(self.match.gs, self.match.knowledge,
                                         self.analyzer, pkt.entity)

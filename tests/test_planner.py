@@ -1,4 +1,4 @@
-"""planner 包(T1 切片2+3): Piece 编译 / SimState 转移 / DFS 最优线。
+"""planner 包(T1 切片2+3): Piece 编译 / SimSnapshot 转移 / DFS 最优线。
 
 行为口径全部以 .superpowers/sdd/t1/interface-contract.md 为准:
 - build_piece: IR → Piece(诚实降级, 缺牌=inert);

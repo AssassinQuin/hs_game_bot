@@ -1,8 +1,6 @@
 """SimSnapshot 统一快照层(spec §2/§3): 新字段/advance_turn/memo_key/play 透传。"""
 import dataclasses
 
-import pytest
-
 from planner.pieces import Piece
 from planner.simstate import (SimSnapshot, advance_turn, initial_state,
                               memo_key, play)
