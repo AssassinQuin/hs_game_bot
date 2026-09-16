@@ -1,4 +1,4 @@
-"""SimState 不可变状态与 play 转移 —— DFS 的记忆化 key 与出牌语义(T1 切片2)。
+"""SimSnapshot 不可变快照与 play 转移 —— DFS 的记忆化 key 与出牌语义(T1 切片2)。
 
 全 tuple/frozen: 状态可直接哈希, 与 GameStore 完全解耦。play 是纯函数:
 不修改入参, 返回新状态; 不可支付 raise ValueError 由调用方捕获。
@@ -12,9 +12,15 @@ from .pieces import Piece
 
 
 @dataclass(frozen=True)
-class SimState:
-    """决策点快照(全 tuple/frozen, 可哈希; dfs.memo 以去 face/drawn 的七元组
-    为键, 见 planner/dfs.py 模块注释的后缀不变性)。"""
+class SimSnapshot:
+    """决策点/推演快照(全 tuple/frozen, 可哈希; dfs.memo 以 memo_key 的
+    投影为键, 见 planner/dfs.py 模块注释的后缀不变性)。
+
+    turn/enemy_total/board_atk/dealt_total 是统一快照层新增的游戏事实:
+    turn 推演期只增; enemy_total 本回合敌方有效血甲(live=store; sim=曲线/
+    档位表; None=无数据, 消费方跳过斩杀/启动判定); board_atk 我方可打脸
+    场攻; dealt_total 跨回合累计已造成确定伤害。"""
+    turn: int
     mana: int
     hand: tuple                  # ((card_id, cost), ...) 升序排序规范化
     sp: int                      # 当前法强
@@ -27,20 +33,28 @@ class SimState:
     drawn: int = 0               # 已消耗的未知抽牌数(Plan.face_exp 期望折算用)
     known_draws: tuple = ()      # ((cid, cost), ...) 队头=最先抽到(消耗式)
     face: int = 0                # 已累计确定伤害
+    enemy_total: int | None = None   # 本回合敌方有效血甲; None=无数据
+    board_atk: int = 0           # 我方场面可打脸攻击
+    dealt_total: int = 0         # 跨回合累计已造成确定伤害
 
 
 def initial_state(mana: int, hand_cards, sp: int, known_draws=(), disc_hand: int = 0,
-                  disc_next: int = 0, engines: int = 0,
-                  disc_next_cat: str = "") -> SimState:
-    """构造初始状态: hand_cards=((cid, cost), ...), 手牌升序排序规范化;
-    known_draws 保持调用方给的队列序(队头=最先抽到, 不排序)。"""
-    return SimState(mana=mana, hand=tuple(sorted(hand_cards)), sp=sp,
-                    disc_hand=disc_hand, disc_next=disc_next,
-                    disc_next_cat=disc_next_cat, engines=engines,
-                    drawn=0, known_draws=tuple(known_draws), face=0)
+                  disc_next: int = 0, engines: int = 0, disc_next_cat: str = "",
+                  *, turn: int = 1, enemy_total: int | None = None,
+                  board_atk: int = 0, dealt_total: int = 0) -> SimSnapshot:
+    """构造初始快照: hand_cards=((cid, cost), ...), 手牌升序排序规范化;
+    known_draws 保持调用方给的队列序(队头=最先抽到, 不排序);
+    turn/enemy_total/board_atk/dealt_total 为统一快照层的游戏事实
+    (live 装配=store 投影; sim 装配=rollout 抽样构造)。"""
+    return SimSnapshot(turn=turn, mana=mana, hand=tuple(sorted(hand_cards)),
+                       sp=sp, disc_hand=disc_hand, disc_next=disc_next,
+                       disc_next_cat=disc_next_cat, engines=engines, drawn=0,
+                       known_draws=tuple(known_draws), face=0,
+                       enemy_total=enemy_total, board_atk=board_atk,
+                       dealt_total=dealt_total)
 
 
-def play(state: SimState, index: int, pieces: dict) -> SimState:
+def play(state: SimSnapshot, index: int, pieces: dict) -> SimSnapshot:
     """打出 state.hand[index] 并返回新状态(纯函数)。
 
     语义(契约口径, 2026-09-14 审计修正 disc_next):
@@ -60,6 +74,7 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
     - 独立抽牌: p.draw_n>0 时逐张抽(同样 known 队头优先); build_piece 恒不填,
       live 路径零影响。
     - engines' = engines + (1 若本牌是引擎) —— 触发判定用打牌前的 engines。
+    - turn/enemy_total/board_atk/dealt_total 原样透传(play 不读不写)。
     """
     key = state.hand[index]
     # pieces 缺键 → inert Piece(仅费), 诚实降级
@@ -107,13 +122,48 @@ def play(state: SimState, index: int, pieces: dict) -> SimState:
     # 一次 C 级填充等价构造; 事后外部赋值仍被 frozen_setattr 拦截, 不可变性不变。
     if p.discount_next:                       # 打出的减费牌覆盖旧余额
         disc_next, disc_next_cat = p.discount_next, p.next_cat
-    st = SimState.__new__(SimState)
-    st.__dict__.update(mana=min(10, state.mana - eff + p.mana_gain), hand=hand,
+    st = SimSnapshot.__new__(SimSnapshot)
+    st.__dict__.update(turn=state.turn,
+                       mana=min(10, state.mana - eff + p.mana_gain), hand=hand,
                        sp=state.sp + p.spellpower_gain,
                        disc_hand=state.disc_hand + p.discount_hand,
                        disc_next=disc_next, disc_next_cat=disc_next_cat,
                        engines=state.engines + (1 if p.engine else 0),
                        drawn=drawn, known_draws=known,
                        face=state.face + sum((b + state.sp) if p.spell_scaled
-                                             else b for b in p.segments))
+                                             else b for b in p.segments),
+                       enemy_total=state.enemy_total,
+                       board_atk=state.board_atk,
+                       dealt_total=state.dealt_total)
     return st
+
+
+def advance_turn(snap: SimSnapshot, *, enemy_total: int | None) -> SimSnapshot:
+    """回合推进(spec §3): turn+1; mana=min(10, 新回合); face 累入 dealt_total
+    后清零; T≥2 自然抽 1(known 队头入手, 空则 drawn+1); disc_next 余额随回合
+    过期清零(类目词一并); sp/disc_hand/engines/known_draws 跨回合保留
+    (口径=rollout 现行 v1)。enemy_total=None 即该回合无数据。"""
+    turn = snap.turn + 1
+    hand, known, drawn = snap.hand, snap.known_draws, snap.drawn
+    if turn >= 2:
+        if known:
+            hand = tuple(sorted(hand + (known[0],)))
+            known = known[1:]
+        else:
+            drawn += 1
+    return SimSnapshot(turn=turn, mana=min(10, turn), hand=hand, sp=snap.sp,
+                       disc_hand=snap.disc_hand, disc_next=0, disc_next_cat="",
+                       engines=snap.engines, drawn=drawn, known_draws=known,
+                       face=0, enemy_total=enemy_total,
+                       board_atk=snap.board_atk,
+                       dealt_total=snap.dealt_total + snap.face)
+
+
+def memo_key(snap: SimSnapshot) -> tuple:
+    """决策点键: 快照的转移相关投影(后缀不变性论证见 planner/dfs.py)。
+
+    turn/enemy_total/board_atk/dealt_total/face/drawn 不进键 —— 后续转移
+    不读它们(结算/判定只在根上取值); disc_next_cat 必须进键: 同 disc_next
+    不同类目 → 后续减费作用不同, 漏进会撞错误坍缩。"""
+    return (snap.mana, snap.hand, snap.sp, snap.disc_hand, snap.disc_next,
+            snap.disc_next_cat, snap.engines, snap.known_draws)

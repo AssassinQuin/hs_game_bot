@@ -65,7 +65,7 @@ from dataclasses import dataclass, replace
 
 from .dfs import best_line
 from .plan import Plan
-from .simstate import SimState
+from .simstate import SimSnapshot
 
 
 @dataclass(frozen=True)
@@ -101,7 +101,7 @@ class McPlan:
     enemy_total: int | None
 
 
-def mc_plan(state: SimState, pieces: dict, remaining, enemy_total=None, *,
+def mc_plan(state: SimSnapshot, pieces: dict, remaining, enemy_total=None, *,
             costs=None, n: int = 2000, seed: int = 0, k: int | None = None,
             hand_draws: int = 0, board_atk: int = 0,
             budget_ms: float | None = None) -> McPlan:
@@ -169,7 +169,7 @@ def mc_plan(state: SimState, pieces: dict, remaining, enemy_total=None, *,
                   enemy_total=enemy_total)
 
 
-def _default_k(state: SimState, hand_draws: int) -> int:
+def _default_k(state: SimSnapshot, hand_draws: int) -> int:
     """k 缺省 = hand_draws + engines×手牌数(模块注释 4; 过量样牌滞留队尾
     无代价)。"""
     return hand_draws + state.engines * len(state.hand)
