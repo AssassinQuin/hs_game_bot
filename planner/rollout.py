@@ -23,6 +23,11 @@ v1 对其一律打, 0 费法术密集卡组 T1 即倾泻至 2 张, 轨迹层实�
 
 简化口径(v1, 轨迹层校准兜底): 被换牌视为洗回统一抽牌流; 忽略手牌上限、
 疲劳与费用锁定; T1 不自然抽、T≥2 每回合抽 1; coin 注入为 0 费回费法术。
+
+快照序列推进(SimSnapshot 统一, spec §4): 旧实现的 5 个散装循环变量
+(hand/stream/engines/sp/disc_hand)全部寄居 SimSnapshot —— 回合间用
+advance_turn 推进(自然抽/face 结转/disc_next 过期都在转移里), 策略出牌
+用 play 纯函数迭代, 各回合策略收尾后的快照入 RolloutResult.snapshots。
 纯函数: 无 IO/全局态; 随机性全在调用方(trainer.sim 的 CRN 层)。
 """
 from __future__ import annotations
@@ -30,7 +35,7 @@ from __future__ import annotations
 import dataclasses
 
 from .dfs import best_line
-from .simstate import initial_state, play
+from .simstate import advance_turn, initial_state, play
 
 LAUNCH_DRAWS_CAP = 12   # 启动 DFS 单回合可消费的已知抽牌上限(超参数:
                         # 依据 = 2026-09-15 真实语料偏差量化, 量化口径与
@@ -43,6 +48,7 @@ class RolloutResult:
     turns: int                         # 推演到的回合数
     hand_sizes: tuple[int, ...] = ()   # 各回合策略收尾后手牌数(轨迹层校准用)
     engines: int = 0                   # 终态在场引擎数
+    snapshots: tuple = ()              # 各回合策略收尾后的 SimSnapshot(spec §4)
 
 
 def _policy_playable(key, pieces: dict, engines: int) -> bool:
@@ -117,48 +123,50 @@ def rollout(full_order, *, offered, keep, coin, pieces, cost_of, k_max,
     hand += stream[:fill]
     del stream[:fill]
 
-    engines = sp = disc_hand = 0
+    snap = initial_state(
+        1, tuple((c, cost_of[c]) for c in hand), 0,
+        known_draws=tuple((c, cost_of[c]) for c in stream),
+        enemy_total=enemy_totals[0])
     hand_sizes: list[int] = []
+    snapshots: list = []
     for t in range(1, k_max + 1):
-        if t >= 2 and stream:
-            hand.append(stream.pop(0))       # 回合开始自然抽
-        st = initial_state(
-            min(10, t), tuple((c, cost_of[c]) for c in hand),
-            sp=sp, disc_hand=disc_hand, engines=engines,
-            known_draws=tuple((c, cost_of[c]) for c in stream))
+        if t >= 2:
+            # v1 口径(spec §9 不改): 血甲曲线是逐回合经验血甲(分布已含真实
+            # 伤害), 模拟侧跨回合已打伤害不得再扣(双计) —— dealt_total 逐回
+            # 合清零, 等价旧实现"face 不跨回合携带"; 本回合 face 仍进统一算式
+            snap = dataclasses.replace(
+                advance_turn(snap, enemy_total=enemy_totals[t - 1]),
+                dealt_total=0)
         while True:                          # 策略出牌: 打到打不动为止
             played = False
-            for i, key in enumerate(st.hand):
-                if _policy_playable(key, pieces, st.engines):
+            for i, key in enumerate(snap.hand):
+                if _policy_playable(key, pieces, snap.engines):
                     try:
-                        st = play(st, i, pieces)
+                        snap = play(snap, i, pieces)
                         played = True
                         break
                     except ValueError:       # 不可支付: 试下一张
                         continue
             if not played:
                 break
-        hand_sizes.append(len(st.hand))
-        total = enemy_totals[t - 1]
-        if total is not None:
-            # P1 前置: 封闭回合手牌上界(可抽回合连 cap 内前缀一起计)够不到
-            # 血甲 → 免 DFS; 可抽回合 known_draws 截断到 cap(保守, 见模块注释)
-            if _drawable(st, pieces):
-                known = st.known_draws[:cap]
-                ceiling = _face_ceiling(st.sp, st.hand + known, pieces)
+        hand_sizes.append(len(snap.hand))
+        snapshots.append(snap)
+        if snap.enemy_total is not None:
+            # P1 前置(原样保留): 封闭回合手牌上界(可抽回合连 cap 内前缀一起
+            # 计)够不到血甲 → 免 DFS; 可抽回合 known_draws 截断到 cap
+            if _drawable(snap, pieces):
+                known = snap.known_draws[:cap]
+                ceiling = _face_ceiling(snap.sp, snap.hand + known, pieces)
             else:
                 known = ()
-                ceiling = _face_ceiling(st.sp, st.hand, pieces)
-            need = total - st.face
-            if ceiling >= need:
-                # 已打出的策略伤害先扣血, best_line 只算手牌剩余爆发(face 清零)
-                plan = best_line(dataclasses.replace(st, face=0,
-                                                     known_draws=known,
-                                                     enemy_total=need),
+                ceiling = _face_ceiling(snap.sp, snap.hand, pieces)
+            if ceiling >= snap.enemy_total - snap.face:   # need(dealt 恒 0)
+                # 统一斩杀算式吸收旧 replace(face=0) 技巧: best_line 从快照
+                # 读 enemy_total/face, 只算手牌剩余爆发
+                plan = best_line(dataclasses.replace(snap, known_draws=known),
                                  pieces)
                 if plan.lethal:
-                    return RolloutResult(t, t, tuple(hand_sizes), st.engines)
-        engines, sp, disc_hand = st.engines, st.sp, st.disc_hand
-        hand = [k[0] for k in st.hand]
-        stream = [k[0] for k in st.known_draws]   # 引擎循环抽走的已入手
-    return RolloutResult(None, k_max, tuple(hand_sizes), engines)
+                    return RolloutResult(t, t, tuple(hand_sizes), snap.engines,
+                                         tuple(snapshots))
+    return RolloutResult(None, k_max, tuple(hand_sizes), snap.engines,
+                         tuple(snapshots))

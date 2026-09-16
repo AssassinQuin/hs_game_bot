@@ -559,6 +559,26 @@ def test_rollout_launch_draws_cap_is_conservative():
 
 # ---------------- 终审 I-1: 抽样纪律源码级钉子 ----------------
 
+# ---------------- Task 3(SimSnapshot 统一): 快照序列派生字段 ----------------
+
+def test_rollout_snapshots_sequence_contract():
+    """SimSnapshot 统一(spec §4): 每回合策略收尾后快照入序列, 公共契约
+    字段(launch_turn/hand_sizes/engines)与快照序列自洽。"""
+    order = ("AUCTION",) + ("MOON",) * 7
+    r = rollout(order, offered=("AUCTION", "MOON"), keep=("AUCTION",),
+                coin=False, pieces=_sim_pieces(), cost_of=_COST, k_max=6,
+                enemy_totals=(None, None, None, None, None, 6))
+    assert len(r.snapshots) == r.turns
+    assert [s.turn for s in r.snapshots] == list(range(1, r.turns + 1))
+    assert [len(s.hand) for s in r.snapshots] == list(r.hand_sizes)
+    assert r.snapshots[-1].engines == r.engines
+    # 无启动全程推演: snapshots 长度 = k_max
+    r2 = rollout(("MOON",), offered=("MOON",), keep=("MOON",), coin=False,
+                 pieces=_sim_pieces(), cost_of=_COST, k_max=3,
+                 enemy_totals=(30, 30, 30))
+    assert len(r2.snapshots) == 3
+
+
 def test_exp_per_draw_banned_in_rollout_path():
     """抽样取代折算(spec §3): rollout 及其调用方不得出现 exp_per_draw 的
     代码引用(docstring 说明豁免——AST 里它是字符串常量)。"""
