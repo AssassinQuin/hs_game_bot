@@ -47,7 +47,7 @@ simcal.rollout = _orig_new
 # HEAD 旧实现(无过滤/无截断)
 sys.path.insert(0, ".")
 import importlib
-old_mod = importlib.import_module(".tmp_old.rollout")
+old_mod = importlib.import_module("tmp_old.rollout")
 _launches.clear()
 simcal.rollout = _recording(old_mod.rollout)
 t0 = time.perf_counter()
