@@ -40,16 +40,18 @@
 6. 空 jsonl splitlines 守卫
 7. calibrate 失败路径返回结构统一
 
-## [P4] recon 对账信号质量(2026-09-16 SimSnapshot 终审产出) → 新开 issue
+## [P4] recon 对账信号质量(2026-09-16 终审产出, 2026-09-17 审计大部修复) → 归并 Issue #3
 
-1. **未知抽牌噪声豁免(Important, 优先)**: 预测侧 play() 对未知抽只 `drawn+1`
-   (手牌不长), 实测侧手牌必多具体牌 → 我方引擎线每抽一张未知牌必产
-   hand_n/hand_cards 分歧记录, 奇迹德核心循环每回合制造此类噪声,
-   by_field 判据被稀释。修法候选: reconcile 识别"diff 卡 ⊄ known 池"
-   降级为 unknown_draw 类目(不进分歧), 或 CLI 汇总分列。
-2. capture_base 对手 PLAY 块也装配基态后丢弃(正确性无碍, build_piece 走
-   进程内缓存; 观测到 CPU 占比再加 actor 前置)。
-3. recon main 用法错误走 stdout(宜 stderr)+无文件/JSON 守卫——与 P3-6/7
+1. ~~未知抽牌噪声豁免~~ ✅ 已修(583c4ff): 实测多出的牌**全部**不在已知抽牌
+   池 → 判未知抽入手不记分歧(混合情形保守记真分歧); 契约测试钉死。
+2. ~~face 不看目标(解场假分歧, 审计升级为高)~~ ✅ 已修(583c4ff): capture_base
+   按 PLAY 块 target 解析"目标=敌方英雄", 仅此时 face 差才构成分歧。
+3. capture_base 对手 PLAY 块也装配基态后丢弃: 实测热态 0.18ms/块, 一局
+   ≈13ms —— 不加 actor 前置, 保留观测。
+4. **嵌套 PLAY 块基态泄漏**(Yogg 式块内再打牌): 外层 play 事件被 store 单槽
+   覆写永不发 → 外层基态残留至局末 reset(仅内存, 无配对污染, 已注释备案)。
+   根治需 store 覆写处发信号 —— 列 store 端小跟进。
+5. recon main 用法错误走 stdout(宜 stderr)+无文件/JSON 守卫——与 P3-6/7
    同批加固。
 
 
