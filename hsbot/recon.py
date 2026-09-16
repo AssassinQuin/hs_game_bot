@@ -1,0 +1,98 @@
+"""预测-实测对账(spec §5): play() 预测转移 vs store 实测转移的纯函数 diff。
+
+零 IO 纪律: 落盘在 watcher.AuditExporter, 本模块只算不写(summarize 同为
+纯函数; main 仅作 CLI 入口读文件)。transition 级对账(非整线终态对比):
+每条分歧的定位面 = Piece 字段面 —— mana 组↔cost/减费/回费, face↔segments×sp,
+hand_n/hand_cards↔engine/draw_n, engines↔engine, sp↔spellpower_gain。
+"""
+from __future__ import annotations
+
+import dataclasses
+import hashlib
+import json
+import time
+from collections import Counter
+
+from planner.pieces import Piece
+from planner.simstate import play
+
+
+def _hand_multiset(hand) -> Counter:
+    return Counter(cid for cid, _cost in hand)
+
+
+def ir_source_hash(carddb, cid: str) -> str:
+    """卡表原始记录的短哈希: 分歧直接定位到编译输入(发现→改规则→
+    COMPILER_VERSION+1→重编译→分歧消失 的收敛闭环锚点)。"""
+    raw = carddb.raw(cid)
+    if raw is None:
+        return "missing"
+    return hashlib.sha1(json.dumps(raw, sort_keys=True,
+                                   ensure_ascii=False).encode("utf-8")
+                        ).hexdigest()[:12]
+
+
+def reconcile(base, pieces: dict, evt: dict, after, carddb) -> dict | None:
+    """(PLAY 块开始基态, play 事件, 块后实测态) → 分歧记录; 一致 → None。
+
+    evt 用 play 事件的 card_id/cost_tag(块开始锁定的真实手牌价); 预测 =
+    play(base, 手牌中的该牌); 实测 = after 快照同口径投影。基态里没有该牌
+    (装配竞态/衍生牌) → None 不对账。
+    """
+    cid = evt.get("card_id")
+    cost = evt.get("cost_tag")
+    idx = None
+    for i, key in enumerate(base.hand):
+        if key[0] == cid and (cost is None or key[1] == cost):
+            idx = i
+            break
+    if idx is None:
+        return None
+    key = base.hand[idx]
+    p = pieces.get(key)
+    if p is None:
+        p = Piece(card_id=key[0], cost=key[1])        # inert: 与 play 同降级
+    predicted_face = 0
+    try:
+        pred = play(base, idx, pieces)
+    except ValueError:                               # 预测不可支付但实际打出
+        pred = base
+        diffs = [{"field": "playable", "predicted": False, "actual": True}]
+    else:
+        predicted_face = pred.face - base.face
+        diffs = []
+        if pred.mana != after.mana:
+            diffs.append({"field": "mana", "predicted": pred.mana,
+                          "actual": after.mana})
+        if len(pred.hand) != len(after.hand):
+            diffs.append({"field": "hand_n", "predicted": len(pred.hand),
+                          "actual": len(after.hand)})
+        pm, am = _hand_multiset(pred.hand), _hand_multiset(after.hand)
+        if pm != am:
+            diffs.append({"field": "hand_cards", "predicted": sorted(pm - am),
+                          "actual": sorted(am - pm)})
+        if pred.engines != after.engines:
+            diffs.append({"field": "engines", "predicted": pred.engines,
+                          "actual": after.engines})
+        if pred.sp != after.sp:
+            diffs.append({"field": "sp", "predicted": pred.sp, "actual": after.sp})
+    actual_face = (base.enemy_total - after.enemy_total
+                   if base.enemy_total is not None
+                   and after.enemy_total is not None else None)
+    if actual_face is not None and predicted_face != actual_face:
+        diffs.append({"field": "face", "predicted": predicted_face,
+                      "actual": actual_face})
+    if not diffs:
+        return None
+    piece_d = dataclasses.asdict(p)
+    piece_d["card_cats"] = sorted(p.card_cats)       # frozenset 不可 json 化
+    return {"ts": round(time.time(), 3), "game_id": evt.get("game_id"),
+            "card_id": cid, "piece": piece_d,
+            "ir_source_hash": ir_source_hash(carddb, cid),
+            "predicted": {"mana": pred.mana, "hand_n": len(pred.hand),
+                          "engines": pred.engines, "sp": pred.sp,
+                          "face": predicted_face},
+            "actual": {"mana": after.mana, "hand_n": len(after.hand),
+                       "engines": after.engines, "sp": after.sp,
+                       "face": actual_face},
+            "diffs": diffs}

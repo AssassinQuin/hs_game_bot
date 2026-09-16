@@ -18,9 +18,11 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from hearthstone.enums import BlockType
+
 from .adapter import (game_meta, new_parser, reset_player_manager,
                       resolve_friendly, walk_packets)
-from .analysis import EffectAnalyzer, lethal_plan
+from .analysis import EffectAnalyzer, assemble_snapshot, lethal_plan
 from .effects import EffectCache
 from .carddb import CardDB
 from .config import Config
@@ -163,6 +165,51 @@ class TrainingExporter:
         return self._corpus
 
 
+class AuditExporter:
+    """预测-实测对账落盘(spec §5): PLAY 块开始时捕获基态快照(装配自 store,
+    此时块内包尚未应用 = 预测基态), play 事件落地时 play() 重放该牌 →
+    recon.reconcile diff → data/logs/sim_divergence.jsonl 追加。
+    零干扰: 任何异常只 WARNING, 绝不阻断 live 主链; 一致时零输出。"""
+
+    def __init__(self, cfg) -> None:
+        self.path = Path(cfg.data_dir) / "logs" / "sim_divergence.jsonl"
+        self._bases: dict = {}
+
+    def reset(self) -> None:
+        """新局: 未配对的基态整体作废(与 GameScope 重置语义同步)。"""
+        self._bases.clear()
+
+    def capture_base(self, store, knowledge, analyzer, eid) -> None:
+        try:
+            asm = assemble_snapshot(store, knowledge, analyzer)
+            if asm is not None:
+                self._bases[eid] = asm
+        except Exception:  # noqa: BLE001
+            log.warning("对账基态捕获失败(eid=%s)", eid, exc_info=True)
+
+    def on_play(self, evt: dict, store, knowledge, analyzer) -> None:
+        base = self._bases.pop(evt.get("eid"), None)
+        if base is None or evt.get("is_power"):
+            return                          # 无基态/英雄技能: 不对账
+        if evt.get("actor") != store.friendly_key:
+            return                          # 只对我方的牌对账(对手打牌不重放)
+        try:
+            after = assemble_snapshot(store, knowledge, analyzer)
+            if after is None:
+                return
+            from .recon import reconcile
+            rec = reconcile(base[0], base[1], evt, after[0],
+                            analyzer.carddb)
+            if rec is not None:
+                import json as _json
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.path, "a", encoding="utf-8") as fp:
+                    fp.write(_json.dumps(rec, ensure_ascii=False) + "\n")
+        except Exception:  # noqa: BLE001
+            log.warning("对账落盘失败(card=%s)", evt.get("card_id"),
+                        exc_info=True)
+
+
 class AutoModelTrainer:
     """局终后台自动增量训练(留牌三级评分器 + trainer 价值模型)。
 
@@ -294,6 +341,7 @@ class Watcher:
         self.scanner = SessionScanner(cfg.logs_dir)            # 会话发现
         self.snapshot_service = SnapshotService(cfg, carddb, self._emit)
         self.exporter = TrainingExporter(cfg, carddb)          # 训练导出
+        self.audit = AuditExporter(cfg)               # 预测-实测对账(spec §5)
         # 局终后台自动增量训练(留牌评分器 + trainer 价值模型), 子进程解耦
         self.model_trainer = AutoModelTrainer(cfg, self._emit)
         # ---- 日志流状态唯一维护点(责任链的共享上下文) ----
@@ -594,6 +642,7 @@ class Watcher:
         """新局 = 替换整个局作用域(GameScope) —— 重置语义, 不逐字段覆盖。"""
         self.game_no += 1
         self.match = GameScope(no=self.game_no)
+        self.audit.reset()
         gi = self.game_count - 1
         tree = self.parser.games[gi] if self.parser.games else None
         # 同批多局(attach 追平): 本局的 manager 已被后续边界重置过 → 用冻结快照;
@@ -668,6 +717,12 @@ class Watcher:
             limit = max(self.match.cursor, len(flat) - 1)
         while i < limit:
             pkt, depth = flat[i]
+            if (type(pkt).__name__ == "Block"
+                    and getattr(pkt, "type", None) == BlockType.PLAY
+                    and isinstance(pkt.entity, int)):
+                # 对账基态: PLAY 块开始 = store 尚未应用块内包(预测基态)
+                self.audit.capture_base(self.match.gs, self.match.knowledge,
+                                        self.analyzer, pkt.entity)
             try:
                 self.match.gs.apply(pkt, depth)
             except Exception as exc:  # noqa: BLE001  单包事件失败不拖垮监控
@@ -709,9 +764,14 @@ class Watcher:
             is_my_play = True
         else:
             is_my_play = False
+        # 对局 hash 先行盖章: 对账 jsonl 的合并主键与链路行/快照同源;
+        # enrich 即使返回拷贝({**evt})也会带走已盖字段(审计 Task5 实现注记)
+        evt["game_id"] = self.match.game_id
+        if kind == "play":
+            self.audit.on_play(evt, self.match.gs, self.match.knowledge,
+                               self.analyzer)
         evt = self.analyzer.enrich(evt, self.gs, live=not self.mute)
         #        ↑ 解析层: 渲染前实时富化; 静默(追平)期跳过留牌推理不堵日志
-        evt["game_id"] = self.match.game_id   # 行首对局 hash(链路行/rich_events 共用)
         if is_my_play:
             # 富化之后才记账: 若将来推断改变 card_id, 摘要与链路行仍一致(审计 低#10)
             self.match.summary.append(self.carddb.name(evt["card_id"]))

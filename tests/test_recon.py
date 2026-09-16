@@ -1,0 +1,164 @@
+"""预测-实测对账(spec §5): reconcile 纯函数 + AuditExporter 落盘。
+fixture 三类分歧(伤害/回费/抽牌)+一致零输出(spec §8)。"""
+import json
+
+import pytest
+from hearthstone.enums import BlockType, CardType, GameTag, Zone
+
+from hsbot.carddb import CardDB
+from planner.pieces import Piece
+from planner.simstate import initial_state
+
+from .conftest import mk_block, mk_full, mk_heroes, mk_show, mk_store, mk_tag
+
+_CARDS = [
+    {"id": "TST_FIRE", "name": "测试火球", "type": "SPELL", "cost": 4,
+     "text": "造成$6点伤害。"},
+    {"id": "TST_RAMP", "name": "测试激活", "type": "SPELL", "cost": 0,
+     "text": "在本回合中，获得一个 法力水晶。"},
+    {"id": "TST_MIN", "name": "测试随从", "type": "MINION", "cost": 5},
+]
+
+
+def _db(tmp_path):
+    p = tmp_path / "cards.json"
+    p.write_text(json.dumps(_CARDS, ensure_ascii=False), encoding="utf-8")
+    return CardDB(p)
+
+
+_PIECES = {
+    ("TST_FIRE", 4): Piece("TST_FIRE", 4, segments=(6,), spell_scaled=True,
+                           is_spell=True),
+    ("TST_RAMP", 0): Piece("TST_RAMP", 0, mana_gain=1, is_spell=True),
+}
+_EVT = {"card_id": "TST_FIRE", "cost_tag": 4, "eid": 10, "is_power": False}
+
+
+def test_reconcile_consistent_returns_none(tmp_path):
+    db = _db(tmp_path)
+    base = initial_state(5, (("TST_FIRE", 4),), 0, enemy_total=30)
+    from hsbot.recon import reconcile
+    after = initial_state(1, (), 0, enemy_total=24)      # 5-4费; 敌 -6; 手空
+    assert reconcile(base, _PIECES, _EVT, after, db) is None
+
+
+def test_reconcile_damage_divergence(tmp_path):
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    base = initial_state(5, (("TST_FIRE", 4),), 0, enemy_total=30)
+    after = initial_state(1, (), 0, enemy_total=25)      # 实测只打了 5
+    rec = reconcile(base, _PIECES, _EVT, after, db)
+    assert rec is not None
+    assert rec["card_id"] == "TST_FIRE"
+    d = {x["field"]: x for x in rec["diffs"]}
+    assert d["face"] == {"field": "face", "predicted": 6, "actual": 5}
+    assert rec["predicted"]["face"] == 6 and rec["actual"]["face"] == 5
+    assert rec["piece"]["segments"] == (6,)
+    assert rec["ir_source_hash"] and rec["ir_source_hash"] != "missing"
+    assert {"ts", "game_id", "ir_source_hash"} <= set(rec)
+
+
+def test_reconcile_mana_gain_divergence(tmp_path):
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    evt = {"card_id": "TST_RAMP", "cost_tag": 0, "eid": 11, "is_power": False}
+    base = initial_state(5, (("TST_RAMP", 0),), 0)
+    after = initial_state(5, (), 0)                      # 实测没回水晶
+    rec = reconcile(base, _PIECES, evt, after, db)
+    assert rec is not None
+    d = {x["field"]: x for x in rec["diffs"]}
+    assert d["mana"]["predicted"] == 6 and d["mana"]["actual"] == 5
+
+
+def test_reconcile_draw_divergence_hand_fields(tmp_path):
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    # 引擎在场施法: 预测抽 1 张已知牌 MOON; 实测没抽到
+    base = initial_state(5, (("TST_FIRE", 4),), 0, engines=1,
+                         known_draws=(("MOON", 1),))
+    after = initial_state(1, (), 0)
+    rec = reconcile(base, _PIECES, _EVT, after, db)
+    d = {x["field"]: x for x in rec["diffs"]}
+    assert d["hand_n"]["predicted"] == 1 and d["hand_n"]["actual"] == 0
+    assert d["hand_cards"]["predicted"] == ["MOON"] and d["hand_cards"]["actual"] == []
+
+
+def test_reconcile_missing_card_in_base_returns_none(tmp_path):
+    from hsbot.recon import reconcile
+    base = initial_state(5, (("OTHER", 1),), 0)
+    assert reconcile(base, _PIECES, _EVT, initial_state(5, (), 0),
+                     _db(tmp_path)) is None
+
+
+# ---------------- AuditExporter 端到端(真 store + 真 PLAY 块) ----------------
+
+def _playable_scene(tmp_path, *, fire_cost=4):
+    from hsbot.analysis import EffectAnalyzer
+    st, log = mk_store()
+    mk_heroes(st)
+    st.apply(mk_tag(2, GameTag.RESOURCES, 5))
+    st.apply(mk_tag(2, GameTag.RESOURCES_USED, 0))
+    st.apply(mk_full(10, "TST_FIRE", ZONE=Zone.HAND.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value, COST=fire_cost))
+    return st, log, EffectAnalyzer(_db(tmp_path))
+
+
+def _run_play(st, *, used=4, enemy_dmg=6):
+    b = mk_block(BlockType.PLAY, 10)
+    st.apply(b, depth=0)
+    st.apply(mk_show(10, "TST_FIRE", ZONE=Zone.GRAVEYARD.value), depth=1)
+    st.apply(mk_tag(10, GameTag.ZONE, Zone.GRAVEYARD.value), depth=1)
+    st.apply(mk_tag(2, GameTag.RESOURCES_USED, used), depth=1)
+    st.apply(mk_tag(5, GameTag.DAMAGE, enemy_dmg), depth=1)   # 敌方英雄 30-x
+    b.end()
+    st.settle()
+    return b
+
+
+def test_audit_exporter_consistent_game_writes_nothing(tmp_path):
+    from hsbot.config import Config
+    from hsbot.watcher import AuditExporter
+    cfg = Config.load({"data_dir": str(tmp_path), "overlay_enabled": False,
+                       "auto_training": False})
+    st, log, a = _playable_scene(tmp_path)
+    aud = AuditExporter(cfg)
+    aud.capture_base(st, None, a, 10)                 # PLAY 块开始(前态)
+    _run_play(st, used=4, enemy_dmg=6)
+    evt = log.by_kind("play")[0]
+    aud.on_play(evt, st, None, a)
+    f = tmp_path / "logs" / "sim_divergence.jsonl"
+    assert not f.exists() or f.read_text(encoding="utf-8").strip() == ""
+
+
+def test_audit_exporter_damage_divergence_writes_jsonl(tmp_path):
+    from hsbot.config import Config
+    from hsbot.watcher import AuditExporter
+    cfg = Config.load({"data_dir": str(tmp_path), "overlay_enabled": False,
+                       "auto_training": False})
+    st, log, a = _playable_scene(tmp_path)
+    aud = AuditExporter(cfg)
+    aud.capture_base(st, None, a, 10)
+    _run_play(st, used=4, enemy_dmg=4)                # 实测只打 4(卡牌改版? )
+    evt = log.by_kind("play")[0]
+    evt["game_id"] = "deadbeef"
+    aud.on_play(evt, st, None, a)
+    f = tmp_path / "logs" / "sim_divergence.jsonl"
+    rec = json.loads(f.read_text(encoding="utf-8").splitlines()[0])
+    assert rec["game_id"] == "deadbeef" and rec["card_id"] == "TST_FIRE"
+    assert {x["field"] for x in rec["diffs"]} == {"face"}
+    # JSON round-trip: tuple 落盘后读回是 list(库 json.loads 不还原 tuple)
+    assert rec["piece"]["segments"] == [6] and rec["piece"]["cost"] == 4
+
+
+def test_audit_exporter_survives_missing_base_and_reset(tmp_path):
+    from hsbot.config import Config
+    from hsbot.watcher import AuditExporter
+    cfg = Config.load({"data_dir": str(tmp_path), "overlay_enabled": False,
+                       "auto_training": False})
+    st, log, a = _playable_scene(tmp_path)
+    aud = AuditExporter(cfg)
+    _run_play(st)
+    aud.on_play(log.by_kind("play")[0], st, None, a)  # 无基态: 静默
+    aud.capture_base(st, None, a, 99)
+    aud.reset()                                       # 新局: 基态作废
+    assert not (tmp_path / "logs" / "sim_divergence.jsonl").exists()
