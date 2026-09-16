@@ -39,7 +39,19 @@
 6. 空 jsonl splitlines 守卫
 7. calibrate 失败路径返回结构统一
 
-## 环境备忘(接手机器)
+## [P4] recon 对账信号质量(2026-09-16 SimSnapshot 终审产出) → 新开 issue
+
+1. **未知抽牌噪声豁免(Important, 优先)**: 预测侧 play() 对未知抽只 `drawn+1`
+   (手牌不长), 实测侧手牌必多具体牌 → 我方引擎线每抽一张未知牌必产
+   hand_n/hand_cards 分歧记录, 奇迹德核心循环每回合制造此类噪声,
+   by_field 判据被稀释。修法候选: reconcile 识别"diff 卡 ⊄ known 池"
+   降级为 unknown_draw 类目(不进分歧), 或 CLI 汇总分列。
+2. capture_base 对手 PLAY 块也装配基态后丢弃(正确性无碍, build_piece 走
+   进程内缓存; 观测到 CPU 占比再加 actor 前置)。
+3. recon main 用法错误走 stdout(宜 stderr)+无文件/JSON 守卫——与 P3-6/7
+   同批加固。
+
+
 
 - 卡表缓存 `data/cache/cards.zh.json` 不入库,新机器先跑 `python3 scripts/fetch_cards.py`
 - 素材重建:`python3 -m trainer material --deck 奇迹德`(trainer/data 为 gitignored 本地产物)
