@@ -59,7 +59,7 @@
 - 卡表缓存 `data/cache/cards.zh.json` 不入库,新机器先跑 `python3 scripts/fetch_cards.py`
 - 素材重建:`python3 -m trainer material --deck 奇迹德`(trainer/data 为 gitignored 本地产物)
 - CLI 旗标形态:顶层旗标在子命令前,子命令旗标(--hand/--coin/--enemy)在子命令后
-- 测试基线:366 passed(2026-09-17, SimSnapshot 六任务+终审后)
+- 测试基线:376 passed(2026-09-17, 二轮审计修复波后)
 
 ## [P5] 测试环境加固(2026-09-17 审计产出) → 归并 Issue #3
 

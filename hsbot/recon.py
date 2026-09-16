@@ -7,9 +7,12 @@ hand_n/hand_cards↔engine/draw_n, engines↔engine, sp↔spellpower_gain。
 
 信号豁免(2026-09-17 审计, 免噪声淹没判据):
 - face 仅在"结算目标=敌方英雄"时比较(打随从/解场的牌 face 差不是分歧);
+  已知盲区(宁漏勿错备案): 无目标的随机伤害牌(复仇之怒类, target=None)
+  打脸的真分歧也被门控吞掉; 过杀时 hp_total 的 max(0,·) 钳制使
+  actual_face 低报(敌 5 血真打 8 → 记 5) —— 预先存在, 二轮审计备案;
 - 实测手牌多出"已知抽牌池之外"的牌 = 未知抽牌入手(预测模型边界: play 对
-  未知抽只计数), 全部多牌可由其解释时不记 hand_n/hand_cards 分歧 ——
-  预测侧也多牌(混合情形)保守记真分歧。
+  未知抽只计数), **且预测侧手牌须被实测完全包含**, 才豁免 hand_n/hand_cards
+  —— 预测侧有实测缺失的牌(抽牌通道断/弃牌效应)恒记真分歧。
 """
 from __future__ import annotations
 
@@ -84,16 +87,20 @@ def reconcile(base, pieces: dict, evt: dict, after, carddb,
         predicted_face = pred.face - base.face
         diffs = []
         # mana 对比双侧按 10 封顶(临时水晶/硬币在实测侧可瞬时 >10, 游戏语义
-        # 可用水晶恒 ≤10; 记录字段保留原值)
+        # 可用水晶恒 ≤10); diffs 条目与 top-level 一致记原值, 判定用封顶值
         pred_mana, after_mana = min(10, pred.mana), min(10, after.mana)
         if pred_mana != after_mana:
-            diffs.append({"field": "mana", "predicted": pred_mana,
-                          "actual": after_mana})
-        # 未知抽牌豁免: 实测多出且全部不在已知抽牌池的牌 = 未知抽入手,
-        # 不是分歧(预测侧只计数); 预测侧也多牌(混合)时保守记真分歧
+            diffs.append({"field": "mana", "predicted": pred.mana,
+                          "actual": after.mana})
+        # 未知抽牌豁免(2026-09-17 二轮审计收紧): 前提 = 预测侧手牌**全部**
+        # 被实测包含(missing 为空) —— pm−am 非空即已知抽牌通道错/弃牌效应
+        # 等真分歧, 不豁免(原实现只查实测侧多牌方向, 吞掉此类真分歧, 且与
+        # 本 docstring 的"混合保守记"承诺矛盾); 在此前提下, 实测多出的牌
+        # 全部不在已知抽牌池 = 未知抽入手(预测侧只计数), 不构成分歧
         extra = _hand_multiset(after.hand) - _hand_multiset(pred.hand)
-        fully_unknown_draw = bool(extra) and all(
-            c not in {kc for kc, _kc in base.known_draws} for c in extra)
+        missing = _hand_multiset(pred.hand) - _hand_multiset(after.hand)
+        fully_unknown_draw = (bool(extra) and not missing and all(
+            c not in {kc for kc, _kc in base.known_draws} for c in extra))
         if not fully_unknown_draw:
             pred_hand_n = len(pred.hand)
             after_hand_n = len(after.hand)

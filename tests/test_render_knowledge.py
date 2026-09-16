@@ -340,7 +340,9 @@ def test_stat_fields_ramp_discount_capped_by_targets(tmp_path):
 
 def test_stat_fields_discount_player_aura_attribution(tmp_path):
     """修 6(2026-09-17): 玩家级光环(SC_755e2 ATTACHED=玩家实体, 非任何卡)
-    的减费来源第三级归因 —— "减N(?)" 的 ? 由它消除; 卡级附魔优先级不变。"""
+    的减费来源第三级归因 —— "减N(?)" 的 ? 由它消除; 且按减费语义过滤
+    (二轮审计 F1: 玩家实体上的非减费附魔——游客光环/攻击光环——不得冒充
+    减费来源); 卡级附魔优先级不变(二轮审计 F2: 卡级/玩家级独立名区分)。"""
     import json
 
     from hsbot.analysis import EffectAnalyzer
@@ -350,33 +352,43 @@ def test_stat_fields_discount_player_aura_attribution(tmp_path):
     p = tmp_path / "cards.json"
     p.write_text(json.dumps([
         {"id": "TEST_SPELL", "name": "测试法术", "type": "SPELL", "cost": 2},
-        {"id": "TEST_AURA", "name": "测试光环", "type": "ENCHANTMENT"},
+        {"id": "TEST_AURA", "name": "测试光环", "type": "ENCHANTMENT",
+         "text": "使你手牌中法术牌的法力值消耗减少（1）点。"},
+        {"id": "TEST_ENCH2", "name": "游客光环", "type": "ENCHANTMENT",
+         "text": "你的随从获得+1攻击力。"},
     ], ensure_ascii=False), encoding="utf-8")
     db = CardDB(p)
     st, _ = _store()
     _heroes(st)
     st.apply(mk_full(10, "TEST_SPELL", ZONE=Zone.HAND.value, CONTROLLER=1,
                      CARDTYPE=CardType.SPELL.value, ZONE_POSITION=1))
-    # 玩家级光环: ATTACHED=friendly 玩家实体(entity_id=2, conftest mk_pm)
+    # 玩家级光环: ATTACHED=friendly 玩家实体(entity_id=2, conftest mk_pm);
+    # 同时挂一个非减费附魔(F1 污染源) —— 过滤后不得进 sources
     st.apply(mk_full(20, "TEST_AURA", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=2))
+    st.apply(mk_full(22, "TEST_ENCH2", ZONE=Zone.PLAY.value, CONTROLLER=1,
                      CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=2))
     st.apply(mk_tag(10, GameTag.COST, 0))          # 2→0, 无卡级附魔可归因
     a = EffectAnalyzer(db)
     k = DeckKnowledge({"TEST_SPELL": 2}, db, "测试")
     k.rebuild(st)
+    assert a.cost_downs("TEST_AURA") and not a.cost_downs("TEST_ENCH2")
     f = stat_fields(st, knowledge=k, carddb=db, analyzer=a)
     assert f["discount"]["total"] == 2 and f["discount"]["cards"] == 1
-    assert f["discount"]["sources"] == ["测试光环"]   # 不再是 ["?"]
-    # store 侧第三级查询直证: 卡级为空、玩家级命中
+    assert f["discount"]["sources"] == ["测试光环"]   # 过滤后不再是 ["?"]
+    # store 侧第三级查询直证: 不过滤语义(全量返回), 过滤在消费侧
     assert st.enchantments_on(10) == []
-    assert st.aura_enchantments_on_player(st.friendly_key) == ["TEST_AURA"]
+    assert st.aura_enchantments_on_player(st.friendly_key) == \
+        ["TEST_AURA", "TEST_ENCH2"]
     assert st.aura_enchantments_on_player(None) == []
-    # 卡级附魔在场时优先卡级(既有口径不回退): 挂到卡上的附魔照旧归因
-    st.apply(mk_full(21, "TEST_AURA", ZONE=Zone.PLAY.value, CONTROLLER=1,
+    # 卡级附魔优先(既有口径不回退): 挂到卡上的附魔照旧归因, 且先于玩家级
+    st.apply(mk_full(21, "TEST_ENCH2", ZONE=Zone.PLAY.value, CONTROLLER=1,
                      CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=10))
     st.apply(mk_full(11, "TEST_SPELL", ZONE=Zone.HAND.value, CONTROLLER=1,
                      CARDTYPE=CardType.SPELL.value, ZONE_POSITION=2))
     st.apply(mk_tag(11, GameTag.COST, 1))
     f2 = stat_fields(st, knowledge=k, carddb=db, analyzer=a)
     assert f2["discount"]["cards"] == 2 and f2["discount"]["total"] == 3
-    assert f2["discount"]["sources"] == ["测试光环"]  # 卡级+玩家级同名去重
+    # 牌10(卡级 TEST_ENCH2)在前, 牌11(玩家级 TEST_AURA)在后 —— 若实现跳过
+    # 卡级恒走玩家级, 此断言必挂(F2 区分力)
+    assert f2["discount"]["sources"] == ["游客光环", "测试光环"]

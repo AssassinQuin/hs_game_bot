@@ -112,8 +112,9 @@ def test_reconcile_unknown_draw_downgrade(tmp_path):
                      face_comparable=False) is None
 
 
-def test_reconcile_mixed_extra_still_flags(tmp_path):
-    """混合(实测多出的牌含已知池内)保守记真分歧: 实测 2 张 MOON, 预测 1 张。"""
+def test_reconcile_known_pool_extra_still_flags(tmp_path):
+    """实测多出的牌含已知池内(不是未知抽)保守记真分歧: 实测 2 张 MOON,
+    预测 1 张 —— 二轮审计后该用例语义=纯池内 extra 不豁免。"""
     db = _db(tmp_path)
     from hsbot.recon import reconcile
     base = initial_state(5, (("TST_FIRE", 4),), 0, engines=1,
@@ -122,6 +123,20 @@ def test_reconcile_mixed_extra_still_flags(tmp_path):
     rec = reconcile(base, _PIECES, _EVT, after, db, face_comparable=False)
     d = {x["field"]: x for x in rec["diffs"]}
     assert d["hand_n"]["predicted"] == 1 and d["hand_n"]["actual"] == 2
+
+
+def test_reconcile_missing_predicted_card_still_flags(tmp_path):
+    """二轮审计 高#1: 预测抽到已知 MOON 但实测抽到池外 ZZZ(已知抽牌通道
+    错/弃牌效应) —— 预测侧有实测缺失的牌, 恒记真分歧, 不得被豁免吞掉。"""
+    db = _db(tmp_path)
+    from hsbot.recon import reconcile
+    base = initial_state(5, (("TST_FIRE", 4),), 0, engines=1,
+                         known_draws=(("MOON", 1),))
+    after = initial_state(1, (("ZZZ", 1),), 0, engines=1)   # MOON 没来, 来了 ZZZ
+    rec = reconcile(base, _PIECES, _EVT, after, db, face_comparable=False)
+    d = {x["field"]: x for x in rec["diffs"]}
+    assert d["hand_cards"]["predicted"] == ["MOON"]
+    assert d["hand_cards"]["actual"] == ["ZZZ"]
 
 
 def test_reconcile_mana_compared_capped_at_ten(tmp_path):

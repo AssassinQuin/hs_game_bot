@@ -318,7 +318,29 @@ def test_mc_plan_p_lethal_matches_best_plan_formula_with_face(analyzer):
     pieces = _mk_pieces(analyzer, [("BIG", 4)])
     st = initial_state(4, (("BIG", 4),), 0)
     mp = mc_plan(replace(st, face=3), pieces, {}, enemy_total=7, n=5, seed=0)
-    assert mp.best_plan.lethal is True              # 6 ≥ 7−0−3
+    assert mp.best_plan.lethal is True              # 5 ≥ 7−0−3
     assert mp.p_lethal == 1.0                       # 同口径: 全线 ≥ need
     mp2 = mc_plan(st, pieces, {}, enemy_total=7, n=5, seed=0)
     assert mp2.p_lethal == 0.0 and mp2.best_plan.lethal is False
+
+
+def test_mc_plan_p_lethal_main_path_face_and_dealt(analyzer):
+    """主路径契约(池非空非退化, 二轮审计中#2): face>0/dealt_total>0 时
+    killed 与 best_plan.lethal 同用统一算式折减 need——主路径被突变回裸
+    enemy_total 比较时本用例必挂(修复前主路径零覆盖)。"""
+    from dataclasses import replace
+
+    pieces = _mk_pieces(analyzer, [("BIG", 4)])
+    st = initial_state(4, (("BIG", 4),), 0)
+    # face=3: total=5, need=7−0−3=4 → 5≥4 全线可斩(突变裸比较 5<7 → 0.0)
+    mp = mc_plan(replace(st, face=3), pieces, {"BIG": 2}, enemy_total=7,
+                 n=6, seed=0, k=2)
+    assert mp.k == 2 and mp.n == 6                  # 主路径(非退化)实证
+    assert mp.p_lethal == 1.0 and mp.best_plan.lethal is True
+    # dealt_total=2: need=7−2−0=5 → 5≥5 仍可斩(突变版 0.0)
+    mp2 = mc_plan(replace(st, dealt_total=2), pieces, {"BIG": 2},
+                  enemy_total=7, n=6, seed=0, k=2)
+    assert mp2.p_lethal == 1.0 and mp2.best_plan.lethal is True
+    # 无折减量: need=7 → 5<7 不可斩
+    mp3 = mc_plan(st, pieces, {"BIG": 2}, enemy_total=7, n=6, seed=0, k=2)
+    assert mp3.p_lethal == 0.0 and mp3.best_plan.lethal is False

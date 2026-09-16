@@ -2,7 +2,8 @@
 
 一句话: N 条采样线 —— 牌库剩余组成(remaining 多重集)不放回抽 k 张 → 每条线
 内跑 T1 DFS(planner.dfs.best_line, 线内纯确定) → 总伤分布;
-P(斩杀) = P(total ≥ 敌血+甲)。纯推理层: 无 IO、无全局态、机读措辞零
+P(斩杀) = P(total ≥ 敌血+甲 − dealt_total − face, 统一斩杀算式, 与
+best_plan.lethal 同口径)。纯推理层: 无 IO、无全局态、机读措辞零
 (结论词/阈值归 render); planner 不碰 knowledge, remaining/costs 由调用方传入。
 
 == 抽样口径(定版, 全部有出处) ==

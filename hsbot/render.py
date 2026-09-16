@@ -353,7 +353,11 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
 
     hand_spells: list = []               # [(实体id, 实时费)] 手牌法术
     hand_space: list = []                # [(实体id, 实时费)] 手牌星灵牌
-    player_auras = st.aura_enchantments_on_player(me)   # 玩家级光环附魔(修 6)
+    # 玩家级光环附魔(修 6)按减费语义过滤 —— 挂在玩家实体上的附魔未必是
+    # 减费光环(二轮审计 F1: VAC_422e 游客附魔/攻击光环都会被无差别计入),
+    # IR 层可区分: 只有含 CostDown 的才进减费来源
+    player_auras = [cid for cid in st.aura_enchantments_on_player(me)
+                    if analyzer.cost_downs(cid)]
     for e in st.hand(me):
         cid = getattr(e, "card_id", None)
         if not cid:

@@ -218,9 +218,12 @@ class EffectAnalyzer:
             if not via:
                 # 第三级: 玩家级光环(2026-09-14 实测 SC_755e2 ATTACHED=玩家
                 # 实体, 卡级/块级两路都查不到) —— 减方向 TagChange 常落在
-                # TRIGGER 块外, 此级兜住"减N(?)"的最后一类
+                # TRIGGER 块外, 此级兜住"减N(?)"的最后一类。按减费语义过滤
+                # (二轮审计 F1: 玩家实体上的非减费附魔不得冒充来源)
                 actor = evt.get("actor")
-                via = store.aura_enchantments_on_player(actor)
+                via = [cid for cid in
+                       store.aura_enchantments_on_player(actor)
+                       if self.cost_downs(cid)]
             evt = {**evt, "via": via}
         return evt
 

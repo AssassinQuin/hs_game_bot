@@ -330,10 +330,12 @@ class GameStore:
     def aura_enchantments_on_player(self, key: PlayerKey | None) -> list[str]:
         """挂在玩家实体上的光环附魔 card_id(去重保序; key=None → [])。
 
-        用途: 玩家级光环(2026-09-14 实测 SC_755e2"手牌法术-1"光环 ATTACHED=
-        玩家实体而非任何卡)不进 enchantments_on(卡) —— 减费来源第三级归因
-        (卡级附魔 → 块级触发 → 玩家级光环)的最后一环, 信息区"减N(?)"的 ?
-        由它消除。"""
+        用途: 玩家级光环(2026-09-14 实测 SC_755e2 灵能矩阵"下一张星灵牌-2"
+        ATTACHED=玩家实体而非任何卡)不进 enchantments_on(卡) —— 减费来源
+        第三级归因(卡级附魔 → 块级触发 → 玩家级光环)的最后一环, 信息区
+        "减N(?)"的 ? 由它消除。注意: 本查询**不过滤语义**, 玩家实体上的
+        全部附魔都返回 —— 消费侧(render/enrich)必须按 CostDown 过滤
+        (二轮审计 F1)。"""
         if key is None:
             return []
         pe = self._player_entity(key)

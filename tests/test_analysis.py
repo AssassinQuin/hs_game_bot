@@ -466,3 +466,48 @@ def test_spellpower_temp_and_both_players_guards():
         assert not any(isinstance(e, SpellPower) for e in ir.effects), text
     ir = compile_card({"id": "Y2", "text": "<b>法术伤害+1</b>", "type": "MINION"})
     assert any(isinstance(e, SpellPower) for e in ir.effects)
+
+
+def test_enrich_cost_attribution_third_level_player_aura(tmp_path):
+    """修 6 第三级(二轮审计 F3): cost 事件卡级/块级都查不到时, 落到
+    玩家级光环(ATTACHED=玩家实体); 且按 CostDown 语义过滤(F1: 非减费
+    附魔不得冒充 via); actor=None 安全回落空表。"""
+    import json
+
+    from hearthstone.enums import CardType, Zone
+
+    from hsbot.carddb import CardDB
+    from hsbot.store import GameStore
+
+    from .conftest import (EmptyTree, mk_create_game, mk_full, mk_heroes,
+                           mk_pm, mk_tag)
+
+    p = tmp_path / "cards.json"
+    p.write_text(json.dumps([
+        {"id": "TEST_SPELL", "name": "测试法术", "type": "SPELL", "cost": 2},
+        {"id": "TEST_AURA", "name": "测试光环", "type": "ENCHANTMENT",
+         "text": "使你手牌中法术牌的法力值消耗减少（1）点。"},
+        {"id": "TEST_ENCH2", "name": "游客光环", "type": "ENCHANTMENT",
+         "text": "你的随从获得+1攻击力。"},
+    ], ensure_ascii=False), encoding="utf-8")
+    db = CardDB(p)
+    st = GameStore(carddb=db, battletag="湫然#51704", tree=EmptyTree(),
+                   player_manager=mk_pm())
+    st.apply(mk_create_game())                     # game 实体(玩家实体解析依赖)
+    mk_heroes(st)
+    st.apply(mk_full(10, "TEST_SPELL", ZONE=Zone.HAND.value, CONTROLLER=1,
+                     CARDTYPE=CardType.SPELL.value))
+    st.note_friendly(1)
+    st.apply(mk_full(20, "TEST_AURA", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=2))
+    st.apply(mk_full(21, "TEST_ENCH2", ZONE=Zone.PLAY.value, CONTROLLER=1,
+                     CARDTYPE=CardType.ENCHANTMENT.value, ATTACHED=2))
+    a = EffectAnalyzer(db)
+    evt = a.enrich({"kind": "cost", "eid": 10, "actor": 1}, st)
+    assert evt["via"] == ["TEST_AURA"]             # 玩家级过滤后仅减费光环
+    # 块级(ctx_eid)优先于第三级
+    evt2 = a.enrich({"kind": "cost", "eid": 10, "actor": 1, "ctx_eid": 10}, st)
+    assert evt2["via"] == ["TEST_SPELL"]           # ctx 宿主卡归因在前
+    # actor 缺失 → 安全空表, 不炸
+    evt3 = a.enrich({"kind": "cost", "eid": 10}, st)
+    assert evt3["via"] == []

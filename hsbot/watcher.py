@@ -729,7 +729,6 @@ class Watcher:
             pkt, depth = flat[i]
             # adapter.is_play_block 不含 entity 判定, 基态捕获需实体 id, 保留 int 检查
             if is_play_block(pkt) and isinstance(pkt.entity, int):
-                # 对账基态: PLAY 块开始 = store 尚未应用块内包(预测基态)
                 # 对账基态: PLAY 块开始 = store 尚未应用块内包(预测基态)。
                 # 注: 块嵌套(战吼内再打牌)时外层 play 事件被 store 单槽覆写
                 # 永不发 → 外层基态残留至局末 reset(仅内存, 无配对污染,
