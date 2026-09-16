@@ -321,9 +321,10 @@ def lethal_plan(st, knowledge, analyzer, *, enabled: bool = True) -> dict | None
     enemy_total = st.hero_total_hp(opp) if opp is not None else None
     plan = best_line(
         initial_state(st.mana_now(me), tuple(sorted(hand)), sp,
-                      known_draws=tuple(known_draws), engines=engines),
-        pieces, board_atk=st.board_face_attack(me), enemy_total=enemy_total,
-        exp_per_draw=exp_per_draw)
+                      known_draws=tuple(known_draws), engines=engines,
+                      turn=st.friendly_turn_number(), enemy_total=enemy_total,
+                      board_atk=st.board_face_attack(me)),
+        pieces, exp_per_draw=exp_per_draw)
     return {"actions": list(plan.actions), "total": plan.total,
             "face_det": plan.face_det, "face_exp": plan.face_exp,
             "lethal": plan.lethal, "enemy_total": plan.enemy_total,

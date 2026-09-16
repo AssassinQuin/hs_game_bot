@@ -74,9 +74,8 @@ def first_lethal_turns(rows: list, pieces: dict, cost_of: dict) -> dict:
         engines = sum(1 for b in me["board"]
                       if _piece_of(pieces, b["cid"], cost_of).engine)
         st = initial_state(me["mana"], hand, sp=me.get("spellpower", 0),
-                           engines=engines)
-        if best_line(st, pieces,
-                     enemy_total=opp["hp"] + opp["armor"]).lethal:
+                           engines=engines, enemy_total=opp["hp"] + opp["armor"])
+        if best_line(st, pieces).lethal:
             out[g] = snap["turn"]
     return out
 

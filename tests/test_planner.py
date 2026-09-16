@@ -9,6 +9,7 @@
 import json
 import random
 import time
+from dataclasses import replace
 
 import pytest
 
@@ -340,9 +341,9 @@ def test_best_line_matches_bruteforce_on_random_states(tmp_path):
             disc_hand=rng.choice([0, 0, 1]),
             disc_next=rng.choice([0, 0, 1, 2]),
             engines=rng.choice([0, 0, 1]))
-        plan = best_line(state, pieces, board_atk=rng.randint(0, 3),
-                         enemy_total=None, exp_per_draw=1.5,
-                         )
+        plan = best_line(replace(state, board_atk=rng.randint(0, 3),
+                                 enemy_total=None),
+                         pieces, exp_per_draw=1.5)
         assert plan.face_det == _brute_best(state, pieces), \
             f"case {case}: 手牌={hand} state={state}"
 
@@ -351,11 +352,11 @@ def test_best_line_empty_when_nothing_payable(analyzer):
     """无可支付动作 → 叶: 空线, total=face+场攻, lethal 按确定伤判定。"""
     pieces = _mk_pieces(analyzer, [("MOON", 1)])
     st = initial_state(0, (("MOON", 1),), 0)
-    plan = best_line(st, pieces, board_atk=3, enemy_total=3)
+    plan = best_line(replace(st, board_atk=3, enemy_total=3), pieces)
     assert plan.actions == () and plan.face_det == 0
     assert plan.total == 3 and plan.lethal is True
     assert plan.mana_trace == () and plan.face_exp == 0
-    assert best_line(st, pieces, board_atk=3, enemy_total=4).lethal is False
+    assert best_line(replace(st, board_atk=3, enemy_total=4), pieces).lethal is False
 
 
 def test_lethal_only_by_face_det_and_board_atk(analyzer):
@@ -365,12 +366,12 @@ def test_lethal_only_by_face_det_and_board_atk(analyzer):
     pieces = _mk_pieces(analyzer, [("MOON", 1)])
     # 3 张月火, mana 3, 引擎在身 → 3 确定伤 + 3 张未知抽牌
     st = initial_state(3, (("MOON", 1), ("MOON", 1), ("MOON", 1)), 0, engines=1)
-    plan = best_line(st, pieces, board_atk=0, enemy_total=4,
+    plan = best_line(replace(st, board_atk=0, enemy_total=4), pieces,
                      exp_per_draw=10.0)
     assert plan.face_det == 3 and plan.face_exp == 30   # 3×10 取整, 仅注记
     assert plan.total == 3                              # 期望不进 total
     assert plan.lethal is False                         # 3 < 4: 期望再高也不斩
-    plan2 = best_line(st, pieces, board_atk=1, enemy_total=4)
+    plan2 = best_line(replace(st, board_atk=1, enemy_total=4), pieces)
     assert plan2.lethal is True                         # 3+1 ≥ 4: 确定伤判定
 
 
@@ -379,7 +380,7 @@ def test_plan_mana_trace_and_totals(analyzer):
     回费牌只有在"打出才能多打一张伤害"时才进最优线(平手取短)。"""
     pieces = _mk_pieces(analyzer, [("INNERVATE", 0), ("MOON", 1)])
     st = initial_state(1, (("INNERVATE", 0), ("MOON", 1), ("MOON", 1)), 0)
-    plan = best_line(st, pieces, board_atk=2)
+    plan = best_line(replace(st, board_atk=2), pieces)
     assert plan.face_det == 2 and plan.total == 4
     assert len(plan.actions) == 3           # 激活回费才能打满两张月火
     assert plan.mana_trace == (2, 1, 0)     # 激活→回费 2, 月火→1, 月火→0
@@ -464,7 +465,7 @@ def test_disc_next_is_single_use_face_value():
     assert st3.mana == 3 and st3.face == 2 and st3.disc_next == 0
     st4 = play(st3, 0, pieces)                   # 第二张恢复全价 2 费
     assert st4.mana == 1 and st4.face == 4
-    plan = best_line(st, pieces, enemy_total=6)  # 整线只打得出 2 张 → 4 伤
+    plan = best_line(replace(st, enemy_total=6), pieces)  # 整线只打得出 2 张 → 4 伤
     assert plan.face_det == 4 and plan.lethal is False
 
 
@@ -488,7 +489,36 @@ def test_uncovered_counts_carddb_missing_cards():
     analysis.lethal_plan 的 facts 口径, 见 test_lethal_plan)。"""
     d1 = Piece(card_id="VAL", cost=1, segments=(1,), is_spell=True)
     pieces = {("VAL", 1): d1}
-    plan = best_line(initial_state(2, (("GHOST_A", 1), ("VAL", 1)), 0),
-                     pieces, enemy_total=None)
+    plan = best_line(initial_state(2, (("GHOST_A", 1), ("VAL", 1)), 0,
+                                   enemy_total=None),
+                     pieces)
     assert plan.face_det == 1
     assert plan.uncovered_n == 0        # 缺牌无增益进不了线, 线内无未覆盖张
+
+
+# ---------------- 统一斩杀算式(SimSnapshot §3) ----------------
+
+def test_best_line_unified_lethal_absorbs_face_and_dealt():
+    """face_det+board_atk ≥ enemy_total−dealt_total−face: 快照已造成的
+    本回合 face 与跨回合 dealt_total 都是已扣减量 —— rollout 旧
+    replace(face=0) 技巧被吸收。"""
+    pieces = {("BIG", 4): Piece("BIG", 4, segments=(6,), spell_scaled=True,
+                                is_spell=True)}
+    st = replace(initial_state(4, (("BIG", 4),), 0, enemy_total=10,
+                               board_atk=0, dealt_total=3), face=1)
+    plan = best_line(st, pieces)                 # 线伤 6: 6 ≥ 10-3-1=6
+    assert plan.lethal is True and plan.total == 6
+    st2 = replace(initial_state(4, (("BIG", 4),), 0, enemy_total=11,
+                                dealt_total=3), face=1)
+    assert best_line(st2, pieces).lethal is False  # 6 < 11-3-1=7
+
+
+def test_best_line_board_atk_from_snapshot_and_none_enemy():
+    pieces = {("BIG", 4): Piece("BIG", 4, segments=(6,), spell_scaled=True,
+                                is_spell=True)}
+    st = initial_state(4, (("BIG", 4),), 0, enemy_total=6, board_atk=2)
+    plan = best_line(st, pieces)                 # 6+2 ≥ 6
+    assert plan.lethal is True and plan.board_atk == 2 and plan.total == 8
+    stn = initial_state(4, (("BIG", 4),), 0)     # enemy_total=None
+    pn = best_line(stn, pieces)
+    assert pn.lethal is False and pn.enemy_total is None

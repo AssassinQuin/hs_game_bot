@@ -79,17 +79,23 @@ def planner_stub(monkeypatch):
 
     m_pieces.build_piece = lambda cid, cost, analyzer: _StubPiece(cid, cost, analyzer)
     m_sim.initial_state = (lambda mana, hand_cards, sp, known_draws=(), disc_hand=0,
-                           disc_next=0, engines=0: SimpleNamespace(
+                           disc_next=0, engines=0, disc_next_cat="", *, turn=1,
+                           enemy_total=None, board_atk=0, dealt_total=0:
+                           SimpleNamespace(
                                mana=mana, hand=tuple(sorted(hand_cards)), sp=sp,
                                known_draws=tuple(known_draws), engines=engines,
-                               disc_hand=disc_hand, disc_next=disc_next))
+                               disc_hand=disc_hand, disc_next=disc_next,
+                               turn=turn, enemy_total=enemy_total,
+                               board_atk=board_atk, dealt_total=dealt_total,
+                               face=0))
 
-    def best_line(state, pieces, *, board_atk=0, enemy_total=None,
-                  exp_per_draw=0.0):
-        calls.append({"state": state, "pieces": pieces, "board_atk": board_atk,
-                      "enemy_total": enemy_total, "exp_per_draw": exp_per_draw,
+    def best_line(state, pieces, *, exp_per_draw=0.0):
+        calls.append({"state": state, "pieces": pieces,
+                      "board_atk": state.board_atk,
+                      "enemy_total": state.enemy_total,
+                      "exp_per_draw": exp_per_draw,
                       "engines": getattr(state, "engines", None)})
-        mana, sp, face, actions = state.mana, state.sp, 0, []
+        mana, sp, face, actions, board_atk = state.mana, state.sp, 0, [], state.board_atk
         for cid, cost in state.hand:
             piece = pieces.get((cid, cost))
             if piece is None or cost > mana:         # 缺键=惰性牌(仅费), 不可支付跳过
@@ -98,11 +104,13 @@ def planner_stub(monkeypatch):
             actions.append((cid, cost))
             face += piece.damage_at(sp)
         total = face + board_atk
+        need = None if state.enemy_total is None else (
+            state.enemy_total - state.dealt_total - state.face)
         return SimpleNamespace(
             actions=tuple(actions), total=total, face_det=face,
             face_exp=int(round(exp_per_draw)),
-            lethal=enemy_total is not None and total >= enemy_total,
-            enemy_total=enemy_total, board_atk=board_atk, uncovered_n=0,
+            lethal=need is not None and total >= need,
+            enemy_total=state.enemy_total, board_atk=board_atk, uncovered_n=0,
             mana_trace=())
 
     m_dfs.best_line = best_line

@@ -117,7 +117,7 @@ def mc_plan(state: SimSnapshot, pieces: dict, remaining, enemy_total=None, *,
     costs     {cid: 卡表面值费} 预映射(口径见模块注释 3); 缺失按 0。
     k         每线抽样张数; None = hand_draws + engines×手牌数(保守上限)。
     n/seed    线数与随机种子; budget_ms=None 时同 seed 逐位可复现。
-    board_atk 可直击脸的场攻(原样传给 best_line, 计入 total/lethal)。
+    board_atk 可直击脸的场攻(并入快照后由 best_line 读, 计入 total/lethal)。
     budget_ms 墙钟预算, 到点停(诚实 n; 生效时放弃跨跑确定性)。
     """
     if n < 1:
@@ -150,8 +150,9 @@ def mc_plan(state: SimSnapshot, pieces: dict, remaining, enemy_total=None, *,
         queue = state.known_draws + tuple((cid, cost_of(cid, 0) or 0)
                                           for cid in sample[hd:])
         plan = best_line(replace(state, hand=tuple(sorted(hand)),
-                                 known_draws=queue),
-                         pieces, board_atk=board_atk, enemy_total=enemy_total)
+                                 known_draws=queue, board_atk=board_atk,
+                                 enemy_total=enemy_total),
+                         pieces)
         totals.append(plan.total)
         if plan.total > best_total:     # 平手取先采样到(同 seed 可重放)
             best_total, best = plan.total, plan
@@ -178,7 +179,8 @@ def _default_k(state: SimSnapshot, hand_draws: int) -> int:
 def _degenerate(state, pieces, enemy_total, board_atk, seed, k, hd):
     """无可抽样位(k=0 或空池): 所有线同质 → 单条基准线, 分布退化。
     P(斩杀)∈{0,1} 精确; enemy_total=None → p_lethal=None。"""
-    plan = best_line(state, pieces, board_atk=board_atk, enemy_total=enemy_total)
+    plan = best_line(replace(state, board_atk=board_atk, enemy_total=enemy_total),
+                     pieces)
     if enemy_total is None:
         killed = None
     else:

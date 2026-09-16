@@ -153,8 +153,9 @@ def rollout(full_order, *, offered, keep, coin, pieces, cost_of, k_max,
             if ceiling >= need:
                 # 已打出的策略伤害先扣血, best_line 只算手牌剩余爆发(face 清零)
                 plan = best_line(dataclasses.replace(st, face=0,
-                                                     known_draws=known),
-                                 pieces, enemy_total=need)
+                                                     known_draws=known,
+                                                     enemy_total=need),
+                                 pieces)
                 if plan.lethal:
                     return RolloutResult(t, t, tuple(hand_sizes), st.engines)
         engines, sp, disc_hand = st.engines, st.sp, st.disc_hand
