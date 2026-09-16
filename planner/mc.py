@@ -77,8 +77,9 @@ class McPlan:
     seed        传入种子原样回传(复现锚: 同 seed 无 budget_ms 可重放同分布)。
     k           每线实际抽样张数(已按抽样池截断; 口径见模块注释 4)。
     hand_draws  实际直接入手的张数(回合抽牌通道, 口径见模块注释 5)。
-    p_lethal    P(total ≥ enemy_total) = 斩杀线数/n; enemy_total=None 时为
-                None(无判定基准, 分布照出)。
+    p_lethal    P(斩杀) = 斩杀线数/n, 口径与 best_plan.lethal 同(统一算式
+                total ≥ enemy_total−dealt_total−face, 2026-09-17 审计统一);
+                enemy_total=None 时为 None(无判定基准, 分布照出)。
     mean        总伤分布均值(每线等权)。
     p90         总伤 90 分位, 最近秩法: 升序 totals[ceil(0.9n)-1]。
     max         分布最大总伤(抽样意义下的线上限, 非全局上界)。
@@ -160,8 +161,12 @@ def mc_plan(state: SimSnapshot, pieces: dict, remaining, enemy_total=None, *,
             break
 
     m = len(totals)
-    killed = (sum(1 for t in totals if t >= enemy_total) / m
-              if enemy_total is not None else None)
+    # P(斩杀)与 best_plan.lethal 同口径(2026-09-17 审计统一, 原先按入参
+    # enemy_total 裸比, face>0 时两字段矛盾): 统一算式折减既成事实
+    need = (None if enemy_total is None
+            else enemy_total - state.dealt_total - state.face)
+    killed = (sum(1 for t in totals if t >= need) / m
+              if need is not None else None)
     asc = sorted(totals)
     return McPlan(n=m, seed=seed, k=k_eff, hand_draws=hd, p_lethal=killed,
                   mean=sum(totals) / m,
@@ -181,10 +186,7 @@ def _degenerate(state, pieces, enemy_total, board_atk, seed, k, hd):
     P(斩杀)∈{0,1} 精确; enemy_total=None → p_lethal=None。"""
     plan = best_line(replace(state, board_atk=board_atk, enemy_total=enemy_total),
                      pieces)
-    if enemy_total is None:
-        killed = None
-    else:
-        killed = 1.0 if plan.total >= enemy_total else 0.0
+    killed = None if enemy_total is None else (1.0 if plan.lethal else 0.0)
     return McPlan(n=1, seed=seed, k=k, hand_draws=hd, p_lethal=killed,
                   mean=float(plan.total), p90=plan.total, max=plan.total,
                   best_plan=plan, totals=(plan.total,),

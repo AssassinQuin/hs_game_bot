@@ -48,7 +48,9 @@ class RolloutResult:
     turns: int                         # 推演到的回合数
     hand_sizes: tuple[int, ...] = ()   # 各回合策略收尾后手牌数(轨迹层校准用)
     engines: int = 0                   # 终态在场引擎数
-    snapshots: tuple = ()              # 各回合策略收尾后的 SimSnapshot(spec §4)
+    snapshots: tuple = ()              # 各回合策略收尾后的 SimSnapshot(spec §4;
+                                       # 其中 dealt_total 恒 0——血甲曲线是逐回
+                                       # 合经验值, 本回合伤害在 face, 见主循环)
 
 
 def _policy_playable(key, pieces: dict, engines: int) -> bool:

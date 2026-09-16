@@ -306,3 +306,19 @@ def test_perf_n2000_small_state_and_budgeted_worst_state(analyzer):
     assert 1 <= bad.n < 2000
     assert len(bad.totals) == bad.n
     assert wall < 30.0                  # 实测 ~0.4s(1 条线超预算即停)
+
+
+# ---------------- 审计 2026-09-17: mc_plan 两口径统一(统一斩杀算式) ----------------
+
+def test_mc_plan_p_lethal_matches_best_plan_formula_with_face(analyzer):
+    """face>0 快照: p_lethal 与 best_plan.lethal 必须同口径(统一算式
+    total ≥ enemy_total−dealt_total−face)——修复前一个 True 一个 False。"""
+    from dataclasses import replace
+
+    pieces = _mk_pieces(analyzer, [("BIG", 4)])
+    st = initial_state(4, (("BIG", 4),), 0)
+    mp = mc_plan(replace(st, face=3), pieces, {}, enemy_total=7, n=5, seed=0)
+    assert mp.best_plan.lethal is True              # 6 ≥ 7−0−3
+    assert mp.p_lethal == 1.0                       # 同口径: 全线 ≥ need
+    mp2 = mc_plan(st, pieces, {}, enemy_total=7, n=5, seed=0)
+    assert mp2.p_lethal == 0.0 and mp2.best_plan.lethal is False
