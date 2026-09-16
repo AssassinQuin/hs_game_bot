@@ -258,16 +258,12 @@ class EffectAnalyzer:
 
 # ================= 斩杀线规划(T1, 接口契约 §2) =================
 
-def lethal_plan(st, knowledge, analyzer, *, enabled: bool = True) -> dict | None:
-    """手牌出牌线搜索(T1 斩杀 DFS)的机读事实编排: 状态事实只读 store/
-    knowledge, 效果解析只走 analyzer, 搜索委托 planner 纯函数(planner
-    在函数体内延迟 import —— 属并行切片且便于测试打桩)。
-    返回 dict(actions/total/face_det/face_exp/lethal/enemy_total/
-    board_atk/uncovered_n, 措辞零, 字段口径=接口契约 §2);
-    None = 开关关 / 我方未解析 / 无手牌(渲染层按 lethal 决定是否加
-    "可斩"行, 其余情况输出零变化)。"""
-    if not enabled:
-        return None
+def assemble_snapshot(st, knowledge, analyzer) -> tuple | None:
+    """store/knowledge → (SimSnapshot, pieces) 投影(spec §4, glue 留 hsbot 侧,
+    planner 仍不 import store)。None = 我方未解析。口径与原 lethal_plan 内联
+    投影逐行同源(2026-09-15 抽取, live 钉子背书)。"""
+    from planner.pieces import build_piece
+    from planner.simstate import initial_state
     me = st.friendly_key
     if me is None:
         return None
@@ -280,37 +276,24 @@ def lethal_plan(st, knowledge, analyzer, *, enabled: bool = True) -> dict | None
         if cost is None:
             cost = analyzer.carddb.cost(cid)   # 卡表缺牌 → 0(诚实降级)
         hand.append((cid, cost if cost is not None else 0))
-    if not hand:
-        return None
     sp = st.spellpower(me)
     known_draws: list[tuple[str, int]] = []
-    exp_per_draw = 0.0
     if knowledge is not None:
         led = knowledge.ledger
         # 确定抽牌队列, 队头=最先抽到: 顶牌恒确定; 底牌仅在顶底之间无未知牌
         # (unknown_middle==0, 全库已知)时才是确定抽——否则该抽位实际抽到的
-        # 是未知牌, 底牌降级走期望通道(remaining 仍含底牌; 宁漏勿错,
-        # 2026-09-14 审计修正, 见 tests/test_lethal_plan.py 台账侧用例)
+        # 是未知牌, 底牌降级走期望通道(宁漏勿错, 2026-09-14 审计修正)
         queue = [led.known_top]
         if led.unknown_middle == 0:
-            # 2026-09-14 审计修正: 底牌队列剔除顶牌(rebuild 的 bottom_map 含
-            # pos=1 顶牌, 直接拼会双计), 且按牌位升序 = 抽牌序
+            # 底牌队列剔除顶牌(rebuild 的 bottom_map 含 pos=1 顶牌, 直接拼
+            # 会双计), 且按牌位升序 = 抽牌序
             queue += [cid for cid, pos in sorted(
                 ((c, p) for c, p in led.known_bottom if p > 1),
                 key=lambda cp: cp[1])]
         for cid in queue:
             if cid:
                 known_draws.append((cid, analyzer.carddb.cost(cid) or 0))
-        remaining = led.remaining
-        deck_left = sum(remaining.values())
-        # 期望注记(不进可斩判定): 当前实际法强的单卡伤害 × 台账剩余组成
-        exp_per_draw = (sum(n * (analyzer.burst_damage(cid, sp) or 0)
-                            for cid, n in remaining.items()) / max(1, deck_left))
-    from planner.dfs import best_line          # 延迟 import(测试可打桩)
-    from planner.pieces import build_piece
-    from planner.simstate import initial_state
     # 场上引擎接线(审计 2026-09-14 高#1): 我方 cast_draw 随从数 = engines
-    # ——拍卖师在场施法抽牌, known_draws 队列随之消耗(奇迹德 OTK 核心通道)
     board_cids = [e.card_id for e in st.board(me) if e.card_id]
     engines = sum(board_cids.count(cid)
                   for cid in {c for c in board_cids
@@ -318,21 +301,44 @@ def lethal_plan(st, knowledge, analyzer, *, enabled: bool = True) -> dict | None
     pieces = {(cid, cost): build_piece(cid, cost, analyzer)
               for cid, cost in dict.fromkeys(hand + known_draws)}
     opp = st.opponent_key()
-    enemy_total = st.hero_total_hp(opp) if opp is not None else None
-    plan = best_line(
-        initial_state(st.mana_now(me), tuple(sorted(hand)), sp,
-                      known_draws=tuple(known_draws), engines=engines,
-                      turn=st.friendly_turn_number(), enemy_total=enemy_total,
-                      board_atk=st.board_face_attack(me)),
-        pieces, exp_per_draw=exp_per_draw)
+    snap = initial_state(
+        st.mana_now(me), tuple(sorted(hand)), sp,
+        known_draws=tuple(known_draws), engines=engines,
+        turn=st.friendly_turn_number(),
+        enemy_total=(st.hero_total_hp(opp) if opp is not None else None),
+        board_atk=st.board_face_attack(me))
+    return snap, pieces
+
+
+def lethal_plan(st, knowledge, analyzer, *, enabled: bool = True) -> dict | None:
+    """手牌出牌线搜索(T1 斩杀 DFS)的机读事实编排: 装配走 assemble_snapshot,
+    搜索委托 planner 纯函数。返回 dict(actions/total/face_det/face_exp/
+    lethal/enemy_total/board_atk/uncovered_n, 措辞零, 字段口径=接口契约 §2);
+    None = 开关关 / 我方未解析 / 无手牌。"""
+    if not enabled:
+        return None
+    asm = assemble_snapshot(st, knowledge, analyzer)
+    if asm is None:
+        return None
+    snap, pieces = asm
+    if not snap.hand:
+        return None
+    exp_per_draw = 0.0
+    if knowledge is not None:
+        remaining = knowledge.ledger.remaining
+        deck_left = sum(remaining.values())
+        # 期望注记(不进可斩判定): 当前实际法强的单卡伤害 × 台账剩余组成
+        exp_per_draw = (sum(n * (analyzer.burst_damage(cid, snap.sp) or 0)
+                            for cid, n in remaining.items()) / max(1, deck_left))
+    from planner.dfs import best_line          # 延迟 import(测试可打桩)
+    plan = best_line(snap, pieces, exp_per_draw=exp_per_draw)
     return {"actions": list(plan.actions), "total": plan.total,
             "face_det": plan.face_det, "face_exp": plan.face_exp,
             "lethal": plan.lethal, "enemy_total": plan.enemy_total,
             "board_atk": plan.board_atk,
             # 缺牌(卡表无条目)=效果未知: 与线内未覆盖张合并诚实计数
-            # (缺牌 inert 进不了线, 但它是斩杀线可信度的一部分; 审计 低#9)
             "uncovered_n": plan.uncovered_n
-            + sum(1 for cid, _c in hand if analyzer.carddb.raw(cid) is None),
+            + sum(1 for cid, _c in snap.hand if analyzer.carddb.raw(cid) is None),
             # 每步打出后的剩余费(planner 事实原样透传; 悬浮窗数据行"剩费N"用)
             "mana_trace": plan.mana_trace}
 

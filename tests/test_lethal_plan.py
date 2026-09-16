@@ -313,3 +313,25 @@ def test_uncovered_counts_missing_carddb_cards(tmp_path, planner_stub):
                      CARDTYPE=CardType.SPELL.value, ZONE_POSITION=3))
     plan = _lethal_plan(st, None, a)
     assert plan["uncovered_n"] == 1                    # 桩报 0, 缺牌 +1
+
+
+# ---------------- assemble_snapshot 投影(spec §4) ----------------
+
+def test_assemble_snapshot_projection(tmp_path):
+    """store/knowledge → (SimSnapshot, pieces): 手牌费 COST 标签优先、
+    known_draws 台账队列、敌血甲、场攻、回合数取 friendly_turn_number。"""
+    from hsbot.analysis import assemble_snapshot
+    st, db, a = _scene(tmp_path, mana=5, enemy=8)
+    st.apply(mk_tag(10, GameTag.COST, 2))            # 火球 4→2
+    snap, pieces = assemble_snapshot(st, None, a)
+    assert snap.mana == 5 and snap.hand == (("TST_BOLT", 1), ("TST_FIRE", 2))
+    assert snap.enemy_total == 8 and snap.board_atk == 0 and snap.face == 0
+    assert snap.dealt_total == 0 and snap.turn == st.friendly_turn_number()
+    assert set(pieces) == {("TST_BOLT", 1), ("TST_FIRE", 2)}
+
+
+def test_assemble_snapshot_none_without_friendly(tmp_path):
+    from hsbot.analysis import assemble_snapshot
+    st, db, a = _scene(tmp_path)
+    st.friendly_key = None
+    assert assemble_snapshot(st, None, a) is None
