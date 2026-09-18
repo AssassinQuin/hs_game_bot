@@ -12,7 +12,7 @@
 
 - planner / analysis / assemble_snapshot 零改动（spec §6 非目标）
 - `stat_fields` 签名不变（`watcher._emit_stat` 调用点零改动）
-- 宁漏勿错：理论口径（`lethal_est=True`）下 `can_kill` 恒 `False`
+- 宁漏勿错：`can_kill` 不得由粗估数字触发——plan=None 恒 `False`；plan 在场（含退化）随 `plan.lethal`（spec §2 表；退化 plan 无 total 时数字降级理论值但判定仍随 plan，2026-09-18 Task 1 审查裁决对齐）
 - 措辞归 render；overlay 只读机读字段，不从文本反推
 - 新字段名定死：`lethal_est`（bool，恒存在）；新色键名定死：`lethal`
 - 双口径措辞定死（golden 钉死，防漂移）：
