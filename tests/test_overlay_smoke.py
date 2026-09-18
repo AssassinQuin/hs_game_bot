@@ -75,7 +75,8 @@ def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch, tmp_path):
            "stat",
            {"enemy_total": 40, "enemy_hp": 40, "enemy_armor": 0,
             "lethal": 14, "lethal_hand": 0, "lethal_deck": 14,
-            "lethal_board": 0, "can_kill": False, "spellpower": 0,
+            "lethal_board": 0, "can_kill": False, "lethal_est": False,
+            "spellpower": 0,
             "ramp": 10, "ramp_hand": 2, "ramp_deck": 8,
             "cost_list": 45, "cost_deck": 33, "cost_hand": 12,
             "discount": {"cards": 1, "total": 2,
@@ -97,7 +98,8 @@ def test_stat_panel_fields_and_kill_gold(ensure_display):
         p = _StatPanel(tk, root, dict(_DEFAULT_COLORS), 10)
         base = {"enemy_total": 40, "enemy_hp": 40, "enemy_armor": 0,
                 "lethal": 14, "lethal_hand": 0, "lethal_deck": 14,
-                "lethal_board": 0, "can_kill": False, "spellpower": 0,
+                "lethal_board": 0, "can_kill": False, "lethal_est": False,
+                "spellpower": 0,
                 "ramp": 10, "ramp_hand": 2, "ramp_deck": 8,
                 "cost_list": 45, "cost_deck": 33, "cost_hand": 12,
                 "discount": {"cards": 1, "total": 2,
@@ -106,7 +108,7 @@ def test_stat_panel_fields_and_kill_gold(ensure_display):
         assert p.cells["enemy"][0].cget("text") == "40"
         assert p.cells["enemy"][1].cget("text") == "40血+0甲"
         assert p.cells["lethal"][0].cget("text") == "14"
-        assert p.cells["lethal"][1].cget("text") == "手0+库14+场0 · 法强0"
+        assert p.cells["lethal"][1].cget("text") == "场0+线0 · 潜力库14 · 法强0"
         assert p.cells["mana"][0].cget("text") == "1"      # 缺数据: 默认 1
         assert p.cells["ramp"][0].cget("text") == "+10"
         assert p.cells["ramp"][1].cget("text") == "库8+手2"
@@ -115,8 +117,8 @@ def test_stat_panel_fields_and_kill_gold(ensure_display):
         assert p.cells["discount"][0].cget("text") == "−2"
         assert p.cells["discount"][1].cget("text") == "生命缚誓者的礼物"
         p.update({**base, "can_kill": True})
-        assert p.cells["lethal"][0].cget("foreground") == _DEFAULT_COLORS["advice"]
-        assert p.cells["lethal"][1].cget("text") == "可斩 手0+库14+场0 · 法强0"
+        assert p.cells["lethal"][0].cget("foreground") == _DEFAULT_COLORS["lethal"]
+        assert p.cells["lethal"][1].cget("text") == "可斩 场0+线0 · 潜力库14 · 法强0"
         p.update({**base, "mana": 5, "mana_res": 10})
         assert p.cells["mana"][0].cget("text") == "5"
         assert p.cells["mana"][1].cget("text") == "水晶5/10"

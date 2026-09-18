@@ -8,7 +8,7 @@
   独占全屏时覆盖窗不可见。窗口位置/大小自动记忆(data/overlay_state.json);
   信息按人物(我/对面)与事件类型分色(颜色表见 config.yaml overlay_colors)。
   三区布局(2026-09-14 用户定版, 上/中上部背景真不透明):
-    上区   = 信息面板(KIND_STAT 机读字段驱动, 两行×3格: 敌/理论伤害/法力 +
+    上区   = 信息面板(KIND_STAT 机读字段驱动, 两行×3格: 敌/可斩伤害/法力 +
              回费/减费/法术费);
     中上部 = 推荐区(KIND_ADVICE 留牌建议 + KIND_STAT.plan 可斩/最优线
              +数据行, render.advice_rows/plan_rows 措辞, 推荐打法 top3 封顶,
@@ -60,6 +60,7 @@ _DEFAULT_COLORS = {
     "notice": "#8fb7d4",   # 系统通知(新对局/监控会话)
     "error": "#ff6b6b",    # 错误
     "advice": "#ffd700",   # 留牌建议/可斩线(推荐区主行高亮)
+    "lethal": "#ff9500",    # 可斩伤害数值(法力可行链 ≥ 敌血甲; 亮橙, 区别于 advice 金)
     "stat": "#e6edf3",     # 上部信息区数值
     "stat_panel": "#161d2b",  # 上/中上部面板底色(实底不透明)
     "stat_dim": "#7d8590",    # 面板标签/细节小字
@@ -90,16 +91,16 @@ class Msg:
 class _StatPanel:
     """上区信息面板(三区布局上区): 两行×3列 分区, 实底不透明。
 
-    行1 敌/理论伤害/法力, 行2 回费/减费/法术费 —— 减费单独成格: 手牌减费在身
+    行1 敌/可斩伤害/法力, 行2 回费/减费/法术费 —— 减费单独成格: 手牌减费在身
     (生命缚誓者的礼物/建造水晶塔等)随引擎 COST 标签动态变化; 法力格缺数据
-    默认 1(用户定版); 法强并入理论伤害格细节(它是伤害的乘数语境)。
+    默认 1(用户定版); 法强并入可斩伤害格细节(它是伤害的乘数语境)。
     视觉: 实底面板 + 细分隔线 + 三层字级(小标签/大数值/细节小字),
     数值用雅黑加大加粗(Consolas 无 CJK, 中文回退发虚)。数据 =
     render.stat_fields 机读字段(不从文本反推); 无字段的原生文本兜底。
-    "可斩"时理论伤害数值转金色(advice 色), 敌方数值用对面色(opp),
+    "可斩"时可斩伤害数值转亮橙(lethal 色, 缺键回退 stat 色), 敌方数值用对面色(opp),
     有减费时减费数值用我方色(my)。可斩线归中上部推荐区(_AdvicePanel)。"""
 
-    _CELLS = [("enemy", "敌"), ("lethal", "理论伤害"), ("mana", "法力"),
+    _CELLS = [("enemy", "敌"), ("lethal", "可斩伤害"), ("mana", "法力"),
               ("ramp", "回费"), ("discount", "减费"), ("cost", "法术费")]
     _COLS = 3
 
@@ -165,10 +166,17 @@ class _StatPanel:
                     f"{f['enemy_hp']}血+{f['enemy_armor']}甲")
         v, d = self.cells["lethal"]
         v.configure(text=str(f["lethal"]),
-                    fg=c["advice"] if f["can_kill"] else c["stat"])
-        d.configure(text=("可斩 " if f["can_kill"] else "")
-                    + f"手{f['lethal_hand']}+库{self._q(f['lethal_deck'])}"
-                      f"+场{f['lethal_board']} · 法强{f['spellpower']}")
+                    fg=(c.get("lethal") or c["stat"]) if f["can_kill"]
+                       else c["stat"])
+        if f.get("lethal_est"):
+            det = (f"理论 手{f['lethal_hand']}+库{self._q(f['lethal_deck'])}"
+                   f"+场{f['lethal_board']}")
+        else:
+            det = (f"场{f['lethal_board']}+线{f['lethal_hand']}"
+                   f" · 潜力库{self._q(f['lethal_deck'])}")
+        if f["can_kill"]:
+            det = f"可斩 {det}"
+        d.configure(text=f"{det} · 法强{f['spellpower']}")
         mana = f.get("mana")
         v, d = self.cells["mana"]
         v.configure(text=self._q(mana) if mana is not None else "1",

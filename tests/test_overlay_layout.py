@@ -23,7 +23,8 @@ def ensure_display():
 # 与 test_overlay_smoke 同款基础机读字段(+ mana 新键)
 _BASE = {"enemy_total": 40, "enemy_hp": 40, "enemy_armor": 0,
          "lethal": 14, "lethal_hand": 0, "lethal_deck": 14,
-         "lethal_board": 0, "can_kill": False, "spellpower": 0,
+         "lethal_board": 0, "can_kill": False, "lethal_est": False,
+         "spellpower": 0,
          "ramp": 10, "ramp_hand": 2, "ramp_deck": 8,
          "cost_list": 45, "cost_deck": 33, "cost_hand": 12,
          "discount": {"cards": 1, "total": 2, "sources": ["生命缚誓者的礼物"]},
@@ -75,20 +76,30 @@ def test_advice_rows_wording():
 # ================= overlay: 面板 =================
 
 def test_stat_panel_new_cells():
-    """六格新布局: 理论伤害格细节带当前法强; 法力格缺数据默认 1;
-    回费细节按 库+手(卡组、手牌)序; 减费格不变。"""
+    """六格布局: 可斩伤害格(2026-09-18 口径)细节双形态 —— 法力可行链
+    (场+线+潜力库) / 理论粗估(手+库+场); 可斩数值转亮橙(lethal 新色键);
+    法力格缺数据默认 1; 回费细节按 库+手(卡组、手牌)序; 减费格不变。"""
     root = tk.Tk()
     root.withdraw()                    # 测试不显示 UI
     try:
         from hsbot.overlay import _DEFAULT_COLORS, _StatPanel
+        assert ("lethal", "可斩伤害") in _StatPanel._CELLS   # 标签更名
         p = _StatPanel(tk, root, dict(_DEFAULT_COLORS), 10)
         p.update(dict(_BASE))
         assert p.cells["mana"][0].cget("text") == "2"
         assert p.cells["mana"][1].cget("text") == "水晶2/3"
-        assert p.cells["lethal"][1].cget("text") == "手0+库14+场0 · 法强0"
-        assert p.cells["ramp"][1].cget("text") == "库8+手2"
+        assert p.cells["lethal"][1].cget("text") == \
+            "场0+线0 · 潜力库14 · 法强0"
+        assert p.cells["lethal"][0].cget("foreground") == \
+            _DEFAULT_COLORS["stat"]                    # 不可斩: 常规色
         p.update({**_BASE, "can_kill": True})
-        assert p.cells["lethal"][1].cget("text") == "可斩 手0+库14+场0 · 法强0"
+        assert p.cells["lethal"][1].cget("text") == \
+            "可斩 场0+线0 · 潜力库14 · 法强0"
+        assert p.cells["lethal"][0].cget("foreground") == \
+            _DEFAULT_COLORS["lethal"]                  # 可斩: 亮橙新色键
+        p.update({**_BASE, "lethal_est": True})        # 理论粗估形态
+        assert p.cells["lethal"][1].cget("text") == \
+            "理论 手0+库14+场0 · 法强0"
         p.update({k: v for k, v in _BASE.items()
                   if k not in ("mana", "mana_res")})
         assert p.cells["mana"][0].cget("text") == "1"     # 默认 1(用户定版)
@@ -300,3 +311,18 @@ def test_transparent_log_and_opaque_panels(ensure_display, monkeypatch,
     assert h["tc"] in ("", "transparent")           # 未设置镂空色
     assert h["alpha"] == 0.72
     assert h["txt_bg"] == "#0d1117"
+
+
+def test_stat_panel_lethal_color_missing_key_falls_back():
+    """旧 config 无 lethal 色键: can_kill 回退 stat 色(向后兼容)。"""
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        from hsbot.overlay import _DEFAULT_COLORS, _StatPanel
+        colors = {k: v for k, v in _DEFAULT_COLORS.items() if k != "lethal"}
+        p = _StatPanel(tk, root, colors, 10)
+        p.update({**_BASE, "can_kill": True})
+        assert p.cells["lethal"][0].cget("foreground") == \
+            _DEFAULT_COLORS["stat"]
+    finally:
+        root.destroy()
