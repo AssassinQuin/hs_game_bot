@@ -87,8 +87,8 @@ def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch, tmp_path):
         assert text in body, f"未渲染: {text}"
 
 
-def test_stat_panel_fields_and_kill_gold(ensure_display):
-    """上区六格面板: 机读字段驱动数值/细节三层字级; 可斩转金色;
+def test_stat_panel_fields_and_kill_color(ensure_display):
+    """上区六格面板: 机读字段驱动数值/细节三层字级; 可斩转亮橙(lethal 色);
     法力格缺数据默认 1(2026-09-14 三区布局定版);
     无机读字段的旧形态走原文兜底行。"""
     root = tk.Tk()
