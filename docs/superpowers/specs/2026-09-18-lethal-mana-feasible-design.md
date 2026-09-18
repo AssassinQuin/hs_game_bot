@@ -58,6 +58,7 @@ lethal = burst_hand + burst_deck + burst_board
   - `can_kill` 时数值 `fg=colors["lethal"]`(新键, 默认 #ff9500), 否则 `stat` 色; 细节行同步新口径;
   - 兜底: 旧 config 无 `lethal` 键 → 回退 `stat` 色(向后兼容)。
 - `_DEFAULT_COLORS`(overlay.py)与 config.yaml 注释各加一行 `lethal: "#ff9500"`。
+  - 勘误(2026-09-18 Task 2 审查): 生产接线 `OverlayWindow` 用 `{**_DEFAULT_COLORS, **用户色表}` 合并——旧 config 缺 `lethal` 键的实际结果是继承新默认亮橙, 「缺键回退 stat 色」仅在手工构造的部分色表下可达(防御分支, 保留)。
 - 控制台无彩色, 颜色只影响悬浮窗信息区。
 
 ## 4. 不变式(改代码前必读)

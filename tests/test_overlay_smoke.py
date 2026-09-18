@@ -70,7 +70,7 @@ def test_overlay_smoke_all_message_kinds(ensure_display, monkeypatch, tmp_path):
                        ("error", "! 监控线程已退出, 请重启 hsbot")]:
         q.put((kind, text))
     # 新形态: KIND_STAT 带机读字段(4 元组) → 上区走分格面板
-    q.put(("stat", "敌 40(40血+0甲) │ 斩杀 14(手0+库14+场0) │ 法强 0\n"
+    q.put(("stat", "敌 40(40血+0甲) │ 斩杀 14(场0+线0) │ 法强 0\n"
                    "回费 +10(手2+库8) │ 费 组45/库33/手12 │ 减2(生命缚誓者的礼物)",
            "stat",
            {"enemy_total": 40, "enemy_hp": 40, "enemy_armor": 0,
