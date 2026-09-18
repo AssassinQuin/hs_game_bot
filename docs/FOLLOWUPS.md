@@ -60,6 +60,10 @@
 - 素材重建:`python3 -m trainer material --deck 奇迹德`(trainer/data 为 gitignored 本地产物)
 - CLI 旗标形态:顶层旗标在子命令前,子命令旗标(--hand/--coin/--enemy)在子命令后
 - 测试基线:376 passed(2026-09-17, 二轮审计修复波后)
+- 基线修订(2026-09-18, macOS 本机 lethal-mana-feasible 验收): 373 passed + 3 skipped + 1 env-fail = 377 collected。
+  两项 macOS 环境性(预存, stash 复证): ① `test_transparent_log_and_opaque_panels` 必败(`-transparentcolor` Windows-only);
+  ② `test_overlay_layout.py` 与 `test_overlay_smoke.py` 单进程合并跑挂死(Tk mainloop 生命周期)——分进程跑正常。
+  376 为 Windows 机器口径;新分支以本机"377 collected / 373 passed / 1 env-fail"为对照锚
 
 ## [P5] 测试环境加固(2026-09-17 审计产出) → 归并 Issue #3
 

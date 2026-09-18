@@ -41,6 +41,10 @@ lethal = burst_hand + burst_deck + burst_board
 | 字段 | plan 存在(我方回合+开关开) | plan=None(fallback) |
 |---|---|---|
 | `lethal` | `plan.total` | 粗估原式 `burst_hand+burst_deck+burst_board` |
+
+勘误(2026-09-18 终审): "plan 存在"列以契约为前提——plan 带 `total`(正常 lethal_plan 产物恒带)。
+退化输入(在场但无 `total`, 如测试自造空 actions dict): 数字降级为理论粗估原式 + `lethal_est=True`,
+但 `can_kill` 仍随 `plan.lethal`(判定属 planner, 与数字来源解耦; 见 Task 1 审查裁决与 golden 钉死)。
 | `lethal_board` | `plan.board_atk`(可打脸场攻) | `st.board_attack(me)`(现状) |
 | `lethal_hand` | `plan.total − plan.board_atk`(出牌链伤害, 含已知抽/引擎抽成分) | `burst_hand`(现状) |
 | `lethal_deck` | 原计算保留(潜力注记) | 原计算保留 |
