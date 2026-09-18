@@ -211,8 +211,9 @@ def test_snapshot_line_friendly_unknown_fallback():
 
 
 def test_top_summary_two_lines(tmp_path):
-    """上部信息区: 敌血甲总和/斩杀(当前法强+场面)/法强 + 回费/费用,
-    斩杀≥敌血标"可斩"; 通用模式牌库侧诚实降级为 ?; 友方未解析返回 None。"""
+    """上部信息区: 敌血甲总和/斩杀(双口径)/法强 + 回费/费用,
+    理论粗估(plan 缺席)不报可斩; 通用模式牌库侧诚实降级为 ?;
+    友方未解析返回 None。"""
     import json
 
     p = tmp_path / "cards.json"
@@ -252,9 +253,11 @@ def test_top_summary_two_lines(tmp_path):
     k.rebuild(st)                                  # 与 watcher 批尾同序
     out = top_summary(st, knowledge=k, carddb=db, analyzer=a)
     l1, l2 = out.split("\n")
-    # 斩杀 = 手火球(6+法强2)=8 + 库剩火球(6+法强2)=8 + 场攻 3 = 19 ≥ 敌 8 → 可斩
+    # 理论斩杀 = 手火球(6+法强2)=8 + 库剩火球(6+法强2)=8 + 场攻 3 = 19;
+    # plan 缺席 → 只报理论, 不报可斩(宁漏勿错, 2026-09-18 口径)
     assert "敌 8(5血+3甲)" in l1
-    assert "斩杀 19(手8+库8+场3,可斩)" in l1
+    assert "斩杀 理论19(手8+库8+场3)" in l1
+    assert ",可斩" not in l1
     assert "法强 2" in l1
     assert "回费 +2(手1+库1)" in l2                # 手激活1 + 库剩激活1
     assert "费 组8/库4/手0" in l2                   # 组2×4, 库剩火球4, 手: 火球被减到0
@@ -262,14 +265,15 @@ def test_top_summary_two_lines(tmp_path):
     # 通用模式(无卡组): 牌库侧降级, 斩杀合计只含已知部分(手+场)
     out2 = top_summary(st, knowledge=None, carddb=db, analyzer=a)
     assert "库?" in out2 and "组?" in out2
-    assert "斩杀 11(手8+库?+场3,可斩)" in out2
+    assert "斩杀 理论11(手8+库?+场3)" in out2
     # 友方未解析 → None(信息区保持原样)
     st2 = GameStore(carddb=db, battletag="湫然#51704",
                     tree=EmptyTree(), player_manager=mk_pm())
     assert top_summary(st2, knowledge=None, carddb=db, analyzer=a) is None
     # 机读字段与文本同源: 悬浮窗分格面板与控制台文本不做平行计算
     f = stat_fields(st, knowledge=k, carddb=db, analyzer=a)
-    assert f["enemy_total"] == 8 and f["can_kill"] is True
+    assert f["enemy_total"] == 8 and f["can_kill"] is False \
+        and f["lethal_est"] is True
     assert f["lethal"] == 19 and f["lethal_hand"] == 8 \
         and f["lethal_deck"] == 8 and f["lethal_board"] == 3
     assert f["ramp"] == 2 and f["cost_list"] == 8 and f["cost_deck"] == 4 \
@@ -278,7 +282,20 @@ def test_top_summary_two_lines(tmp_path):
     assert stat_text(f) == out                 # 字段 → 文本, 与组合入口零差异
     f2 = stat_fields(st, knowledge=None, carddb=db, analyzer=a)
     assert f2["lethal_deck"] is None and f2["cost_list"] is None \
-        and f2["can_kill"] is True
+        and f2["can_kill"] is False and f2["lethal_est"] is True
+    # plan 口径(2026-09-18 spec): 法力可行链接管主数字与判定
+    pl = {"actions": [], "total": 9, "face_det": 9, "face_exp": 0,
+          "lethal": True, "enemy_total": 8, "board_atk": 3, "uncovered_n": 0}
+    f3 = stat_fields(st, knowledge=k, carddb=db, analyzer=a, plan=pl)
+    assert f3["lethal"] == 9 and f3["lethal_board"] == 3 \
+        and f3["lethal_hand"] == 6
+    assert f3["can_kill"] is True and f3["lethal_est"] is False
+    assert "斩杀 9(场3+线6,可斩)" in stat_text(f3)
+    # 回归钉: 理论 19 > 敌 8, 但 plan 不可斩 → 不报可斩
+    pl2 = {**pl, "total": 5, "lethal": False}
+    f4 = stat_fields(st, knowledge=k, carddb=db, analyzer=a, plan=pl2)
+    assert f4["lethal"] == 5 and f4["can_kill"] is False \
+        and f4["lethal_est"] is False
 
 
 def test_stat_fields_ramp_discount_capped_by_targets(tmp_path):

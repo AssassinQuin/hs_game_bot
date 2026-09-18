@@ -1,7 +1,9 @@
 """斩杀线渲染(render 第三行 + overlay 上区行): plan 机读事实 → "可斩: …" 措辞。
 
-零变化铁律: plan=None / 非可斩时 stat_text 输出与现行两行版逐字节一致
-(golden 硬编码断言, 防 措辞漂移)。结论词"可斩"归 render, plan 只带事实。
+口径(2026-09-18 lethal-mana-feasible spec): 斩杀行双口径 —— plan 在场 =
+法力可行链 `斩杀 X(场A+线B)`; plan 缺席 = 理论粗估 `斩杀 理论X(手A+库B+场C)`
+且 can_kill 恒 False(golden 硬编码断言, 防措辞漂移)。结论词"可斩"归 render,
+plan 只带事实。
 """
 import json
 
@@ -17,8 +19,17 @@ from .conftest import (mk_full, mk_heroes as _heroes, mk_store as _store,
 
 # 场景 golden(现行 HEAD 两行版逐字节): 敌 2血+0甲; 手中火球(6伤,法强0)
 # → 斩杀 6 ≥ 2 → 行1 可斩; 通用模式(knowledge=None)库/组侧诚实降级 ?
-_GOLDEN_TWO_LINES = (
-    "敌 2(2血+0甲) │ 斩杀 6(手6+库?+场0,可斩) │ 法强 0\n"
+_GOLDEN_THEORY = (
+    "敌 2(2血+0甲) │ 斩杀 理论6(手6+库?+场0) │ 法强 0\n"
+    "回费 +0(手0+库?) │ 费 组?/库?/手4"
+)
+# plan 口径(_PLAN: total=6, board_atk=0 → 场0+线6)
+_GOLDEN_PLAN_KILL = (
+    "敌 2(2血+0甲) │ 斩杀 6(场0+线6,可斩) │ 法强 0\n"
+    "回费 +0(手0+库?) │ 费 组?/库?/手4"
+)
+_GOLDEN_PLAN_NO_KILL = (
+    "敌 2(2血+0甲) │ 斩杀 6(场0+线6) │ 法强 0\n"
     "回费 +0(手0+库?) │ 费 组?/库?/手4"
 )
 # analysis.lethal_plan 同构机读事实(契约 §2): 两个动作, 一可解析一不可解析
@@ -51,13 +62,15 @@ def _scene(tmp_path):
     return st, db, EffectAnalyzer(db)
 
 
-def test_stat_text_golden_two_lines_unchanged(tmp_path):
-    """基线回归: 不带 plan 的现行输出 = 硬编码 golden(改前后都必须过)。"""
+def test_stat_text_theory_golden(tmp_path):
+    """基线回归: 不带 plan = 理论粗估口径 —— lethal_est=True, can_kill
+    恒 False(宁漏勿错), 无 `,可斩` 标记; 硬编码 golden 防措辞漂移。"""
     from hsbot.render import stat_fields, stat_text
 
     st, db, a = _scene(tmp_path)
-    assert stat_text(stat_fields(st, knowledge=None, carddb=db, analyzer=a)) \
-        == _GOLDEN_TWO_LINES
+    f = stat_fields(st, knowledge=None, carddb=db, analyzer=a)
+    assert f["lethal_est"] is True and f["can_kill"] is False
+    assert stat_text(f) == _GOLDEN_THEORY
 
 
 def test_stat_text_appends_lethal_line(tmp_path):
@@ -68,8 +81,11 @@ def test_stat_text_appends_lethal_line(tmp_path):
     st, db, a = _scene(tmp_path)
     f = stat_fields(st, knowledge=None, carddb=db, analyzer=a, plan=_PLAN)
     assert f["plan"] is _PLAN                  # 原样透传(契约 §3)
+    assert f["lethal_est"] is False and f["can_kill"] is True
+    assert f["lethal"] == 6 and f["lethal_board"] == 0 \
+        and f["lethal_hand"] == 6              # 法力可行链接管主数字
     out = stat_text(f)
-    assert out == f"{_GOLDEN_TWO_LINES}\n{_LINE3}"
+    assert out == f"{_GOLDEN_PLAN_KILL}\n{_LINE3}"
     assert top_summary(st, knowledge=None, carddb=db, analyzer=a,
                        plan=_PLAN) == out      # 组合入口透传
 
@@ -81,7 +97,7 @@ def test_stat_text_lethal_false_no_third_line(tmp_path):
     st, db, a = _scene(tmp_path)
     f = stat_fields(st, knowledge=None, carddb=db, analyzer=a,
                     plan={**_PLAN, "lethal": False})
-    assert stat_text(f) == _GOLDEN_TWO_LINES
+    assert stat_text(f) == _GOLDEN_PLAN_NO_KILL
 
 
 def test_plan_line_carddb_name_missing_falls_back(tmp_path):
@@ -101,7 +117,7 @@ def test_plan_line_carddb_name_missing_falls_back(tmp_path):
 
     f = stat_fields(st, knowledge=None, carddb=db, analyzer=a, plan=_PLAN)
     f["_carddb"] = _Boom()                     # 出名失败: 全部回退 card_id
-    assert stat_text(f) == (f"{_GOLDEN_TWO_LINES}\n"
+    assert stat_text(f) == (f"{_GOLDEN_PLAN_KILL}\n"
                             "可斩: CS2_029(4费)→UNKNOWN_X(0费) 伤6+场0 ≥ 2")
 
 
@@ -114,7 +130,7 @@ def test_plan_degenerate_empty_actions_no_crash(tmp_path):
     f = stat_fields(st, knowledge=None, carddb=db, analyzer=a,
                     plan={"actions": [], "lethal": True})
     out = stat_text(f)                         # 不抛异常
-    assert out.startswith(_GOLDEN_TWO_LINES)
+    assert out.startswith("敌 2(2血+0甲) │ 斩杀 理论6(手6+库?+场0,可斩)")
     assert "可斩: (无动作) 伤?+场? ≥ ?" in out
 
 

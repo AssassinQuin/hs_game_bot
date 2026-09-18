@@ -321,14 +321,17 @@ def _render_spellpower(evt: dict, carddb: CardDB) -> str:
 
 def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
                 plan: dict | None = None) -> dict | None:
-    """信息区机读字段(唯一事实来源): 敌血甲/斩杀构成/法强/回费/费用。
+    """信息区机读字段(唯一事实来源): 敌血甲/可斩伤害/法强/回费/费用。
     文本版(stat_text)与悬浮窗分格面板(overlay)都从它渲染, 不做平行计算。
-    斩杀口径(2026-09-13 用户定版): 手牌伤害 + 牌库剩余伤害(台账期望组成,
-    均按当前实际法强加成: 法术/技能=(基础+法强)×段数, 其余按基础值×段数)
-    + 场面总攻
-    —— 理论上限粗估, 非出牌链搜索。友方或对手未解析 → None(信息区保持原样)。
+    伤害口径(2026-09-18 lethal-mana-feasible spec): plan 在场 → 法力可行链
+    plan.total(逐张付费含实时减费/已知抽/引擎抽; 场=plan.board_atk,
+    线=total−场), can_kill 复用 plan.lethal(planner 统一斩杀算式, 不重算);
+    plan 缺席(对手回合/开关关/无手牌)或退化(无 total)→ 理论粗估(手牌伤害+
+    牌库剩余伤害+场面总攻, 均按当前实际法强加成, 无法力约束) + lethal_est=True,
+    can_kill 恒 False(粗估不构成可斩依据)。
+    友方或对手未解析 → None(信息区保持原样)。
     plan: 斩杀线机读事实(analysis.lethal_plan 产物, None=未算/开关关闭),
-    原样透传入 dict(零变化铁律: None 时不改变任何现有输出)。"""
+    原样透传入 dict。"""
     me, opp = st.friendly_key, st.opponent_key()
     if me is None or opp is None:
         return None
@@ -431,16 +434,31 @@ def stat_fields(st: GameStore, *, knowledge, carddb: CardDB, analyzer,
         for cid, n in knowledge.decklist.items():
             if carddb.cardtype(cid) == "SPELL":
                 list_cost += (carddb.cost(cid) or 0) * n
-    lethal = burst_hand + (burst_deck or 0) + burst_board
     hero = st.hero(opp)
     enemy = st.hero_total_hp(opp) if hero is not None else None
     mana = st.mana_now(me)               # 当前可用法力(法力格缺数据时 UI 默认 1)
+    # 伤害口径(2026-09-18 lethal-mana-feasible spec): plan 在场(我方回合+
+    # 开关开)→ 法力可行链接管, can_kill 复用 plan.lethal(避免双口径);
+    # plan 缺席/退化(无 total)→ 理论粗估原式 + lethal_est=True, can_kill
+    # 恒 False(宁漏勿错: 粗估无法力约束, 不报可斩; 退化 plan 带 lethal=True
+    # 时 can_kill 仍随 plan, 数字诚实降级为理论值)。
+    if plan is not None and plan.get("total") is not None:
+        burst_board = plan.get("board_atk", 0)
+        burst_hand = plan["total"] - burst_board
+        lethal = plan["total"]
+        can_kill = bool(plan["lethal"])
+        lethal_est = False
+    else:
+        lethal = burst_hand + (burst_deck or 0) + burst_board
+        can_kill = bool(plan.get("lethal")) if plan is not None else False
+        lethal_est = True
     return {
         "enemy_total": enemy, "enemy_hp": st.hero_hp(opp),
         "enemy_armor": st.hero_armor(opp),
         "lethal": lethal, "lethal_hand": burst_hand, "lethal_deck": burst_deck,
         "lethal_board": burst_board,
-        "can_kill": enemy is not None and lethal > 0 and lethal >= enemy,
+        "can_kill": can_kill,
+        "lethal_est": lethal_est,
         "spellpower": sp,
         "mana": mana, "mana_res": st.mana_fields(me)["res"],
         "ramp": ramp_hand + (ramp_deck or 0), "ramp_hand": ramp_hand,
@@ -543,25 +561,31 @@ def plan_rows(f: dict) -> list[tuple[str, str]]:
 
 def stat_text(f: dict) -> str:
     """信息区字段 → 两行文本(控制台/会话文件用; 悬浮窗走分格面板)。
-    手牌减费在身时行尾追加 减N(来源) 段; 无减费保持两段。
-    plan.lethal 时末尾追加第三行"可斩: 线 伤X+场Y ≥ Z"(措辞归 render);
-    无 plan/非可斩 → 与两行版逐字节一致(零变化铁律: 非可斩的"最优"行
-    只进悬浮窗推荐区(render.plan_rows), 绝不漏进控制台输出)。"""
+    斩杀行双口径(2026-09-18 spec): 法力可行链(lethal_est=False) →
+    `斩杀 X(场A+线B)`; 理论粗估(lethal_est=True) → `斩杀 理论X(手A+库B+场C)`,
+    无法力约束不构成可斩依据。can_kill 时追加 `,可斩`。手牌减费在身时行尾
+    追加 减N(来源) 段; 无减费保持两段。plan.lethal 时末尾追加第三行
+    "可斩: 线 伤X+场Y ≥ Z"(措辞归 render); 无第三行时不影响前两行。"""
     q = lambda v: "?" if v is None else str(v)               # noqa: E731
     if f["enemy_total"] is None:
         enemy_txt = "?"
     else:
         enemy_txt = f"{f['enemy_total']}({f['enemy_hp']}血+{f['enemy_armor']}甲)"
     kill_mark = ",可斩" if f["can_kill"] else ""
+    if f.get("lethal_est"):
+        lethal_txt = (f"理论{f['lethal']}(手{f['lethal_hand']}"
+                      f"+库{q(f['lethal_deck'])}"
+                      f"+场{f['lethal_board']}{kill_mark})")
+    else:
+        lethal_txt = (f"{f['lethal']}(场{f['lethal_board']}"
+                      f"+线{f['lethal_hand']}{kill_mark})")
     line2 = (f"回费 +{f['ramp']}(手{f['ramp_hand']}+库{q(f['ramp_deck'])})"
              f" │ 费 组{q(f['cost_list'])}/库{q(f['cost_deck'])}/手{f['cost_hand']}")
     disc = f.get("discount") or {}
     if disc.get("total"):
         srcs = "·".join(disc.get("sources") or [])
         line2 += f" │ 减{disc['total']}" + (f"({srcs})" if srcs else "")
-    txt = (f"敌 {enemy_txt} │ 斩杀 {f['lethal']}"
-           f"(手{f['lethal_hand']}+库{q(f['lethal_deck'])}"
-           f"+场{f['lethal_board']}{kill_mark})"
+    txt = (f"敌 {enemy_txt} │ 斩杀 {lethal_txt}"
            f" │ 法强 {f['spellpower']}\n{line2}")
     plan = f.get("plan") or {}
     line3 = _lethal_line(plan, f.get("_carddb")) if plan.get("lethal") else None
